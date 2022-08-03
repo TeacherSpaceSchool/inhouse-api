@@ -1,525 +1,782 @@
 const Sale = require('../models/sale');
-const WorkShift = require('../models/workshift');
-const Consignation = require('../models/consignation');
-const Prepayment = require('../models/prepayment');
-const Cashbox = require('../models/cashbox');
-const District = require('../models/district');
-const { pdQRKKM, checkFloat, cashierMaxDay } = require('../module/const');
-const { check } = require('../module/kkm');
-const QRCode = require('qrcode')
+const ItemSale = require('../models/itemSale');
+const History = require('../models/history');
+const Reservation = require('../models/reservation');
+const Salary = require('../models/salary');
+const BonusManager = require('../models/bonusManager');
+const Order = require('../models/order');
+const Installment = require('../models/installment');
+const ItemReservation = require('../models/itemReservation');
+const ItemOrder = require('../models/itemOrder');
+const Item = require('../models/item');
+const StoreBalanceItem = require('../models/storeBalanceItem');
+const BalanceClient = require('../models/balanceClient');
+const {urlMain, checkFloat, pdDDMMYYYY} = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const Doc = require('../models/doc');
 
 const type = `
   type Sale {
     _id: ID
     createdAt: Date
+    paymentConfirmation: Boolean
     number: String
-    legalObject: LegalObject
-    branch: Branch
-    cashier: User
-    cashbox: Cashbox
-    workShift: WorkShift
+    manager: User
     client: Client
-    sale: Sale
-    typePayment: String
-    type: String
-    returned: Boolean
-    used: Boolean
-    paid: Float
-    usedPrepayment: Float
-    change: Float
-    extra: Float
-    qr: String
+    itemsSale: [ItemFromList]
+    geo: [Float]
     discount: Float
+    cpa: Cpa
+    percentCpa: Float
+    bonusManager: Float
+    prepaid: Float
+    bonusCpa: Float
+    amountStart: Float
     amountEnd: Float
-    ndsPrecent: Float
-    nspPrecent: Float
-    nds: Float
-    sync: Boolean
-    syncMsg: String
-    nsp: Float
-    items: [ItemSale]
+    typePayment: String
+    installment: Installment
+    address: String
+    addressInfo: String
     comment: String
- }
-  type ItemSale {
-        name: String
-        unit: String
-        count: Float
-        price: Float
-        discount: Float
-        extra: Float
-        amountStart: Float
-        amountEnd: Float
-        ndsType: String
-        nds: Float
-        nspType: String
-        nsp: Float
-    tnved: String
-    mark: Boolean
-  }
-  type SalesCount {
-        count: Float
-        sale: Float
-        returned: Float
-        prepayment: Float
-        consignation: Float
-        paidConsignation: Float
-        discount: Float
-        extra: Float
-  }
-  input InputItemSale {
-        name: String
-        unit: String
-        count: Float
-        price: Float
-        discount: Float
-        extra: Float
-        amountStart: Float
-        amountEnd: Float
-        ndsType: String
-        nds: Float
-        nspType: String
-        nsp: Float
-    tnved: String
-    mark: Boolean
-  }
+    currency: String
+    paid: Float
+    delivery: Date
+    status: String
+    store: Store
+    orders: [Order]
+    reservations: [Reservation]
+    refunds: [Refund]
+}
 `;
 
 const query = `
-    sales(skip: Int, limit: Int, date: String, legalObject: ID, branch: ID, cashbox: ID, client: ID, type: String, cashier: ID, workShift: ID): [Sale]
-    salesCount(date: String, legalObject: ID, branch: ID, cashbox: ID, client: ID, type: String, cashier: ID, workShift: ID, newSale: Boolean): SalesCount
-    sale(_id: ID!, rnmNumber: String, number: String, type: String): Sale
+    getAttachment(_id: ID!): String
+    salesBonusManager: [Float]
+    sales(skip: Int, items: Boolean, limit: Int, manager: ID, client: ID, cpa: ID, date: Date, delivery: Date, status: String, store: ID): [Sale]
+    salesCount(manager: ID, client: ID, cpa: ID, date: Date, delivery: Date, status: String, store: ID): Int
+    sale(_id: ID!): Sale
 `;
 
 const mutation = `
-    addSale(ndsPrecent: Float!, nspPrecent: Float!, client: ID, sale: ID, comment: String, typePayment: String!, type: String!, paid: Float!, usedPrepayment: Float!, change: Float!, extra: Float!, discount: Float!, amountEnd: Float!, nds: Float!, nsp: Float!, items: [InputItemSale]!): ID
+    addSale(client: ID!, prepaid: Float, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, percentCpa: Float, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date!, orders: [ID], reservations: [ID]!): String
+    setSale(_id: ID!, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
 `;
 
 const resolvers = {
-    sales: async(parent, {skip, limit, legalObject, branch, cashier, cashbox, client, type, date, workShift}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)) {
-            if(user.legalObject) legalObject = user.legalObject
-            let dateStart, dateEnd, districts = [], workShiftsCashier = []
-            if(user.role==='супервайзер'){
-                districts = await District.find({
-                    supervisors: user._id,
-                })
-                    .distinct('branchs')
-                    .lean()
-            }
-            else if(user.role==='кассир'){
-                let dateStartCashier = new Date()
-                dateStartCashier.setDate(dateStartCashier.getDate() - cashierMaxDay)
-                workShiftsCashier = await WorkShift
-                    .findOne({
-                        legalObject: user.legalObject,
-                        branch: user.branch,
-                        cashier: user._id,
-                        createdAt: {$gte: dateStartCashier}
-                    })
-                    .distinct('_id')
-                    .lean()
-            }
-            if (date&&date.length) {
-                dateStart = new Date(date)
-                dateStart.setHours(0, 0, 0, 0)
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
-            }
-            return await Sale.find({
-                ...dateStart||'супервайзер'===user.role||branch?{
-                    $and: [
-                        ...dateStart?[{createdAt: {$gte: dateStart}},{createdAt: {$lt: dateEnd}}]:[],
-                        ...user.role==='супервайзер'?[{branch: {$in: districts}}]:[],
-                        ...branch?[{branch}]:[]
-                    ]
-                }:{},
-                 ...legalObject ? {legalObject} : {},
-                ...client ? {client} : {},
-                ...cashbox ? {cashbox} : {},
-                ...workShift||user.role==='кассир'?user.role==='кассир'?{workShift: {$in: workShiftsCashier}}:{workShift}:{},
-                ...type&&type.length ? {type: type==='Возврат продажи'?{$in: ['Продажа', 'Кредит']}:type} : {},
-                ...cashier?{cashier}:{},
+    getAttachment: async(parent, {_id}, {user}) => {
+        if(['admin'].includes(user.role)) {
+            let sale = await Sale.findOne({
+                _id,
             })
-                .skip(skip != undefined ? skip : 0)
-                .limit(limit? limit : skip != undefined ? 15 : 10000000000)
-                .sort('-createdAt')
+                .populate({
+                    path: 'manager',
+                    select: '_id name'
+                })
                 .populate({
                     path: 'client',
-                    select: 'name _id'
+                    select: '_id name'
                 })
                 .populate({
-                    path: 'cashier',
-                    select: 'name _id role'
+                    path: 'store',
+                    select: '_id name'
                 })
-                .populate({
-                    path: 'cashbox',
-                    select: 'name _id'
-                })
-                .populate({
-                    path: 'legalObject',
-                    select: 'name _id'
-                })
-                .populate({
-                    path: 'branch',
-                    select: 'name _id'
-                })
-                .populate({
-                    path: 'sale',
-                    select: 'number _id'
-                })
-                .populate({
-                    path: 'workShift',
-                    select: 'number _id'
-                })
+                .populate('itemsSale')
                 .lean()
+            let attachmentFile = path.join(app.dirname, 'docs', 'attachment.xlsx');
+            let workbook = new ExcelJS.Workbook();
+            workbook = await workbook.xlsx.readFile(attachmentFile);
+            let worksheet = workbook.getWorksheet('TDSheet');
+            let doc = await Doc.findOne({}).select('name director').lean()
+            worksheet.getRow(1).getCell(4).value = doc.name
+            worksheet.getRow(7).getCell(8).value = sale.amountStart
+            worksheet.getRow(10).getCell(4).value = sale.client.name
+            worksheet.getRow(12).getCell(4).value = doc.director
+            worksheet.getRow(14).getCell(4).value = sale.manager.name
+            if(!sale.discount)
+                worksheet.spliceRows(8, 1)
+            else {
+                worksheet.getRow(8).getCell(3).value = `Итого сумма со скидкой ${checkFloat(sale.discount*100/sale.amountStart)}%`
+                worksheet.getRow(8).getCell(8).value = sale.amountEnd
+            }
+
+            worksheet.duplicateRow(6, sale.itemsSale.length-1, true)
+            for(let i=0; i<sale.itemsSale.length; i++) {
+                let row = 6+i
+                let art = await Item.findById(sale.itemsSale[i].item).select('art').lean()
+                if(art)
+                    worksheet.getRow(row).getCell(3).value = art.art
+                worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].name
+                worksheet.getRow(row).getCell(5).value = ''
+                if(sale.itemsSale[i].characteristics.length) {
+                    if(sale.itemsSale[i].characteristics.length>2)
+                        worksheet.getRow(row).height = 15*sale.itemsSale[i].characteristics.length
+                    for(let i1=0; i1<sale.itemsSale[i].characteristics.length; i1++) {
+                        worksheet.getRow(row).getCell(5).value += `${sale.itemsSale[i].characteristics[i1][0]}: ${sale.itemsSale[i].characteristics[i1][1]};`
+                        if(i1+1!==sale.itemsSale[i].characteristics.length)
+                            worksheet.getRow(row).getCell(5).value += '\n'
+                    }
+                }
+                worksheet.getRow(row).getCell(6).value = sale.itemsSale[i].count
+                worksheet.getRow(row).getCell(7).value = sale.itemsSale[i].price
+                worksheet.getRow(row).getCell(8).value = sale.itemsSale[i].amount
+            }
+
+            let xlsxname = `Прилож к договору купли-продажи №${sale.number}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+
         }
     },
-    salesCount: async(parent, {legalObject, branch, cashier, cashbox, client, type, date, workShift}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)) {
-            if(user.legalObject) legalObject = user.legalObject
-            let dateStart, dateEnd, districts = [], activeWorkshifts = [], workShiftsCashier = []
-            if(user.role==='супервайзер'){
-                districts = await District.find({
-                    supervisors: user._id,
-                })
-                    .distinct('branchs')
-                    .lean()
+    salesBonusManager: async(parent, ctx, {user}) => {
+        if('менеджер'===user.role) {
+            let dateStart = new Date()
+            dateStart.setHours(0, 0, 0, 0)
+            let dateEnd = new Date(dateStart)
+            dateEnd.setDate(dateEnd.getDate() + 1)
+            let sales = await Sale.find({
+                $and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}],
+                manager: user._id,
+                status: {$ne: 'отмена'}
+            })
+                .select('bonusManager amountEnd')
+                .lean()
+            let bonusManager = 0, allSalesAmount = 0
+            for (let i = 0; i < sales.length; i++) {
+                bonusManager = checkFloat(bonusManager + sales[i].bonusManager)
+                allSalesAmount = checkFloat(allSalesAmount + sales[i].amountEnd)
             }
-            else if(user.role==='кассир'){
-                let dateStartCashier = new Date()
-                dateStartCashier.setDate(dateStartCashier.getDate() - cashierMaxDay)
-                workShiftsCashier = await WorkShift
-                    .findOne({
-                        legalObject: user.legalObject,
-                        branch: user.branch,
-                        cashier: user._id,
-                        createdAt: {$gte: dateStartCashier}
-                    })
-                    .distinct('_id')
-                    .lean()
-            }
-            if (date&&date.length) {
+            return [sales.length, allSalesAmount, bonusManager]
+        }
+    },
+    sales: async(parent, {skip, limit, items, manager, client, cpa, date, delivery, status, store}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
+            if(user.store) store = user.store
+            let dateStart, dateEnd, deliveryStart, deliveryEnd
+            if (date) {
                 dateStart = new Date(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
-            else {
-                activeWorkshifts = await WorkShift.find({
-                    end: null,
-                    ...legalObject ? {legalObject} : {},
-                })
-                    .distinct('_id')
-                    .lean()
+            if (delivery) {
+                deliveryStart = new Date(delivery)
+                deliveryStart.setHours(0, 0, 0, 0)
+                deliveryEnd = new Date(deliveryStart)
+                deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
-            let sales = await Sale.find({
-                $and: [
-                    ...dateStart?[{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]:[],
-                    ...!dateStart&&!workShift?[{workShift: {$in: activeWorkshifts}}]:[],
-                    ...user.role==='супервайзер'?[{branch: {$in: districts}}]:[],
-                    ...branch?[{branch}]:[],
-                    ...workShift||user.role==='кассир'?user.role==='кассир'?[{workShift: {$in: workShiftsCashier}}]:[{workShift}]:[],
-                ],
-                ...legalObject ? {legalObject} : {},
-                ...client ? {client} : {},
-                ...cashbox ? {cashbox} : {},
-                ...type&&type.length ? {type} : {},
-                ...cashier ? {cashier} : {},
+            let res = await Sale.find({
+                ...manager?{manager}:{},
+                ...client?{client}:{},
+                ...store?{store}:{},
+                ...cpa?{cpa}:{},
+                ...delivery?{$and: [{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]}:{},
+                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...delivery?{delivery}:{},
+                ...status?{status}:{},
             })
-                .select('type extra discount amountEnd paid')
+                .skip(skip != undefined ? skip : 0)
+                .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
+                .sort('-createdAt')
+                .populate({
+                    path: 'manager',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'client',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'store',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'cpa',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'installment',
+                    select: '_id status'
+                })
+                .populate({
+                    path: 'orders',
+                    select: '_id number'
+                })
+                .populate({
+                    path: 'reservations',
+                    select: '_id number'
+                })
+                .populate({
+                    path: 'refunds',
+                    select: '_id number'
+                })
                 .lean()
-            let res = {
-                sale: 0,
-                returned: 0,
-                prepayment: 0,
-                consignation: 0,
-                paidConsignation: 0,
-                discount: 0,
-                extra: 0,
-                count: sales.length
-            }
-            for(let i=0; i<sales.length; i++) {
-                if('Продажа'===sales[i].type) res.sale = checkFloat(res.sale+sales[i].amountEnd)
-                if(sales[i].type==='Кредит') {
-                    res.sale = checkFloat(res.sale+sales[i].paid)
-                    res.consignation = checkFloat(res.consignation+sales[i].amountEnd-sales[i].paid)
+            if(items) {
+                items = await Item.find({}).select('_id images').lean()
+                let images = {}
+                for (let i = 0; i < items.length; i++) {
+                    images[items[i]._id] = items[i].images
                 }
-                if(sales[i].type.includes('Возврат')&&sales[i].type!=='Возврат покупки') res.returned = checkFloat(res.returned+sales[i].amountEnd)
-                if(sales[i].type.includes('Аванс')) res.prepayment = checkFloat(res.prepayment+sales[i].amountEnd)
-                if(sales[i].type.includes('Погашение кредита')) res.paidConsignation = checkFloat(res.paidConsignation+sales[i].amountEnd)
-                if('Продажа'===sales[i].type){
-                    res.discount = checkFloat(res.discount+sales[i].discount)
-                    res.extra = checkFloat(res.extra+sales[i].extra)
+                for (let i = 0; i < res.length; i++) {
+                    res[i].itemsSale = await ItemSale.find({_id: {$in: res[i].itemsSale}}).lean()
+                    for (let i1 = 0; i1 < res[i].itemsSale.length; i1++) {
+                        res[i].itemsSale[i1].images = images[res[i].itemsSale[i1].item]
+                    }
                 }
             }
             return res
         }
     },
-    sale: async(parent, {_id, rnmNumber, number, type}, {user}) => {
-        if(/*['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)*/true) {
-            /*let districts = []
-            if (user.role === 'супервайзер') {
-                districts = await District.find({
-                    supervisors: user._id,
-                })
-                    .distinct('branchs')
-                    .lean()
-            }*/
-            if(rnmNumber) {
-                rnmNumber = await Cashbox.findOne({
-                    rnmNumber, ...user.legalObject ? {
-                        legalObject: user.legalObject,
-                        del: {$ne: true}
-                    } : {}
-                }).select('_id').lean()
+    salesCount: async(parent, {manager, client, cpa, date, delivery, status, store}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
+            if(user.store) store = user.store
+            let dateStart, dateEnd, deliveryStart, deliveryEnd
+            if (date) {
+                dateStart = new Date(date)
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 1)
             }
-            return await Sale.findOne({
-                ...rnmNumber&&number&&type?{number, cashbox: rnmNumber._id, type: type==='Возврат продажи'?{$in: ['Продажа', 'Кредит']}:type}:{_id},
-                ...user.legalObject ? {legalObject: user.legalObject} : {},
-               // ...'супервайзер' === user.role ? {branch: {$in: districts}} : {},
+            if (delivery) {
+                deliveryStart = new Date(delivery)
+                deliveryStart.setHours(0, 0, 0, 0)
+                deliveryEnd = new Date(deliveryStart)
+                deliveryEnd.setDate(deliveryEnd.getDate() + 1)
+            }
+            return await Sale.countDocuments({
+                ...manager?{manager}:{},
+                ...client?{client}:{},
+                ...store?{store}:{},
+                ...cpa?{cpa}:{},
+                ...delivery?{$and: [{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]}:{},
+                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...delivery?{delivery}:{},
+                ...status?{status}:{},
+            })
+                .lean()
+        }
+    },
+    sale: async(parent, {_id}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
+            let res = await Sale.findOne({
+                _id,
             })
                 .populate({
-                    path: 'cashier',
-                    select: 'name _id role'
-                })
-                .populate({
-                    path: 'cashbox',
-                    select: 'name _id rnmNumber'
+                    path: 'manager',
+                    select: '_id name'
                 })
                 .populate({
                     path: 'client',
-                    select: 'name _id'
+                    select: '_id name'
                 })
                 .populate({
-                    path: 'legalObject',
-                    select: 'name _id inn rateTaxe'
+                    path: 'store',
+                    select: '_id name'
                 })
                 .populate({
-                    path: 'branch',
-                    select: 'name address _id'
+                    path: 'cpa',
+                    select: '_id name'
                 })
                 .populate({
-                    path: 'sale',
-                    select: 'number _id'
+                    path: 'installment',
+                    select: '_id status'
                 })
                 .populate({
-                    path: 'workShift',
-                    select: 'number _id'
+                    path: 'orders',
+                    select: '_id number'
                 })
+                .populate({
+                    path: 'reservations',
+                    select: '_id number'
+                })
+                .populate({
+                    path: 'refunds',
+                    select: '_id number'
+                })
+                .populate('itemsSale')
                 .lean()
+            return res
         }
-    }
+    },
 };
 
 const resolversMutation = {
-    addSale: async(parent, {ndsPrecent, nspPrecent, sale, client, typePayment, type, paid, comment, change, extra, discount, items, usedPrepayment, amountEnd, nds, nsp}, {user}) => {
-        if('кассир'===user.role&&(!type.includes('Возврат')||sale)&&(!usedPrepayment||sale)) {
-            let workShift = await WorkShift.findOne({legalObject: user.legalObject, branch: user.branch, cashier: user._id, end: null})
-            let cashbox = await Cashbox.findOne({_id: workShift.cashbox, legalObject: user.legalObject, branch: user.branch})
-            if(cashbox&&workShift&&((new Date()-workShift.start)/1000/60/60)<24) {
-                let docType
-                let number = (await Sale.countDocuments({cashbox: cashbox._id}).lean())+1;
-                let newSale = new Sale({
-                    number,
-                    legalObject: user.legalObject,
-                    branch: user.branch,
-                    cashier: user._id,
-                    cashbox: cashbox._id,
-                    workShift: workShift._id,
-                    ndsPrecent,
-                    nspPrecent,
-                    client,
-                    sale,
-                    typePayment,
-                    type,
-                    paid,
-                    change,
-                    extra,
-                    discount,
-                    amountEnd,
-                    nds,
-                    nsp,
-                    usedPrepayment,
-                    items,
-                    comment
+    addSale: async(parent, {client, prepaid, itemsSale, geo, discount, cpa, percentCpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, orders, reservations}, {user}) => {
+        if('менеджер'===user.role) {
+            delivery = new Date(delivery)
+            delivery.setHours(0, 0, 0, 0)
+            let object = new Sale({
+                number: (await Sale.countDocuments({}).lean())+1,
+                manager: user._id,
+                client,
+                store: user.store,
+                discount,
+                amountStart,
+                amountEnd,
+                geo,
+                status: 'обработка',
+                cpa,
+                prepaid,
+                percentCpa,
+                typePayment,
+                address,
+                addressInfo,
+                delivery,
+                comment,
+                currency,
+                paid,
+                orders,
+                reservations,
+                bonusCpa: percentCpa?amountEnd/100*percentCpa:0
+            });
+            //На заказ
+            orders = await Order.find({_id: {$in: orders}})
+            for(let i=0; i<orders.length; i++) {
+                orders[i].sale = object._id
+                orders[i].status = 'продан'
+                await ItemOrder.updateMany({_id: {$in: orders[i].itemsOrder}}, {status: 'продан'})
+                await orders[i].save()
+            }
+            //Бронь
+            let itemsReservation
+            reservations = await Reservation.find({_id: {$in: reservations}})
+            for(let i=0; i<reservations.length; i++) {
+                reservations[i].sale = object._id
+                reservations[i].status = 'продан'
+                itemsReservation = await ItemReservation.find({_id: {$in: reservations[i].itemsReservation}}).lean()
+                for(let i1=0; i1<itemsReservation.length; i1++) {
+                    let storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsReservation[i1].item})
+                    storeBalanceItem.reservation = checkFloat(storeBalanceItem.reservation - itemsReservation[i1].count)
+                    storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsReservation[i1].count)
+                    await storeBalanceItem.save()
+                }
+                await ItemReservation.updateMany({_id: {$in: reservations[i].itemsReservation}}, {status: 'продан'})
+                await reservations[i].save()
+            }
+            //Проданные товары
+            for(let i=0; i<itemsSale.length; i++) {
+                itemsSale[i] = new ItemSale(itemsSale[i]);
+                let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsSale[i].item})
+                storeBalanceItem.sale = checkFloat(storeBalanceItem.sale + itemsSale[i].count)
+                storeBalanceItem.free = checkFloat(storeBalanceItem.free - itemsSale[i].count)
+                await storeBalanceItem.save()
+                itemsSale[i] = (await ItemSale.create(itemsSale[i]))._id
+            }
+            object.itemsSale = itemsSale
+            //Баланс клиента
+            if(paid) {
+                let balanceClient = await BalanceClient.findOne({client}).lean(), index
+                for(let i=0; i<balanceClient.balance.length; i++) {
+                    if (balanceClient.balance[i].currency === currency) {
+                        index = i
+                        break
+                    }
+                }
+                if(index===undefined)
+                    balanceClient.balance = [
+                        {
+                            currency,
+                            amount: -paid
+                        },
+                        ...balanceClient.balance
+                    ]
+                else
+                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount - paid)
+                await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+            }
+            //Бонус менеджера
+            let bonusManager = await BonusManager.findOne({manager: user._id}).lean()
+            let bonus = 0
+            if(bonusManager&&bonusManager.bonus.length) {
+                let discountPercent = discount*100/amountStart
+                for(let i=bonusManager.bonus.length-1; i>=0; i--) {
+                    if(bonusManager.bonus[i][0]>=discountPercent) {
+                        bonus = checkFloat(amountEnd/100*bonusManager.bonus[i][1])
+                        break
+                    }
+                }
+                if(bonus) {
+                    let date = new Date()
+                    date.setHours(0, 0, 0, 0)
+                    date.setDate(1)
+                    let salary = await Salary.findOne({employment: user._id, date})
+                    if (salary) {
+                        let history = new History({
+                            who: user._id,
+                            where: salary._id,
+                            what: `Бонус:${salary.bonus}`
+                        });
+                        salary.bonus = checkFloat(salary.bonus + bonus)
+                        salary.pay = checkFloat(salary.debtStart + salary.accrued + salary.bonus + salary.premium - salary.penaltie - salary.advance)
+                        salary.debtEnd = checkFloat(salary.pay - salary.paid)
+                        await salary.save()
+                        history.what += `→${salary.bonus};`
+                        await History.create(history)
+                    }
+                    else {
+                        let prevDate = new Date(date)
+                        prevDate.setMonth(prevDate.getMonth() - 1)
+                        let debtStart = await Salary.findOne({employment: user._id, date: prevDate}).select('debtEnd').lean()
+                        if (debtStart)
+                            debtStart = debtStart.debtEnd
+                        else
+                            debtStart = 0
+                        salary = new Salary({
+                            employment: user._id,
+                            store: user.store,
+                            date,
+                            salary: 0,
+                            bid: 0,
+                            actualDays: 0,
+                            workingDay: 0,
+                            debtStart,
+                            premium: 0,
+                            bonus,
+                            accrued: 0,
+                            penaltie: 0,
+                            advance: 0,
+                            pay: bonus,
+                            paid: 0,
+                            debtEnd: bonus
+                        });
+                        salary = await Salary.create(salary)
+                        let history = new History({
+                            who: user._id,
+                            where: salary._id,
+                            what: 'Создание'
+                        });
+                        await History.create(history)
+                    }
+                }
+            }
+            object.bonusManager = bonus
+
+            object = await Sale.create(object)
+            let history = new History({
+                who: user._id,
+                where: object._id,
+                what: 'Создание'
+            });
+            await History.create(history)
+            return object._id
+        }
+        return 'ERROR'
+    },
+    setSale: async(parent, {_id, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
+            let object = await Sale.findById(_id)
+            if(object) {
+                let history = new History({
+                    who: user._id,
+                    where: object._id,
+                    what: ''
                 });
-                if(sale)
-                    sale = await Sale.findOne({_id: sale})
-                if(['Продажа', 'Кредит', 'Аванс', 'Погашение кредита'].includes(type)){
-                    if(typePayment==='Наличными') {
-                        workShift.cash = checkFloat(workShift.cash + (type==='Кредит'?paid:amountEnd))
-                        cashbox.cash = checkFloat(cashbox.cash + (type==='Кредит'?paid:amountEnd))
-                        workShift.cashEnd = checkFloat(workShift.cashEnd + (type==='Кредит'?paid:amountEnd))
+                if (itemsSale) {
+                    history.what = 'Позиции;\n'
+                    let storeBalanceItem, oldItemSale, newItemSale, newIdsItemSale = [], newItemsSale = []
+                    for(let i=0; i<itemsSale.length; i++) {
+                        if(itemsSale[i]._id)
+                            newIdsItemSale.push(itemsSale[i]._id)
                     }
-                    else
-                        workShift.cashless = checkFloat(workShift.cashless + (type==='Кредит'?paid:amountEnd))
-                    workShift.discount = checkFloat(workShift.discount + discount)
-                    workShift.extra = checkFloat(workShift.extra + extra)
-                    if(type==='Кредит') {
-                        docType = '8'
-                        workShift.consignationCount = checkFloat(workShift.consignationCount + 1)
-                        cashbox.consignation = checkFloat(cashbox.consignation + amountEnd - paid)
-                        workShift.consignation = checkFloat(workShift.consignation + amountEnd - paid)
-                        if(paid) {
-                            workShift.saleCount = checkFloat(workShift.saleCount + 1)
-                            workShift.sale = checkFloat(workShift.sale + paid)
-                            cashbox.sale = checkFloat(cashbox.sale + paid)
+                    for(let i=0; i<object.itemsSale.length; i++) {
+                        oldItemSale = await ItemSale.findOne({_id: object.itemsSale[i]}).lean()
+                        storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: oldItemSale.item})
+                        storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - oldItemSale.count)
+                        storeBalanceItem.free = checkFloat(storeBalanceItem.free + oldItemSale.count)
+                        await storeBalanceItem.save()
+                        if(!newIdsItemSale.includes(object.itemsSale[i].toString()))
+                            await ItemSale.deleteOne({_id: object.itemsSale[i]})
+                        else
+                            newItemsSale.push(object.itemsSale[i])
+                    }
+                    for(let i=0; i<itemsSale.length; i++) {
+                        if(itemsSale[i]._id) {
+                            await ItemSale.updateOne({_id: itemsSale[i]._id}, itemsSale[i])
                         }
-                        if(client) {
-                            let consignation = await Consignation.findOne({client})
-                            consignation.consignation = checkFloat(consignation.consignation + amountEnd - paid)
-                            consignation.debt = checkFloat(consignation.debt + amountEnd - paid)
-                            await consignation.save()
+                        else {
+                            newItemSale = new ItemSale(itemsSale[i]);
+                            newItemsSale.push((await ItemSale.create(newItemSale))._id)
                         }
+                        storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsSale[i].item})
+                        storeBalanceItem.sale = checkFloat(storeBalanceItem.sale + itemsSale[i].count)
+                        storeBalanceItem.free = checkFloat(storeBalanceItem.free - itemsSale[i].count)
+                        await storeBalanceItem.save()
                     }
-                    else if(type==='Погашение кредита') {
-                        docType = '9'
-                        workShift.paidConsignationCount = checkFloat(workShift.paidConsignationCount + 1)
-                        workShift.paidConsignation = checkFloat(workShift.paidConsignation + amountEnd)
-                        cashbox.paidConsignation = checkFloat(cashbox.paidConsignation + amountEnd)
-                        if(client) {
-                            let consignation = await Consignation.findOne({client})
-                            consignation.paid = checkFloat(consignation.paid + amountEnd)
-                            consignation.debt = checkFloat(consignation.debt - amountEnd)
-                            if (consignation.debt < 0)
-                                consignation.debt = 0
-                            await consignation.save()
-                        }
-                    }
-                    else if(type==='Аванс') {
-                        docType = '5'
-                        workShift.prepaymentCount = checkFloat(workShift.prepaymentCount + 1)
-                        workShift.prepayment = checkFloat(workShift.prepayment + amountEnd)
-                        cashbox.prepayment = checkFloat(cashbox.prepayment + amountEnd)
-                        if(client) {
-                            let prepayment = await Prepayment.findOne({client})
-                            prepayment.balance = checkFloat(prepayment.balance + amountEnd)
-                            prepayment.prepayment = checkFloat(prepayment.prepayment + amountEnd)
-                            await prepayment.save()
-                        }
-                    }
-                    else if(type==='Продажа') {
-                        docType = '1'
-                        workShift.saleCount = checkFloat(workShift.saleCount + 1)
-                        workShift.sale = checkFloat(workShift.sale + amountEnd)
-                        cashbox.sale = checkFloat(cashbox.sale + amountEnd)
-                    }
-                    if(usedPrepayment) {
-                        if(type==='Продажа')
-                            docType = '6'
-                        if(client) {
-                            let prepayment = await Prepayment.findOne({client})
-                            prepayment.balance = checkFloat(prepayment.balance - usedPrepayment)
-                            if (prepayment.balance < 0)
-                                prepayment.balance = 0
-                            prepayment.used = checkFloat(prepayment.used + usedPrepayment)
-                            await prepayment.save()
-                        }
-                        sale.used = true
-                        await sale.save()
-                    }
+                    await Sale.updateOne({_id}, {itemsSale: newItemsSale})
                 }
-                else if(type==='Возврат аванса'){
-                    docType = '7'
-                    if(typePayment==='Наличными') {
-                        cashbox.cash = checkFloat(cashbox.cash - amountEnd)
-                        if(cashbox.cash<0)
-                            cashbox.cash = 0
-                        workShift.cashEnd = checkFloat(workShift.cashEnd - amountEnd)
-                        if(workShift.cashEnd<0)
-                            workShift.cashEnd = 0
-                    }
-                    workShift.returnedCount = checkFloat(workShift.returnedCount + 1)
-                    workShift.returned = checkFloat(workShift.returned + amountEnd)
-                    cashbox.returned = checkFloat(cashbox.returned + amountEnd)
-                    if(client) {
-                        let prepayment = await Prepayment.findOne({client})
-                        prepayment.prepayment = checkFloat(prepayment.prepayment - amountEnd)
-                        if (prepayment.prepayment < 0)
-                            prepayment.prepayment = 0
-                        prepayment.balance = checkFloat(prepayment.balance - amountEnd)
-                        if (prepayment.balance < 0)
-                            prepayment.balance = 0
-                        await prepayment.save()
-                    }
+                if (geo) {
+                    history.what = `${history.what}Гео:${object.geo}→${geo};\n`
+                    object.geo = geo
                 }
-                else if(type==='Возврат'){
-                    docType = '3'
-                    workShift.returnedCount = checkFloat(workShift.returnedCount + 1)
-                    workShift.returned = checkFloat(workShift.returned + amountEnd)
-                    cashbox.returned = checkFloat(cashbox.returned + amountEnd)
-                    if(typePayment==='Наличными') {
-                        cashbox.cash = checkFloat(cashbox.cash - amountEnd)
-                        if(cashbox.cash<0)
-                            cashbox.cash = 0
-                        workShift.cashEnd = checkFloat(workShift.cashEnd - amountEnd)
-                        if(workShift.cashEnd<0)
-                            workShift.cashEnd = 0
-                    }
-                    if(sale.type==='Кредит'&&amountEnd!==paid){
-                        docType = '10'
-                        if(client) {
-                            let consignation = await Consignation.findOne({client})
-                            consignation.consignation = checkFloat(consignation.consignation - (sale.amountEnd - sale.paid))
-                            if (consignation.consignation < 0)
-                                consignation.consignation = 0
-                            consignation.debt = checkFloat(consignation.debt - (sale.amountEnd - sale.paid))
-                            if (consignation.debt < 0)
-                                consignation.debt = 0
-                            await consignation.save()
-                        }
-                    }
-                    sale.returned = true
-                    await sale.save()
+                if (address) {
+                    history.what = `${history.what}Адрес:${object.address}→${address};\n`
+                    object.address = address
                 }
-                else if(type==='Покупка'){
-                    docType = '2'
-                    workShift.buyCount = checkFloat(workShift.buyCount + 1)
-                    if(typePayment==='Наличными') {
-                        workShift.cashEnd = checkFloat(workShift.cashEnd - amountEnd)
-                        if(workShift.cashEnd<0)
-                            workShift.cashEnd = 0
-                        cashbox.cash = checkFloat(cashbox.cash - amountEnd)
-                        if(cashbox.cash<0)
-                            cashbox.cash = 0
-                    }
-                    workShift.buy = checkFloat(workShift.buy + amountEnd)
-                    cashbox.buy = checkFloat(cashbox.buy + amountEnd)
+                if (delivery) {
+                    history.what = `${history.what}Доставка:${pdDDMMYYYY(object.delivery)}→${pdDDMMYYYY(delivery)};\n`
+                    object.delivery = delivery
                 }
-                else if(type==='Возврат покупки'){
-                    docType = '4'
-                    workShift.returnedBuyCount = checkFloat(workShift.returnedBuyCount + 1)
-                    if(typePayment==='Наличными') {
-                        workShift.cashEnd = checkFloat(workShift.cashEnd + amountEnd)
-                        cashbox.cash = checkFloat(cashbox.cash + amountEnd)
-                    }
-                    workShift.returnedBuy = checkFloat(workShift.returnedBuy + amountEnd)
-                    cashbox.returnedBuy = checkFloat(cashbox.returnedBuy + amountEnd)
-                    sale.returned = true
-                    await sale.save()
+                if (addressInfo) {
+                    history.what = `${history.what}Адрес инфо:${object.addressInfo}→${addressInfo};\n`
+                    object.addressInfo = addressInfo
                 }
-                newSale.docType = docType
-                newSale = await Sale.create(newSale)
-                await cashbox.save()
-                await workShift.save()
+                if (paid!=undefined) {
+                    history.what = `${history.what}paid:${object.paid}→${paid};\n`
 
-                if(/*(await LegalObject.findOne({ofd: true, _id: user.legalObject}).select('ofd').lean())&&*/workShift.syncMsg!=='Фискальный режим отключен'){
+                    let balanceClient = await BalanceClient.findOne({client: object.client}).lean(), index
+                    for(let i=0; i<balanceClient.balance.length; i++) {
+                        if (balanceClient.balance[i].currency === object.currency) {
+                            index = i
+                            break
+                        }
+                    }
+                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + object.paid - paid)
+                    await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+                    if(object.installment) {
+                        let history = new History({
+                            who: user._id,
+                            where: object.installment,
+                            what: 'Изменение оплаты продажи'
+                        });
+                        await History.create(history)
+                        let installment = await Installment.findOne({_id: object.installment}).lean()
+                        installment.paid = installment.paid - object.paid + paid
+                        let debt = installment.amount - installment.paid
+                        let grid = [...installment.grid]
+                        grid[0].amount = paid
+                        grid[0].paid = paid
+                        let monthInstallment = grid.length-1
+                        let paidInstallment = checkFloat(debt/monthInstallment)
+                        for(let i = 0; i < monthInstallment; i++)
+                            grid[i+1].amount = paidInstallment
+                        await Installment.updateOne({_id: object.installment}, {paid: installment.paid, debt, grid})
+                    }
 
-                    if(cashbox.rnmNumber) {
-                        let qr = await QRCode.toDataURL(
-                            `https://kkm.salyk.kg/kkm/check?rnmNumber=${cashbox.rnmNumber}&checkNumber=${number}&amount=${amountEnd}&date=${pdQRKKM(newSale.createdAt)}`
-                        )
-                        await Sale.updateOne({_id: newSale._id}, {qr})
-                        check(newSale._id)
-                    } else
-                        await Sale.updateOne({_id: newSale._id}, {sync: false, syncMsg: 'Нет rnmNumber'})
+                    object.paid = paid
+                }
+                if (discount!=undefined) {
+                    history.what = `${history.what}Скидка:${object.discount}→${discount};\n`
+                    object.discount = discount
+                }
+                if (amountStart!=undefined) {
+                    history.what = `${history.what}Сумма до скидки:${object.amountStart}→${amountStart};\n`
+                    object.amountStart = amountStart
+                }
+                if (amountEnd!=undefined) {
+                    history.what = `${history.what}Сумма после скидки:${object.amountEnd}→${amountEnd};\n`
+                    object.amountEnd = amountEnd
 
-                } else
-                    await Sale.updateOne({_id: newSale._id}, {sync: true, syncMsg: 'Фискальный режим отключен'})
+                    let bonusManager = await BonusManager.findOne({manager: object.manager}).lean()
+                    let bonus = 0
+                    if(bonusManager&&bonusManager.bonus.length) {
+                        let discountPercent = object.discount*100/object.amountStart
+                        for(let i=bonusManager.bonus.length-1; i>=0; i--) {
+                            if(bonusManager.bonus[i][0]>=discountPercent) {
+                                bonus = checkFloat(object.amountEnd/100*bonusManager.bonus[i][1])
+                                break
+                            }
+                        }
+                        if(bonus) {
+                            let date = new Date(object.createdAt)
+                            date.setHours(0, 0, 0, 0)
+                            date.setDate(1)
+                            let salary = await Salary.findOne({employment: object.manager, date})
+                            if (salary) {
+                                let history = new History({
+                                    who: user._id,
+                                    where: salary._id,
+                                    what: `Бонус:${salary.bonus}`
+                                });
+                                salary.bonus = checkFloat(salary.bonus - object.bonusManager + bonus)
+                                if(salary.bonus<0)
+                                    salary.bonus = 0
+                                salary.pay = checkFloat(checkFloat(salary.debtStart) + checkFloat(salary.accrued) + checkFloat(salary.bonus) + checkFloat(salary.premium) - checkFloat(salary.penaltie) - checkFloat(salary.advance))
+                                salary.debtEnd = checkFloat(checkFloat(salary.pay) - checkFloat(salary.paid))
+                                await salary.save()
+                                history.what += `→${salary.bonus};`
+                                await History.create(history)
+                            }
+                            else {
+                                let prevDate = new Date(date)
+                                prevDate.setMonth(prevDate.getMonth() - 1)
+                                let debtStart = await Salary.findOne({
+                                    employment: object.manager,
+                                    date: prevDate
+                                }).select('debtEnd').lean()
+                                if (debtStart)
+                                    debtStart = debtStart.debtEnd
+                                else
+                                    debtStart = 0
+                                salary = new Salary({
+                                    employment: object.manager,
+                                    store: object.store,
+                                    date,
+                                    salary: 0,
+                                    bid: 0,
+                                    actualDays: 0,
+                                    workingDay: 0,
+                                    debtStart,
+                                    premium: 0,
+                                    bonus,
+                                    accrued: 0,
+                                    penaltie: 0,
+                                    advance: 0,
+                                    pay: bonus,
+                                    paid: 0,
+                                    debtEnd: bonus
+                                });
+                                salary = await Salary.create(salary)
+                                let history = new History({
+                                    who: user._id,
+                                    where: salary._id,
+                                    what: 'Создание'
+                                });
+                                await History.create(history)
+                            }
 
-                return newSale._id
+                            let lastSalary = salary
+                            let lastDebtEnd = salary.debtEnd
+                            let _salary
+                            while(lastSalary) {
+                                _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: object._id}})
+                                if(_salary) {
+                                    _salary.debtStart = lastDebtEnd
+                                    _salary.pay = checkFloat(_salary.debtStart+_salary.accrued+_salary.bonus+_salary.premium-_salary.penaltie-_salary.advance)
+                                    _salary.debtEnd = checkFloat(_salary.pay-_salary.paid)
+                                    lastDebtEnd = _salary.debtEnd
+                                    await _salary.save()
+                                }
+                                lastSalary = _salary
+                            }
+                        }
+                    }
+                    object.bonusManager = bonus
+                    object.bonusCpa = object.percentCpa?object.amountEnd/100*object.percentCpa:0
+                    if(object.installment) {
+                        let history = new History({
+                            who: user._id,
+                            where: object.installment,
+                            what: 'Перерасчет продажи'
+                        });
+                        await History.create(history)
+                        let installment = await Installment.findOne({_id: object.installment}).lean()
+
+                        let amount = amountEnd
+                        let debt = amount - installment.paid
+                        let grid = [...installment.grid]
+                        let monthInstallment = grid.length-1
+                        let paidInstallment = checkFloat(debt/monthInstallment)
+                        for(let i = 0; i < monthInstallment; i++)
+                            grid[i+1].amount = paidInstallment
+
+                        await Installment.updateOne({_id: object.installment}, {amount, debt, grid})
+                    }
+                    history.what = `${history.what}Бонус менеджера:${object.bonusManager}→${bonus};\n`
+                }
+                if (percentCpa!=undefined) {
+                    history.what = `${history.what}Процент партнера:${object.percentCpa}→${percentCpa};\n`
+                    object.percentCpa = percentCpa
+                    object.bonusCpa = object.percentCpa?object.amountEnd/100*object.percentCpa:0
+                }
+                if (comment) {
+                    history.what = `${history.what}Информация:${object.comment}→${comment};\n`
+                    object.comment = comment
+                }
+                if (status) {
+                    history.what = `${history.what}Статус:${object.status}→${status};`
+                    object.status = status
+                    await ItemSale.updateMany({_id: {$in: object.itemsSale}}, {status})
+                    if(status==='отмена') {
+
+                        let balanceClient = await BalanceClient.findOne({client: object.client}).lean(), index
+                        for(let i=0; i<balanceClient.balance.length; i++) {
+                            if (balanceClient.balance[i].currency === object.currency) {
+                                index = i
+                                break
+                            }
+                        }
+                        let debt = 0
+                        if(object.installment) {
+                            let history = new History({
+                                who: user._id,
+                                where: object.installment,
+                                what: 'Отмена продажи'
+                            });
+                            await History.create(history)
+                            let installment = await Installment.findOne({_id: object.installment})
+                            installment.status = 'отмена'
+                            debt = installment.debt
+                            await installment.save()
+                        }
+
+                        balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + object.paid + debt)
+                        await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+
+                        itemsSale = await ItemSale.find({_id: {$in: object.itemsSale}}).lean()
+                        for(let i=0; i<itemsSale.length; i++) {
+                            let storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsSale[i].item})
+                            storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
+                            storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
+                            await storeBalanceItem.save()
+                        }
+
+                        if(object.bonusManager) {
+                            let date = new Date(object.createdAt)
+                            date.setHours(0, 0, 0, 0)
+                            date.setDate(1)
+                            let salary = await Salary.findOne({employment: object.manager, date})
+                            if (salary) {
+                                let history = new History({
+                                    who: user._id,
+                                    where: salary._id,
+                                    what: `Бонус:${salary.bonus}`
+                                });
+                                salary.bonus = checkFloat(salary.bonus - object.bonusManager)
+                                if(salary.bonus<0)
+                                    salary.bonus = 0
+                                salary.pay = checkFloat(checkFloat(salary.debtStart) + checkFloat(salary.accrued) + checkFloat(salary.bonus) + checkFloat(salary.premium) - checkFloat(salary.penaltie) - checkFloat(salary.advance))
+                                salary.debtEnd = checkFloat(checkFloat(salary.pay) - checkFloat(salary.paid))
+                                await salary.save()
+                                history.what += `→${salary.bonus};`
+                                await History.create(history)
+
+                                let lastSalary = salary
+                                let lastDebtEnd = salary.debtEnd
+                                let _salary
+                                while(lastSalary) {
+                                    _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: object._id}})
+                                    if(_salary) {
+                                        _salary.debtStart = lastDebtEnd
+                                        _salary.pay = checkFloat(_salary.debtStart+_salary.accrued+_salary.bonus+_salary.premium-_salary.penaltie-_salary.advance)
+                                        _salary.debtEnd = checkFloat(_salary.pay-_salary.paid)
+                                        lastDebtEnd = _salary.debtEnd
+                                        await _salary.save()
+                                    }
+                                    lastSalary = _salary
+                                }
+                            }
+                        }
+                    }
+                    else if(status==='отгружен') {
+
+                        itemsSale = await ItemSale.find({_id: {$in: object.itemsSale}}).lean()
+                        for(let i=0; i<itemsSale.length; i++) {
+                            let storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsSale[i].item})
+                            storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
+                            storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
+                            await storeBalanceItem.save()
+                        }
+
+                    }
+                }
+                await object.save();
+                await History.create(history)
+                return 'OK'
             }
         }
+        return 'ERROR'
     }
 };
 

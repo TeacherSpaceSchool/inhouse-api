@@ -51,42 +51,6 @@ let start = () => {
     }));
 }
 
-const verifydrole = async (req, res, func) => {
-    await passport.authenticate('jwt', async function (err, user) {
-        try{
-            if (user&&user.status==='active') {
-                await func(user.role)
-            } else {
-                console.error('No such user')
-                res.status(401);
-                res.end('No such user');
-            }
-        } catch (err) {
-            console.error(err)
-            res.status(401);
-            res.end('err')
-        }
-    } )(req, res)
-}
-
-const verifydeuser = async (req, res, func) => {
-    await passport.authenticate('jwt', async function (err, user) {
-        try{
-            if (user&&user.status==='active') {
-                await func(user)
-            } else {
-                console.error('No such user')
-                res.status(401);
-                res.end('No such user');
-            }
-        } catch (err) {
-            console.error(err)
-            res.status(401);
-            res.end('err')
-        }
-    } )(req, res)
-}
-
 const getuser = async (req, res, func) => {
     await passport.authenticate('jwt', async function (err, user) {
         try{
@@ -118,78 +82,6 @@ const verifydeuserGQL = async (req, res) => {
 
 }
 
-const signinuser = (req, res) => {
-    passport.authenticate('local', async function (err, user) {
-        try{
-            if (user&&user.status==='active') {
-                const payload = {
-                    id: user._id,
-                    login: user.login,
-                    status: user.status,
-                    role: user.role
-                };
-                const token = await jwt.sign(payload, jwtsecret);
-                await res.status(200);
-                await res.clearCookie('jwt');
-                await res.cookie('jwt', token, {maxAge: 3650*24*60*60*1000}).end(token);
-            } else {
-                res.status(401);
-                res.end('Login failed',401)
-            }
-        } catch (err) {
-            console.error(err)
-            res.status(401);
-            res.end('login not be unique')
-        }
-    })(req, res);
-}
-
-const getstatus = async (req, res) => {
-    await passport.authenticate('jwt', async function (err, user) {
-        try{
-            if (user&&user.status==='active') {
-                res.status(200);
-                res.end(JSON.stringify({status: user.status, role: user.role, id: user._id}))
-            } else {
-                console.error('No such user')
-                res.status(401);
-                res.end('No such user');
-            }
-        } catch (err) {
-            console.error(err)
-            res.status(401);
-            res.end('err')
-        }
-    } )(req, res)
-
-}
-
-const signupuser = async (req, res) => {
-    try{
-        let _user = new User({
-            login: req.query.login,
-            role: 'client',
-            status: 'active',
-            password: req.query.password,
-        });
-        const user = await User.create(_user);
-        const payload = {
-            id: user._id,
-            login: user.login,
-            status: user.status,
-            role: user.role
-        };
-        const token = jwt.sign(payload, jwtsecret);
-        await res.status(200);
-        await res.clearCookie('jwt');
-        await res.cookie('jwt', token, {maxAge: 3650*24*60*60*1000}).end(token)
-    } catch (err) {
-        console.error(err)
-        res.status(401);
-        res.end('login not be unique')
-    }
-}
-
 const signinuserGQL = (req, res) => {
     return new Promise((resolve) => {
         passport.authenticate('local', async function (err, user) {
@@ -204,14 +96,7 @@ const signinuserGQL = (req, res) => {
                 else if(user.status!=='active'){
                     error = 'Доступ отключен'
                 }
-                else if(user.enteredDate&&((new Date()-user.enteredDate)/1000/60/60)<24){
-                    error = 'Доступ уже активен'
-                }
                 if(!error) {
-                    if (user.role === 'кассир') {
-                        user.enteredDate = new Date()
-                        await user.save()
-                    }
                     const payload = {
                         id: user._id,
                         login: user.login,
@@ -220,7 +105,7 @@ const signinuserGQL = (req, res) => {
                     };
                     const token = await jwt.sign(payload, jwtsecret);
                     await res.clearCookie('jwt');
-                    await res.cookie('jwt', token, {maxAge: user.role === 'кассир' ? 24 * 60 * 60 * 1000 : 10 * 365 * 24 * 60 * 60 * 1000});
+                    await res.cookie('jwt', token, {maxAge: 10 * 365 * 24 * 60 * 60 * 1000});
                     resolve({
                         role: user.role,
                         status: user.status,
@@ -253,11 +138,6 @@ const createJwtGQL = async (res, user) => {
 
 module.exports.getuser = getuser;
 module.exports.createJwtGQL = createJwtGQL;
-module.exports.verifydrole = verifydrole;
-module.exports.getstatus = getstatus;
 module.exports.verifydeuserGQL = verifydeuserGQL;
 module.exports.start = start;
-module.exports.verifydeuser = verifydeuser;
-module.exports.signinuser = signinuser;
 module.exports.signinuserGQL = signinuserGQL;
-module.exports.signupuser = signupuser;

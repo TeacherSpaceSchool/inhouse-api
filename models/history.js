@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const HistorySchema = mongoose.Schema({
     who: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserSALYK'
+        ref: 'UserINHOUSE'
     },
     what: String,
     where: String
@@ -13,6 +13,6 @@ const HistorySchema = mongoose.Schema({
 
 HistorySchema.index({where: 1})
 
-const History = mongoose.model('HistorySALYK', HistorySchema);
+const History = mongoose.model('HistoryINHOUSE', HistorySchema);
 
 module.exports = History;

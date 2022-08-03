@@ -1,99 +1,99 @@
 const Category = require('../models/category');
 const Item = require('../models/item');
+const History = require('../models/history');
 
 const type = `
   type Category {
       _id: ID
       createdAt: Date
-      type: String
       name: String
-      category: Category
-      del: Boolean
-  }
-  type CategoryLegalObject {
-    _id: ID
-    createdAt: Date
-    categorys: [Category]
-    legalObject: LegalObject
   }
 `;
 
 const query = `
-    categorys(skip: Int, search: String, category: ID, type: String): [Category]
-    categorysCount(search: String, category: ID, type: String): Int
+    categorys(skip: Int, search: String): [Category]
+    categorysCount(search: String): Int
 `;
 
 const mutation = `
-    addCategory(name: String!, category: ID, type: String!): Category
-    setCategory(_id: ID!, name: String): String
+    addCategory(name: String!): Category
+    setCategory(_id: ID!, name: String!): String
     deleteCategory(_id: ID!): String
 `;
 
 const resolvers = {
-    categorys: async(parent, {skip, search, category, type}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)) {
+    categorys: async(parent, {skip, search}, {user}) => {
+        if(user.role) {
             return await Category.find({
                 del: {$ne: true},
-                category,
-                ...type?{type}:{},
-                ...search&&search.length?{name: {'$regex': search, '$options': 'i'}}:{}
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{}
             })
                 .skip(skip != undefined ? skip : 0)
-                .limit(skip != undefined ? 15 : 10000000000)
+                .limit(skip != undefined ? 30 : 10000000000)
                 .sort('name')
-                .populate({
-                    path: 'category',
-                    select: 'name _id'
-                })
                 .lean()
         }
     },
-    categorysCount: async(parent, {search, category, type}, {user}) => {
-        if(['admin', 'superadmin'].includes(user.role)) {
+    categorysCount: async(parent, {search}, {user}) => {
+        if(['admin'].includes(user.role)) {
             return await Category.countDocuments({
                 del: {$ne: true},
-                category,
-                ...type?{type}:{},
-                ...search&&search.length?{name: {'$regex': search, '$options': 'i'}}:{}
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{}
             })
                 .lean()
         }
-    },
+    }
 };
 
 const resolversMutation = {
-    addCategory: async(parent, {name, category, type}, {user}) => {
-        if(['admin', 'superadmin'].includes(user.role)&&user.add) {
-            let _object = new Category({
-                type,
-                name,
-                category
+    addCategory: async(parent, {name}, {user}) => {
+        if(['admin'].includes(user.role)) {
+            let object = new Category({
+                name
             });
-            _object = await Category.create(_object)
-            if(_object.category)
-                await _object.populate({path: 'category', select: 'name _id'})
-            return _object
+            object = await Category.create(object)
+            let history = new History({
+                who: user._id,
+                where: object._id,
+                what: 'Создание'
+            });
+            await History.create(history)
+            return object
         }
+        return {_id: 'ERROR'}
     },
     setCategory: async(parent, {_id, name}, {user}) => {
-        if(['admin', 'superadmin'].includes(user.role)&&user.add) {
+        if(['admin'].includes(user.role)) {
             let object = await Category.findById(_id)
-            if(name)object.name = name
-            await object.save();
-            return 'OK'
+            if(object) {
+                let history = new History({
+                    who: user._id,
+                    where: object._id,
+                    what: `Название:${object.name}→${name};\n`
+                });
+                object.name = name
+                await object.save();
+                await History.create(history)
+                return 'OK'
+            }
         }
         return 'ERROR'
     },
     deleteCategory: async(parent, { _id }, {user}) => {
-        if(['admin', 'superadmin'].includes(user.role)&&user.add) {
-            let deleteCategorys = [_id], findCategorys = [_id]
-            while (findCategorys.length){
-                findCategorys = await Category.find({category: {$in: findCategorys}}).distinct('_id').lean()
-                deleteCategorys = [...deleteCategorys, ...findCategorys]
+        if(['admin'].includes(user.role)) {
+            let object = await Category.findOne({_id})
+            if(object) {
+                object.del = true
+                await object.save()
+                let history = new History({
+                    who: user._id,
+                    where: _id,
+                    what: 'Удаление'
+                });
+                await Item.updateMany({category: _id}, {category: undefined})
+                await History.create(history)
+                return 'OK'
             }
-            await Category.updateMany({_id: {$in: deleteCategorys}}, {del: true})
-            await Item.updateMany({category: {$in: deleteCategorys}}, {category: undefined})
-            return 'OK'
         }
         return 'ERROR'
     }

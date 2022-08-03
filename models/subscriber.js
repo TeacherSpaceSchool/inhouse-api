@@ -5,7 +5,7 @@ const SubscriberSchema = mongoose.Schema({
     keys: mongoose.Schema.Types.Mixed,
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserSALYK'
+        ref: 'UserINHOUSE'
     },
     number: String,
     status: String,
@@ -15,6 +15,6 @@ const SubscriberSchema = mongoose.Schema({
 
 SubscriberSchema.index({user: 1})
 
-const Subscriber = mongoose.model('SubscriberSALYK', SubscriberSchema);
+const Subscriber = mongoose.model('SubscriberINHOUSE', SubscriberSchema);
 
 module.exports = Subscriber;

@@ -1,15 +1,6 @@
 const {connectTest} = require('../models/index');
-const {tariffTest} = require('./tariff');
-const {contactTest} = require('./contact');
-const {itemBarCodeTest} = require('./itemBarCode');
-const {blogTest} = require('./blog');
-const {faqTest} = require('./faq');
-const {categoryTest} = require('./category');
-const {legalObjectTest} = require('./legalObject');
-const {branchTest} = require('./branch');
 const {errorTest} = require('./error');
 const {generateUsers} = require('./lib');
-const {applicationToConnectTest} = require('./connectionApplication');
 const mongoose = require('mongoose');
 const fs = require('fs');
 
@@ -34,15 +25,6 @@ describe('index', () => {
         }
     });
 
-    contactTest()
-    blogTest()
-    faqTest()
-    categoryTest()
-    itemBarCodeTest()
-    applicationToConnectTest()
-    tariffTest()
     errorTest()
-    legalObjectTest()
-    branchTest()
 
 });

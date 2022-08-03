@@ -10,12 +10,6 @@ module.exports.SingletonRedis = class SingletonRedis {
         this.redis = new Redis();
         return this;
     }
-    async setSyncKKMClose(close){
-        await this.redis.set('SyncKKMClose', close)
-    }
-    async getSyncKKMClose(){
-        return await this.redis.get('SyncKKMClose')
-    }
     async allowSignIn(login){
         let bruteForce = await this.redis.get(`${login}BruteForce`)
         if(bruteForce){

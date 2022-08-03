@@ -8,28 +8,23 @@ const userSchema = mongoose.Schema({
         unique: true
     },
     role: String,
+    department: String,
+    position: String,
+    startWork: Date,
     status: String,
     IP: String,
     passwordHash: String,
     salt: String,
     name: String,
-    phone: [String],
+    phones: [String],
     device: String,
-    statistic: Boolean,
-    email: [String],
-    enteredDate: Date,
-    payment: Boolean,
-    add: Boolean,
     notification: Boolean,
-    credit: Boolean,
-    lastActive: Date,
-    legalObject: {
+    add: Boolean,
+    edit: Boolean,
+    deleted: Boolean,
+    store: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'LegalObjectSALYK'
-    },
-    branch: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'BranchSALYK'
+        ref: 'StoreINHOUSE'
     },
     del: Boolean
 }, {
@@ -62,10 +57,9 @@ userSchema.index({login: 1})
 userSchema.index({role: 1})
 userSchema.index({name: 1})
 userSchema.index({del: 1})
-userSchema.index({legalObject: 1})
-userSchema.index({branch: 1})
+userSchema.index({store: 1})
 
-const User = mongoose.model('UserSALYK', userSchema);
+const User = mongoose.model('UserINHOUSE', userSchema);
 /*
 User.collection.dropIndex('phone_1', function(err, result) {
     if (err) {

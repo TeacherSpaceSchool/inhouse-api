@@ -1,5 +1,4 @@
-const { signupuserGQL, signinuserGQL } = require('../module/passport');
-const User = require('../models/user');
+const { signinuserGQL } = require('../module/passport');
 
 const type = `
   type Status {
@@ -8,23 +7,19 @@ const type = `
     status: String
     login: String
     error: String
-    legalObject: ID
-    branch: ID
-    statistic: Boolean
+    store: ID
     add: Boolean
-    credit: Boolean
-    payment: Boolean
+    edit: Boolean
+    deleted: Boolean
   }
 `;
 
 const query = `
-       getStatus: Status
+    getStatus: Status
 `;
 
 const mutation = `
-    signupuser(login: String, password: String): Status
     signinuser(login: String!, password: String!): Status
-    logoutuser: String
 `;
 
 const resolvers = {
@@ -34,27 +29,18 @@ const resolvers = {
             status: user.status,
             login: user.login,
             _id: user._id,
-            legalObject: user.legalObject,
-            branch: user.branch,
-            statistic: user.statistic,
+            store: user.store,
             add: user.add,
-            credit: user.credit,
-            payment: user.payment,
+            edit: user.edit,
+            deleted: user.deleted
         }
     }
 };
 
 const resolversMutation = {
-    logoutuser: async(parent, ctx, {user}) => {
-        await User.updateOne({_id: user._id}, {enteredDate: null})
-        return 'OK';
-    },
-    signupuser: async(parent, { login, password}, {res}) => {
-        return await signupuserGQL({ login: login, password: password }, res);
-    },
     signinuser: async(parent, { login, password}, {req, res}) => {
         return await signinuserGQL({ ...req, query: {login: login, password: password}}, res);
-    },
+    }
 };
 
 module.exports.resolvers = resolvers;

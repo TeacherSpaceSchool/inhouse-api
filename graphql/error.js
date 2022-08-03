@@ -23,7 +23,7 @@ const resolvers = {
         if(['admin', 'superadmin'].includes(user.role)) {
             return await Error.find({})
                 .skip(skip != undefined ? skip : 0)
-                .limit(skip != undefined ? 21 : 10000000000)
+                .limit(skip != undefined ? 30 : 10000000000)
                 .sort('-createdAt')
                 .lean()
         }

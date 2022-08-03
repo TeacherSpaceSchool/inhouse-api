@@ -3,12 +3,12 @@ const mongoose = require('mongoose');
 const FaqSchema = mongoose.Schema({
     url: String,
     name: String,
-    video: String,
-    roles:  [String]
+    text: String,
+    video: String
 }, {
     timestamps: true
 });
 
-const Faq = mongoose.model('FaqSALYK', FaqSchema);
+const Faq = mongoose.model('FaqINHOUSE', FaqSchema);
 
 module.exports = Faq;

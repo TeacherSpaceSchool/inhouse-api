@@ -1,75 +1,70 @@
 const Client = require('../models/client');
-const Consignation = require('../models/consignation');
-const Prepayment = require('../models/prepayment');
-const IntegrationObject = require('../models/integrationObject');
+const Installment = require('../models/installment');
+const History = require('../models/history');
+const BalanceClient = require('../models/balanceClient');
 
 const type = `
   type Client {
     _id: ID
     createdAt: Date
-    legalObject: LegalObject
     name: String
-    phone: [String]
+    emails: [String]
+    phones: [String]
     address: String
-    email: [String]
-    del: Boolean
+    address1: String
+    geo: [Float]
     info: String
+    work: String
+    passport: String
     inn: String
+    level: String
+    birthday: Date
   }
 `;
 
 const query = `
-    clients(search: String, skip: Int, legalObject: ID): [Client]
+    clients(search: String, skip: Int, level: String, limit: Int): [Client]
+    clientsCount(search: String, level: String): Int
     client(_id: ID!): Client
-    clientsCount(search: String, legalObject: ID): Int
 `;
 
 const mutation = `
-    addClient(legalObject: ID!, name: String!, phone: [String]!, inn: String!, address: String!, email: [String]!, info: String!): Client
-    setClient(_id: ID!, name: String, phone: [String], inn: String, address: String, email: [String], info: String): String
+    addClient(name: String!, address1: String!, emails: [String]!, geo: [Float], phones: [String]!, address: String!, info: String!, work: String!, passport: String!, inn: String!, level: String!, birthday: Date!): String
+    setClient(_id: ID!, address1: String, name: String, emails: [String], geo: [Float], phones: [String], address: String, info: String, work: String, passport: String, inn: String, level: String, birthday: Date): String
     deleteClient(_id: ID!): String
 `;
 
 const resolvers = {
-    clients: async(parent, {search, skip, legalObject}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)) {
-            if(user.legalObject) legalObject = user.legalObject
-            return await Client.find({
+    clients: async(parent, {search, skip, level, limit}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
+            let res = await Client.find({
                 del: {$ne: true},
-                ...search&&search.length?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
-                ...legalObject ? {legalObject} : {}
+                ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
+                ...level ? {level} : {}
             })
                 .skip(skip != undefined ? skip : 0)
-                .limit(skip != undefined ? 15 : 10000000000)
+                .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
                 .sort('name')
-                .populate({
-                    path: 'legalObject',
-                    select: 'name _id'
-                })
-                .lean()
-        }
-    },
-    client: async(parent, {_id}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)) {
-            let res = await Client.findOne({
-                _id,
-                ...user.legalObject ? {legalObject: user.legalObject} : {}
-            })
-                .populate({
-                    path: 'legalObject',
-                    select: 'name _id'
-                })
+                .select('_id created name geo inn level address')
                 .lean()
             return res
         }
     },
-    clientsCount: async(parent, {search, legalObject}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)) {
-            if(user.legalObject) legalObject = user.legalObject
+    client: async(parent, {_id}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
+            let res = await Client.findOne({
+                _id,
+            })
+                .lean()
+            return res
+        }
+    },
+    clientsCount: async(parent, {search, level}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
             return await Client.countDocuments({
                 del: {$ne: true},
-                ...search&&search.length?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
-                ...legalObject ? {legalObject: legalObject} : {}
+                ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
+                ...level ? {level} : {}
             })
                 .lean()
         }
@@ -78,66 +73,122 @@ const resolvers = {
 };
 
 const resolversMutation = {
-    addClient: async(parent, {legalObject, name, phone, address, email, info, inn}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)&&user.add) {
-            if(user.legalObject) legalObject = user.legalObject
-            let client = new Client({
+    addClient: async(parent, {name, address1, emails, phones, geo, address, info, work, passport, inn, level, birthday}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
+            let object = new Client({
                 name,
-                legalObject,
-                phone,
+                emails,
+                phones,
                 address,
+                address1,
                 info,
-                email,
-                inn
-
+                work,
+                passport,
+                inn,
+                geo,
+                level,
+                birthday
             });
-            client = await Client.create(client)
-            let consignation = new Consignation({
-                legalObject,
-                client: client._id,
-                consignation: 0,
-                paid: 0,
-                debt: 0
+            object = await Client.create(object)
+            let balanceClient = new BalanceClient({
+                client: object._id,
+                balance: []
             });
-            await Consignation.create(consignation)
-            let prepayment = new Prepayment({
-                legalObject,
-                client: client._id,
-                prepayment: 0,
-                used: 0,
-                balance: 0
+            await BalanceClient.create(balanceClient)
+            let history = new History({
+                who: user._id,
+                where: object._id,
+                what: 'Создание'
             });
-            await Prepayment.create(prepayment)
-            return client
+            await History.create(history)
+            return object._id
         }
+        return 'ERROR'
     },
-    setClient: async(parent, {_id, name, phone, address, email, info, inn}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)&&user.add) {
+    setClient: async(parent, {_id, name, emails, phones, geo, address, address1, info, work, passport, inn, level, birthday}, {user}) => {
+        if(['admin', 'менеджер'].includes(user.role)) {
             let object = await Client.findOne({
                 _id,
-                ...user.legalObject?{legalObject: user.legalObject}:{},
             })
-            if(name) object.name = name
-            if(phone) object.phone = phone
-            if(address) object.address = address
-            if(email) object.email = email
-            if(info) object.info = info
-            if(inn) object.inn = inn
-            await object.save();
-            return 'OK'
+            if(object) {
+                let history = new History({
+                    who: user._id,
+                    where: object._id,
+                    what: ''
+                });
+                if (name) {
+                    history.what = `ФИО:${object.name}→${name};\n`
+                    object.name = name
+                }
+                if (emails) {
+                    history.what = `${history.what}Emails:${JSON.stringify(object.emails)}→${JSON.stringify(emails)};\n`
+                    object.emails = emails
+                }
+                if (phones) {
+                    history.what = `${history.what}Телефоны:${JSON.stringify(object.phones)}→${JSON.stringify(phones)};\n`
+                    object.phones = phones
+                }
+                if (address) {
+                    history.what = `${history.what}Адрес:${object.address}→${address};\n`
+                    object.address = address
+                }
+                if (address1) {
+                    history.what = `${history.what}Адрес1:${object.address1}→${address1};\n`
+                    object.address1 = address1
+                }
+                if (geo) {
+                    history.what = `${history.what}Гео:${object.geo}→${geo};\n`
+                    object.geo = geo
+                }
+                if (info) {
+                    history.what = `${history.what}Информация:${object.info}→${info};\n`
+                    object.info = info
+                }
+                if (work) {
+                    history.what = `${history.what}Работа:${object.work}→${work};\n`
+                    object.work = work
+                }
+                if (passport) {
+                    history.what = `${history.what}Паспорт:${object.passport}→${passport};\n`
+                    object.passport = passport
+                }
+                if (inn) {
+                    history.what = `${history.what}ИНН:${object.inn}→${inn};\n`
+                    object.inn = inn
+                }
+                if (level) {
+                    history.what = `${history.what}level:${object.level}→${level};\n`
+                    object.level = level
+                }
+                if (birthday) {
+                    history.what = `${history.what}birthday:${object.birthday}→${birthday};`
+                    object.birthday = birthday
+                }
+                await object.save();
+                await History.create(history)
+                return 'OK'
+            }
         }
         return 'ERROR'
     },
     deleteClient: async(parent, { _id }, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер'].includes(user.role)&&user.add) {
-            await Client.updateOne({
-                _id,
-                ...user.legalObject?{legalObject: user.legalObject}:{},
-            }, {del: true})
-            await IntegrationObject.deleteOne({client: _id})
-            /*await Consignation.deleteOne({client: _id})
-            await Prepayment.deleteOne({client: _id})*/
-            return 'OK'
+        if(['admin', 'менеджер'].includes(user.role)) {
+            if(await Installment.countDocuments({client: _id, status: 'активна'}).lean())
+                return 'USED'
+            if(await BalanceClient.countDocuments({client: _id, balance: {$elemMatch: {amount: {$gte: 0}}}}).lean())
+                return 'USED'
+            let object = await Client.findOne({_id})
+            if(object) {
+                object.del = true
+                await object.save()
+                let history = new History({
+                    who: user._id,
+                    where: _id,
+                    what: 'Удаление'
+                });
+                await History.create(history)
+                return 'OK'
+            }
         }
         return 'ERROR'
     }

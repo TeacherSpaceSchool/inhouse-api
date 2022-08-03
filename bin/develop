@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 let app = require('../app').app;
-let debug = require('debug')('new-salyk.store-api:httpServer');
+let debug = require('debug')('inhouse-api:httpServer');
 let http = require('http');
 const start = require('../module/start');
 let graphql  = require('../graphql/index');

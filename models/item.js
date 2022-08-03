@@ -1,34 +1,39 @@
 const mongoose = require('mongoose');
 
 const ItemSchema = mongoose.Schema({
+    ID: String,
+    name: String,
+    del: Boolean,
+    images: [String],
+    priceUSD: Number,
+    primeCostUSD: Number,
+    priceKGS: Number,
+    primeCostKGS: Number,
+    typeDiscount: String,
+    discount: Number,
+    priceAfterDiscountKGS: Number,
+    info: String,
+    unit: String,
+    art: String,
+    size: String,
+    characteristics: [[String]],
     category: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'CategorySALYK'
+        ref: 'CategoryINHOUSE'
     },
-    legalObject: {
+    factory: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'LegalObjectSALYK'
+        ref: 'FactoryINHOUSE'
     },
-    priority: Number,
-    price: Number,
-    unit: String,
-    barCode: String,
-    name: String,
-    type: String,
-    del: Boolean,
-    quick: Boolean,
-    editedPrice: Boolean,
-    tnved: String,
-    mark: Boolean,
 }, {
     timestamps: true
 });
 
-ItemSchema.index({legalObject: 1})
-ItemSchema.index({type: 1})
+ItemSchema.index({factory: 1})
+ItemSchema.index({ID: 1})
 ItemSchema.index({category: 1})
 ItemSchema.index({name: 1})
 
-const Item = mongoose.model('ItemSALYK', ItemSchema);
+const Item = mongoose.model('ItemINHOUSE', ItemSchema);
 
 module.exports = Item;

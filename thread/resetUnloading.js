@@ -4,6 +4,7 @@ const cron = require('node-cron');
 const app = require('../app');
 const fs = require('fs');
 const path = require('path');
+
 connectDB.connect();
 if(!isMainThread) {
     cron.schedule('00 04 * * *', () => {

@@ -1,9 +1,6 @@
 const User = require('../models/user');
-const District = require('../models/district');
 const randomstring = require('randomstring');
-const IntegrationObject = require('../models/integrationObject');
 const History = require('../models/history');
-const WorkShift = require('../models/workshift');
 const jwtsecret = process.env.jwtsecret.trim();
 const jwt = require('jsonwebtoken');
 
@@ -13,160 +10,114 @@ const type = `
     createdAt: Date
     updatedAt: Date
     lastActive: Date
-    enteredDate: Date
     login: String
     role: String
     status: String
-    statistic: Boolean
-    name: String
-    phone: [String]
-    legalObject: LegalObject
-    branch: Branch
-    del: Boolean
-    credit: Boolean
-    payment: Boolean
-    add: Boolean
-    device: String
     IP: String
-    email: [String]
+    name: String
+    phones: [String]
+    device: String
     notification: Boolean
+    store: Store
+    department: String
+    position: String
+    startWork: Date
+    add: Boolean
+    edit: Boolean
+    deleted: Boolean
  }
 `;
 
 const query = `
     checkLogin(login: String!): String
-    users(skip: Int, search: String, legalObject: ID, branch: ID, role: String): [User]
-    usersCount(search: String, legalObject: ID, branch: ID, role: String): Int
-    usersTrash(skip: Int, search: String): [User]
+    departments(search: String): [User]
+    positions(search: String): [User]
+    users(skip: Int, search: String, store: ID, role: String, limit: Int, department: String, position: String): [User]
+    usersCount(search: String, store: ID, role: String, department: String, position: String): Int
     user(_id: ID!): User
 `;
 
 const mutation = `
-    addUser(login: String!, statistic: Boolean!, add: Boolean!, credit: Boolean!, payment: Boolean!, email: [String]!, password: String!, role: String!, name: String!, phone: [String]!, legalObject: ID, branch: ID): String
-    setUser(_id: ID!, login: String, statistic: Boolean, email: [String], add: Boolean, credit: Boolean, payment: Boolean, password: String, name: String, phone: [String], branch: ID): String
+    addUser(login: String!, add: Boolean!, edit: Boolean!, deleted: Boolean!, role: String!, password: String!, name: String!, phones: [String]!, store: ID, department: String!, position: String!, startWork: Date): String
+    setUser(_id: ID!, login: String, add: Boolean, edit: Boolean, deleted: Boolean, status: String, password: String, name: String, phones: [String], store: ID, department: String, position: String, startWork: Date): String
     setDevice(device: String!): String
-    onoffUser(_id: ID!): String
     deleteUser(_id: ID!): String
-    restoreUser(_id: ID!): String
 `;
 
 const resolvers = {
-    users: async(parent, {skip, search, legalObject, branch, role}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'супервайзер'].includes(user.role)||search&&search.length>2&&user.role==='оператор') {
-            if(user.legalObject) legalObject = user.legalObject
-            let districts = []
-            if(user.role==='супервайзер'){
-                districts = await District.find({
-                    supervisors: user._id,
-                })
-                    .distinct('cashiers')
-                    .lean()
+    positions: async(parent, {search}, {user}) => {
+        if(['admin'].includes(user.role)) {
+            let res = await User.find({
+                ...search?{position: {'$regex': search, '$options': 'i'}}:{},
+            })
+                .distinct('position')
+                .lean()
+            let departments = []
+            for(let i=0; i<res.length; i++) {
+                departments = [...departments, {name: res[i]}]
             }
-            if(legalObject||['admin', 'superadmin'].includes(user.role)) {
-                let res = await User.find({
-                    ...user.role==='супервайзер'?
-                        {role: 'кассир', _id: {$in: districts}}
-                        :
-                        role&&role.length?
-                            {$and: [{role: {$ne: 'superadmin'}}, {role: role}, ...'superadmin'!==user.role?[{role: {$ne: 'admin'}}]:[]]}
-                            :
-                            {$and: [{role: {$ne: 'superadmin'}}, ...'superadmin'!==user.role?[{role: {$ne: 'admin'}}]:[]]},
-                    ...search&&search.length?{name: {'$regex': search, '$options': 'i'}}:{},
-                    legalObject,
-                    ...branch ? {branch} : {},
-                    del: {$ne: true},
-                })
-                    .skip(skip != undefined ? skip : 0)
-                    .limit(skip != undefined ? 15 : 10000000000)
-                    .sort('name')
-                    .populate({
-                        path: 'legalObject',
-                        select: 'name _id'
-                    })
-                    .populate({
-                        path: 'branch',
-                        select: 'name _id'
-                    })
-                    .lean()
-                return res
-            }
+            return departments
         }
         return []
     },
-    usersCount: async(parent, {search, legalObject, branch, role}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'супервайзер'].includes(user.role)||search&&search.length>2&&user.role==='оператор') {
-            if(user.legalObject) legalObject = user.legalObject
-            if(legalObject||['admin', 'superadmin'].includes(user.role)) {
-                let districts = []
-                if(user.role==='супервайзер'){
-                    districts = await District.find({
-                        supervisors: user._id,
-                    })
-                        .distinct('cashiers')
-                        .lean()
-                }
-                return await User.countDocuments({
-                    ...user.role==='супервайзер'?
-                        {role: 'кассир', _id: {$in: districts}}
-                        :
-                        role&&role.length?
-                            {$and: [{role: {$ne: 'superadmin'}}, {role: role}, ...'superadmin'!==user.role?[{role: {$ne: 'admin'}}]:[]]}
-                            :
-                            {$and: [{role: {$ne: 'superadmin'}}, ...'superadmin'!==user.role?[{role: {$ne: 'admin'}}]:[]]},
-                    ...search&&search.length? {name: {'$regex': search, '$options': 'i'}} : {},
-                    legalObject,
-                    ...branch?{branch}:{},
-                    del: {$ne: true},
-                })
-                    .lean()
+    departments: async(parent, {search}, {user}) => {
+        if(['admin'].includes(user.role)) {
+            let res = await User.find({
+                ...search?{department: {'$regex': search, '$options': 'i'}}:{},
+            })
+                .distinct('department')
+                .lean()
+            let departments = []
+            for(let i=0; i<res.length; i++) {
+                departments = [...departments, {name: res[i]}]
             }
+            return departments
+        }
+        return []
+    },
+    users: async(parent, {skip, search, store, role, limit, department, position}, {user}) => {
+        if(['admin'].includes(user.role)) {
+            if(user.store) store = user.store
+            let res = await User.find({
+                ...role?{role}:{role: {$ne: 'admin'}},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                ...store ? {store} : {},
+                ...department ? {department} : {},
+                ...position ? {position} : {},
+                del: {$ne: true}
+            })
+                .skip(skip != undefined ? skip : 0)
+                .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
+                .sort('name')
+                .select('_id role name')
+                .lean()
+            return res
+        }
+        return []
+    },
+    usersCount: async(parent, {search, store, role, department, position}, {user}) => {
+        if(['admin'].includes(user.role)) {
+            if(user.store) store = user.store
+            return await User.countDocuments({
+                ...role?{role}:{role: {$ne: 'admin'}},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                ...store ? {store} : {},
+                ...department ? {department} : {},
+                ...position ? {position} : {},
+                del: {$ne: true}
+            })
+                .lean()
         }
         return 0
     },
-    usersTrash: async(parent, {skip, search}, {user}) => {
-        if('superadmin'===user.role) {
-            return await User.find({
-                role: {$ne: 'superadmin'},
-                ...search&&search.length?{name: {'$regex': search, '$options': 'i'}}:{},
-                del: true
-            })
-                .skip(skip != undefined ? skip : 0)
-                .limit(skip != undefined ? 15 : 10000000000)
-                .sort('name')
-                .lean()
-        }
-    },
     user: async(parent, {_id}, {user}) => {
-        if(['admin', 'superadmin', 'управляющий', 'кассир', 'супервайзер', 'оператор'].includes(user.role)) {
-            let districts = []
-            if(user.role==='супервайзер'){
-                districts = await District.find({
-                    supervisors: user._id,
-                })
-                    .distinct('cashiers')
-                    .lean()
-            }
+        if(['admin'].includes(user.role)) {
             let res = await User.findOne({
-                role: {$ne: 'superadmin'},
-                ...user.role==='admin'? _id.toString()!==user._id.toString()?{role: {$ne: 'admin'}, _id}:{_id}
-                   :
-                   user.role==='оператор'? {role: {$ne: 'admin'}, del: {$ne: true}, _id}
-                   :
-                   user.role==='управляющий'? {role: {$ne: 'admin'}, del: {$ne: true}, _id}
-                   :
-                   user.role==='кассир'?{_id: user._id, del: {$ne: true}}
-                   :
-                   user.role==='супервайзер'?_id.toString()!==user._id.toString()?{$and: [{_id: {$in: districts}}, {_id}], del: {$ne: true}}:{_id, del: {$ne: true}}
-                   :
-                   {_id},
-                ...user.legalObject?{legalObject: user.legalObject}:{}
+                role: {$ne: 'admin'},
+                _id
             })
                 .populate({
-                    path: 'legalObject',
-                    select: 'name _id'
-                })
-                .populate({
-                    path: 'branch',
+                    path: 'store',
                     select: 'name _id'
                 })
                 .lean()
@@ -174,8 +125,8 @@ const resolvers = {
         }
     },
     checkLogin: async(parent, {login}, {user}) => {
-        if(['admin', 'оператор', 'superadmin'].includes(user.role)&&user.add) {
-            if(!(await User.findOne({login}).select('_id').lean()))
+        if(['admin'].includes(user.role)) {
+            if(!(await User.countDocuments({login}).lean()))
                 return 'OK'
         }
         return 'ERROR'
@@ -183,60 +134,38 @@ const resolvers = {
 };
 
 const resolversMutation = {
-    addUser: async(parent, {login, password, role, name, credit, payment, phone, legalObject, branch, statistic, add, email}, {user}) => {
-        if(
-            ('admin'===user.role&&role!=='admin'||'оператор'===user.role&&role!=='admin'||'superadmin'===user.role)&&user.add
-        ) {
-            if(user.legalObject) legalObject = user.legalObject
-            let _object = new User({
+    addUser: async(parent, {login, role, password, add, edit, deleted, name, phones, store, department, startWork, position}, {user}) => {
+        if(['admin'].includes(user.role)&&name!=='admin') {
+            let object = new User({
                 login,
                 role,
                 status: 'active',
                 password,
                 name,
-                phone,
-                legalObject,
-                branch,
-                statistic,
+                phones,
+                store,
+                department,
+                position,
+                startWork,
                 add,
-                credit,
-                payment,
-                email
+                edit,
+                deleted
             });
-            _object = await User.create(_object)
+            object = await User.create(object)
             let history = new History({
                 who: user._id,
-                where: _object._id,
+                where: object._id,
                 what: 'Создание'
             });
             await History.create(history)
-            return _object._id
+            return object._id
         }
         return 'ERROR'
     },
-    setUser: async(parent, {_id, login, password, name, phone, branch, statistic, credit, payment, add, email}, {user, res}) => {
-        if(user.role&&(_id.toString()===user._id.toString()||user.add)) {
-            let districts = []
-            if(user.role==='супервайзер'){
-                districts = await District.find({
-                    supervisors: user._id,
-                })
-                    .distinct('cashiers')
-                    .lean()
-            }
+    setUser: async(parent, {_id, add, edit, deleted, login, status, password, name, phones, store, department, position, startWork}, {user, res}) => {
+        if(['admin'].includes(user.role)) {
             let object = await User.findOne({
-                ...user.role==='admin'?{role: {$ne: 'admin'}, _id}
-                :
-                user.role==='оператор'? {$and: [{role: {$ne: 'admin'}}, {role: {$ne: 'оператор'}}], del: {$ne: true}, _id}
-                :
-                user.role==='управляющий'? {role: {$ne: 'admin'}, del: {$ne: true}, _id}
-                :
-                user.role==='супервайзер'?{$and: [{_id: {$in: districts}}, {_id}], del: {$ne: true}}
-                :
-                user.role==='superadmin'?{_id}
-                :
-                {_id: null},
-                ...user.legalObject ? {legalObject: user.legalObject} : {},
+                _id
             })
             if (object) {
                 let history = new History({
@@ -244,57 +173,64 @@ const resolversMutation = {
                     where: object._id,
                     what: ''
                 });
-                if (['admin', 'оператор', 'superadmin'].includes(user.role)&&login) {
-                    history.what = `login:${object.login}→${login};`
-                    object.login = login
-                    object.enteredDate = null
-                    if(_id.toString()===user._id.toString()) {
-                        const payload = {
-                            id: object._id,
-                            login: object.login,
-                            role: object.role
-                        };
-                        const token = await jwt.sign(payload, jwtsecret);
-                        await res.clearCookie('jwt');
-                        await res.cookie('jwt', token, {maxAge: user.role==='кассир'?24*60*60*1000:10*365*24*60*60*1000 });
+                if (['admin'].includes(user.role)) {
+                    if (login) {
+                        history.what = `Логин:${object.login}→${login};\n`
+                        object.login = login
+                        if(_id.toString()===user._id.toString()) {
+                            const payload = {
+                                id: object._id,
+                                login: object.login,
+                                role: object.role
+                            };
+                            const token = await jwt.sign(payload, jwtsecret);
+                            await res.clearCookie('jwt');
+                            await res.cookie('jwt', token, {maxAge: 10*365*24*60*60*1000});
+                        }
+                    }
+                    if (password) {
+                        history.what = `${history.what}Пароль;\n`
+                        object.password = password
+                    }
+                    if(add!=undefined) {
+                        history.what = `${history.what}Добавлять:${object.add}→${add};\n`
+                        object.add = add
+                    }
+                    if(edit!=undefined) {
+                        history.what = `${history.what}Изменять:${object.edit}→${edit};\n`
+                        object.edit = edit
+                    }
+                    if(deleted!=undefined) {
+                        history.what = `${history.what}Удалять:${object.deleted}→${deleted};\n`
+                        object.deleted = deleted
                     }
                 }
-                if (['admin', 'оператор', 'superadmin'].includes(user.role)&&password) {
-                    history.what = `${history.what} password;`
-                    object.password = password
-                }
-                if (name) {
-                    history.what = `${history.what} name:${object.name}→${name};`
+                if (name&&name!=='admin') {
+                    history.what = `${history.what}ФИО:${object.name}→${name};\n`
                     object.name = name
                 }
-                if (phone) {
-                    history.what = `${history.what} phone:${object.phone}→${phone};`
-                    object.phone = phone
+                if (department) {
+                    history.what = `${history.what}Отдел:${object.department}→${department};\n`
+                    object.department = department
                 }
-                if (JSON.stringify(object.branch)!==JSON.stringify(branch)&&!(await WorkShift.findOne({cashier: _id, end: null}).select('_id').lean())) {
-                    history.what = `${history.what} branch:${object.branch}→${branch};`
-                    object.branch = branch
+                if (position) {
+                    history.what = `${history.what}Должность:${object.position}→${position};\n`
+                    object.position = position
                 }
-                if (email) {
-                    history.what = `${history.what} email:${object.email}→${email};`
-                    object.email = email
+                if (startWork) {
+                    history.what = `${history.what}Начало работы:${object.startWork}→${startWork};\n`
+                    object.startWork = startWork
                 }
-                if (statistic!=undefined&&user.add&&(user.role==='superadmin'||object.role!=='admin')) {
-                    history.what = `${history.what} statistic:${object.statistic}→${statistic};`
-                    object.statistic = statistic
+                if (phones) {
+                    history.what = `${history.what}Телефоны:${object.phones}→${phones};\n`
+                    object.phones = phones
                 }
-                if (add!=undefined&&user.add&&(user.role==='superadmin'||object.role!=='admin')) {
-                    history.what = `${history.what} add:${object.add}→${add};`
-                    object.add = add
+                if (status) {
+                    history.what = `${history.what}Статус:${object.status}→${status};`
+                    object.status = status
                 }
-                if (credit!=undefined&&user.add&&(user.role==='superadmin'||object.role!=='admin')) {
-                    history.what = `${history.what} credit:${object.credit}→${credit};`
-                    object.credit = credit
-                }
-                if (payment!=undefined&&user.add&&(user.role==='superadmin'||object.role!=='admin'||object.role!=='управляющий')) {
-                    history.what = `${history.what} payment:${object.payment}→${payment};`
-                    object.payment = payment
-                }
+                history.what = `${history.what}Магазин:${object.store}→${store};\n`
+                object.store = store
                 await object.save();
                 await History.create(history)
                 return 'OK'
@@ -317,34 +253,13 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    onoffUser: async(parent, { _id }, {user}) => {
-        if(['admin', 'superadmin', 'управляющий'].includes(user.role)&&user.add) {
-            let object = await User.findOne({
-                _id,
-                ...user.legalObject?{legalObject: user.legalObject}:{}
-            })
-            if(object&&(object.role!=='admin'||user.role==='superadmin')) {
-                object.status = object.status==='active'?'deactive':'active'
-                object.save()
-                let history = new History({
-                    who: user._id,
-                    where: object._id,
-                    what: object.status==='active'?'Включение':'Отключение'
-                });
-                await History.create(history)
-                return 'OK'
-            }
-        }
-        return 'ERROR'
-    },
     deleteUser: async(parent, { _id }, {user}) => {
-        if(['admin', 'superadmin'].includes(user.role)&&user.add) {
+        if(['admin'].includes(user.role)) {
             let object = await User.findOne({_id: _id})
-            if(object&&(object.role!=='admin'||user.role==='superadmin')) {
+            if(object) {
                 object.del = true
                 object.login = randomstring.generate({length: 10, charset: 'numeric'});
                 object.save()
-                await IntegrationObject.deleteOne({user: _id})
                 let history = new History({
                     who: user._id,
                     where: object._id,
@@ -353,19 +268,6 @@ const resolversMutation = {
                 await History.create(history)
                 return 'OK'
             }
-        }
-        return 'ERROR'
-    },
-    restoreUser: async(parent, { _id }, {user}) => {
-        if('superadmin'===user.role) {
-            await User.updateOne({_id}, {del: false})
-            let history = new History({
-                who: user._id,
-                where: _id,
-                what: 'Восстановление'
-            });
-            await History.create(history)
-            return 'OK'
         }
         return 'ERROR'
     }

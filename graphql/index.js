@@ -1,40 +1,38 @@
 const { gql, ApolloServer,  } = require('apollo-server-express');
 const { RedisPubSub } = require('graphql-redis-subscriptions');
-const pubsub = new RedisPubSub();
-module.exports.pubsub = pubsub;
-const Blog = require('./blog');
-const Branch = require('./branch');
-const District = require('./district');
+const BalanceClient = require('./balanceClient');
+const StoreBalanceItem = require('./storeBalanceItem');
+const BalanceItem = require('./balanceItem');
+const BonusManager = require('./bonusManager');
 const Cashbox = require('./cashbox');
-const Report = require('./report');
+const Characteristic = require('./characteristic');
 const Category = require('./category');
 const Client = require('./client');
-const ConnectionApplication = require('./connectionApplication');
-const FullDeleteLegalObject = require('./fullDeleteLegalObject');
-const Consignation = require('./consignation');
-const WithdrawHistory = require('./withdrawHistory');
+const Cpa = require('./cpa');
+const Doc = require('./doc');
+const Factory= require('./factory');
+const Installment = require('./installment');
 const History = require('./history');
-const DepositHistory = require('./depositHistory');
-const Prepayment = require('./prepayment');
-const Contact = require('./contact');
+const MoneyArticle = require('./moneyArticle');
+const MoneyFlow = require('./moneyFlow');
+const MoneyRecipient = require('./moneyRecipient');
 const Error = require('./error');
 const ModelsError = require('../models/error');
 const Faq = require('./faq');
-const Statistic = require('./statistic');
-const File = require('./file');
-const Integration = require('./integration');
-const IntegrationObject = require('./integrationObject');
+const Salary = require('./salary');
+const Store = require('./store');
+const Task = require('./task');
+const TypeCharacteristic = require('./typeCharacteristic');
 const Item = require('./item');
-const ItemBarCode = require('./itemBarCode');
-const LegalObject = require('./legalObject');
-const NotificationStatistic = require('./notificationStatistic');
+const Warehouse = require('./warehouse');
+const WayItem = require('./wayItem');
 const Passport = require('./passport');
-const Payment = require('./payment');
-const Review = require('./review');
+const Consultation = require('./consultation');
+const Order = require('./order');
+const Refund = require('./refund');
+const Reservation = require('./reservation');
 const Sale = require('./sale');
-const Tariff = require('./tariff');
 const User = require('./user');
-const Workshift = require('./workshift');
 const { verifydeuserGQL } = require('../module/passport');
 const { GraphQLScalarType } = require('graphql');
 const { withFilter } = require('graphql-subscriptions');
@@ -44,6 +42,8 @@ const { makeExecutableSchema } = require('@graphql-tools/schema');
 const { WebSocketServer } = require('ws');
 const { useServer } = require('graphql-ws/lib/use/ws');
 const depthLimit  = require('graphql-depth-limit')
+const pubsub = new RedisPubSub();
+module.exports.pubsub = pubsub;
 
 const RELOAD_DATA = 'RELOAD_DATA';
 
@@ -58,9 +58,32 @@ const typeDefs = gql`
         name: String
         value: String
     }
-    type Social {
-        url: String
-        image: String
+    type CurrencyBalance {
+        amount: Float,
+        currency: String
+    }
+    type ItemFromList {
+        _id: ID
+        name: String
+        item: ID
+        unit: String
+        count: Float
+        price: Float
+        images: [String]
+        amount: Float
+        characteristics: [[String]]
+        status: String
+    }
+    input ItemFromListInput {
+        _id: ID
+        name: String
+        unit: String
+        item: ID
+        count: Float
+        price: Float
+        amount: Float
+        characteristics: [[String]]
+        status: String
     }
     type ReloadData {
         who: ID
@@ -69,100 +92,102 @@ const typeDefs = gql`
         roles: [String]
         message: String
     }
-    ${Blog.type}
-    ${FullDeleteLegalObject.type}
-    ${Branch.type}
-    ${District.type}
+    ${BalanceClient.type}
+    ${StoreBalanceItem.type}
+    ${BalanceItem.type}
     ${Cashbox.type}
-    ${Report.type}
+    ${BonusManager.type}
+    ${Characteristic.type}
+    ${Cpa.type}
+    ${Doc.type}
+    ${Factory.type}
+    ${Installment.type}
+    ${MoneyArticle.type}
+    ${MoneyFlow.type}
+    ${MoneyRecipient.type}
+    ${Salary.type}
+    ${Store.type}
+    ${Task.type}
+    ${TypeCharacteristic.type}
+    ${Warehouse.type}
+    ${WayItem.type}
     ${Category.type}
     ${Client.type}
-    ${ConnectionApplication.type}
-    ${Consignation.type}
-    ${WithdrawHistory.type}
     ${History.type}
-    ${DepositHistory.type}
-    ${Prepayment.type}
-    ${Contact.type}
     ${Error.type}
     ${Faq.type}
-    ${Statistic.type}
-    ${File.type}
     ${Item.type}
-    ${Integration.type}
-    ${IntegrationObject.type}
-    ${ItemBarCode.type}
-    ${LegalObject.type}
-    ${NotificationStatistic.type}
     ${Passport.type}
-    ${Payment.type}
-    ${Review.type}
+    ${Order.type}
+    ${Reservation.type}
+    ${Refund.type}
     ${Sale.type}
-    ${Tariff.type}
+    ${Consultation.type}
     ${User.type}
-    ${Workshift.type}
     type Mutation {
-        ${Contact.mutation}
-        ${Blog.mutation}
-        ${Statistic.mutation}
-        ${Branch.mutation}
-        ${District.mutation}
         ${Cashbox.mutation}
-        ${Report.mutation}
         ${Category.mutation}
         ${Client.mutation}
-        ${ConnectionApplication.mutation}
-        ${FullDeleteLegalObject.mutation}
         ${Error.mutation}
         ${Faq.mutation}
-        ${File.mutation}
         ${Item.mutation}
-        ${Integration.mutation}
-        ${IntegrationObject.mutation}
-        ${ItemBarCode.mutation}
-        ${LegalObject.mutation}
-        ${NotificationStatistic.mutation}
         ${Passport.mutation}
-        ${Payment.mutation}
-        ${Review.mutation}
+        ${Order.mutation}
+        ${Refund.mutation}
+        ${Reservation.mutation}
         ${Sale.mutation}
-        ${Tariff.mutation}
+        ${Consultation.mutation}
         ${User.mutation}
-        ${Workshift.mutation}
+        ${BalanceItem.mutation}
+        ${BonusManager.mutation}
+        ${Characteristic.mutation}
+        ${Cpa.mutation}
+        ${Doc.mutation}
+        ${Factory.mutation}
+        ${Installment.mutation}
+        ${MoneyArticle.mutation}
+        ${MoneyFlow.mutation}
+        ${MoneyRecipient.mutation}
+        ${Salary.mutation}
+        ${Store.mutation}
+        ${Task.mutation}
+        ${TypeCharacteristic.mutation}
+        ${Warehouse.mutation}
+        ${WayItem.mutation}
     }
     type Query {
-        ${Contact.query}
-        ${Blog.query}
-        ${Branch.query}
-        ${District.query}
-        ${FullDeleteLegalObject.query}
         ${Cashbox.query}
-        ${Report.query}
         ${Category.query}
         ${Client.query}
-        ${ConnectionApplication.query}
-        ${Consignation.query}
-        ${WithdrawHistory.query}
         ${History.query}
-        ${DepositHistory.query}
-        ${Prepayment.query}
         ${Passport.query}
-        ${Payment.query}
-        ${Review.query}
+        ${Order.query}
         ${Sale.query}
-        ${Tariff.query}
+        ${Reservation.query}
+        ${Refund.query}
+        ${Consultation.query}
         ${User.query}
         ${Error.query}
         ${Faq.query}
-        ${Statistic.query}
-        ${File.query}
         ${Item.query}
-        ${Integration.query}
-        ${IntegrationObject.query}
-        ${ItemBarCode.query}
-        ${LegalObject.query}
-        ${NotificationStatistic.query}
-        ${Workshift.query}
+        ${BalanceClient.query}
+        ${StoreBalanceItem.query}
+        ${BalanceItem.query}
+        ${BonusManager.query}
+        ${Characteristic.query}
+        ${Cpa.query}
+        ${Doc.query}
+        ${Factory.query}
+        ${Installment.query}
+        ${MoneyArticle.query}
+        ${MoneyFlow.query}
+        ${MoneyRecipient.query}
+        ${Salary.query}
+        ${Store.query}
+        ${Task.query}
+        ${TypeCharacteristic.query}
+        ${Warehouse.query}
+        ${WayItem.query}
     }
     type Subscription {
         reloadData: ReloadData
@@ -188,67 +213,69 @@ const resolvers = {
         },
     }),
     Query: {
-        ...Contact.resolvers,
-        ...Blog.resolvers,
-        ...Branch.resolvers,
-        ...District.resolvers,
+        ...BalanceClient.resolvers,
+        ...StoreBalanceItem.resolvers,
         ...Cashbox.resolvers,
-        ...Report.resolvers,
         ...Category.resolvers,
         ...Client.resolvers,
-        ...ConnectionApplication.resolvers,
-        ...Consignation.resolvers,
-        ...DepositHistory.resolvers,
-        ...WithdrawHistory.resolvers,
         ...History.resolvers,
-        ...Prepayment.resolvers,
         ...Passport.resolvers,
-        ...Payment.resolvers,
-        ...Review.resolvers,
+        ...Order.resolvers,
+        ...Reservation.resolvers,
+        ...Refund.resolvers,
         ...Sale.resolvers,
-        ...Tariff.resolvers,
-        ...FullDeleteLegalObject.resolvers,
+        ...Consultation.resolvers,
         ...User.resolvers,
-        ...Workshift.resolvers,
         ...Error.resolvers,
         ...Faq.resolvers,
-        ...Statistic.resolvers,
-        ...File.resolvers,
         ...Item.resolvers,
-        ...Integration.resolvers,
-        ...IntegrationObject.resolvers,
-        ...ItemBarCode.resolvers,
-        ...LegalObject.resolvers,
-        ...NotificationStatistic.resolvers,
+        ...BalanceItem.resolvers,
+        ...BonusManager.resolvers,
+        ...Characteristic.resolvers,
+        ...Cpa.resolvers,
+        ...Doc.resolvers,
+        ...Factory.resolvers,
+        ...Installment.resolvers,
+        ...MoneyArticle.resolvers,
+        ...MoneyFlow.resolvers,
+        ...MoneyRecipient.resolvers,
+        ...Salary.resolvers,
+        ...Store.resolvers,
+        ...Task.resolvers,
+        ...TypeCharacteristic.resolvers,
+        ...Warehouse.resolvers,
+        ...WayItem.resolvers,
     },
     Mutation: {
-        ...Statistic.resolversMutation,
-        ...Contact.resolversMutation,
-        ...ConnectionApplication.resolversMutation,
-        ...FullDeleteLegalObject.resolversMutation,
-        ...Blog.resolversMutation,
-        ...Branch.resolversMutation,
-        ...District.resolversMutation,
         ...Cashbox.resolversMutation,
-        ...Report.resolversMutation,
         ...Category.resolversMutation,
         ...Client.resolversMutation,
         ...Passport.resolversMutation,
-        ...Payment.resolversMutation,
-        ...Review.resolversMutation,
+        ...Order.resolversMutation,
+        ...Refund.resolversMutation,
+        ...Reservation.resolversMutation,
         ...Sale.resolversMutation,
-        ...Tariff.resolversMutation,
+        ...Consultation.resolversMutation,
         ...User.resolversMutation,
-        ...Workshift.resolversMutation,
         ...Error.resolversMutation,
         ...Faq.resolversMutation,
-        ...File.resolversMutation,
         ...Item.resolversMutation,
-        ...Integration.resolversMutation,
-        ...IntegrationObject.resolversMutation,
-        ...ItemBarCode.resolversMutation,
-        ...LegalObject.resolversMutation,
-        ...NotificationStatistic.resolversMutation,
+        ...BalanceItem.resolversMutation,
+        ...BonusManager.resolversMutation,
+        ...Characteristic.resolversMutation,
+        ...Cpa.resolversMutation,
+        ...Doc.resolversMutation,
+        ...Factory.resolversMutation,
+        ...Installment.resolversMutation,
+        ...MoneyArticle.resolversMutation,
+        ...MoneyFlow.resolversMutation,
+        ...MoneyRecipient.resolversMutation,
+        ...Salary.resolversMutation,
+        ...Store.resolversMutation,
+        ...Task.resolversMutation,
+        ...TypeCharacteristic.resolversMutation,
+        ...Warehouse.resolversMutation,
+        ...WayItem.resolversMutation,
     },
     Subscription: {
         reloadData: {

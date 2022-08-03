@@ -7,6 +7,6 @@ const ErrorSchema = mongoose.Schema({
     timestamps: true
 });
 
-const Error = mongoose.model('ErrorSALYK', ErrorSchema);
+const Error = mongoose.model('ErrorINHOUSE', ErrorSchema);
 
 module.exports = Error;

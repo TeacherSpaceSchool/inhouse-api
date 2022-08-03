@@ -1,4 +1,4 @@
-const express = require('express');
+    const express = require('express');
 const router = express.Router();
 const randomstring = require('randomstring');
 const Subscriber = require('../models/subscriber');
@@ -45,11 +45,11 @@ router.post('/register', async (req, res) => {
                 }
             });
         } catch (err) {
-            let _object = new ModelsError({
+            let object = new ModelsError({
                 err: err.message,
                 path: 'register subscribe'
             });
-            await ModelsError.create(_object)
+            await ModelsError.create(object)
             console.error(err)
             res.status(501);
             res.end('error')
@@ -68,11 +68,11 @@ router.post('/unregister', async (req, res) => {
         subscriptionModel.user = null
         await subscriptionModel.save()
     } catch (err) {
-        let _object = new ModelsError({
+        let object = new ModelsError({
             err: err.message,
             path: 'unregister subscribe'
         });
-        await ModelsError.create(_object)
+        await ModelsError.create(object)
         console.error(err)
         res.status(501);
         res.end('error')
@@ -89,11 +89,11 @@ router.post('/delete', async (req, res) => {
         }
         await Subscriber.deleteMany({number: req.body.number})
     } catch (err) {
-        let _object = new ModelsError({
+        let object = new ModelsError({
             err: err.message,
             path: 'delete subscribe'
         });
-        await ModelsError.create(_object)
+        await ModelsError.create(object)
         console.error(err)
         res.status(501);
         res.end('error')

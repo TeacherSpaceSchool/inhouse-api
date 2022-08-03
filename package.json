@@ -1,10 +1,10 @@
 {
-    "name": "new-saly.store-api",
+    "name": "inhouse-api",
     "version": "1.0.0",
     "private": true,
     "scripts": {
-        "develop": "set URL=http://localhost&& set jwtsecret=QWERTY1234&& set superadminlogin=superadmin&& set superadminpass=12345678&& nodemon ./bin/develop",
-        "start": "set NODE_ENV=production&& set URL=http://localhost&& set jwtsecret=QWERTY1234&& set superadminlogin=superadmin&& set superadminpass=12345678&& node ./bin/www",
+        "develop": "set URL=http://localhost&& set jwtsecret=QWERTY1234&& set adminlogin=admin&& set adminpass=12345678&& nodemon ./bin/develop",
+        "start": "set NODE_ENV=production&& set URL=http://localhost&& set jwtsecret=QWERTY1234&& set adminlogin=admin&& set adminpass=12345678&& node ./bin/www",
         "testing": "set NODE_ENV=test&& set URL=http://localhost&& jest"
     },
     "dependencies": {

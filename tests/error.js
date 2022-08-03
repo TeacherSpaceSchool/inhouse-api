@@ -1,6 +1,5 @@
 const Error = require('../models/error');
 const { resolvers, resolversMutation } = require('../graphql/error');
-const { objects } = require('./lib');
 
 module.exports.errorTest = () => describe('error gql', () => {
 

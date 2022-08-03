@@ -3,7 +3,6 @@ const app = express();
 
 if(process.env.NODE_ENV!=='test') {
 
-    const api = require('./routes/api');
     const createError = require('http-errors');
     const path = require('path');
     const cookieParser = require('cookie-parser');
@@ -14,7 +13,6 @@ if(process.env.NODE_ENV!=='test') {
     const bodyParser = require('body-parser');
     const subscribe = require('./routes/subscribe');
     const push = require('./routes/push');
-    const payment = require('./routes/payment');
     const helmet = require('helmet');
     const { graphqlUploadExpress } = require('graphql-upload');
     const passportEngine = require('./module/passport');
@@ -56,6 +54,7 @@ if(process.env.NODE_ENV!=='test') {
     });
     app.use(bodyParser.json({limit: '1000mb'}));
     app.use(bodyParser.xml({limit: '1000mb'}));
+    app.use(express.static(path.join(__dirname, 'public')));
     app.use(compression());
     app.use(helmet());
     app.use('*', (req, res, next) => {
@@ -74,8 +73,6 @@ if(process.env.NODE_ENV!=='test') {
 //route
     app.use('/subscribe', subscribe);
     app.use('/push', push);
-    app.use('/payment', payment);
-    app.use('/api', api);
 
 // catch 404 and forward to error handler
     app.use(function (req, res, next) {
