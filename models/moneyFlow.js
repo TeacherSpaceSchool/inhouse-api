@@ -49,6 +49,7 @@ const MoneyFlowSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'InstallmentINHOUSE'
     },
+    installmentMonth: Date,
     number: String,
     operation: String,
     info: String,

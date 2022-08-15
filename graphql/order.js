@@ -27,8 +27,8 @@ const type = `
 
 const query = `
     prepareAcceptOrder(_id: ID!): [ID]
-    orders(skip: Int, items: Boolean, limit: Int, manager: ID, client: ID, store: ID, date: Date, status: String): [Order]
-    ordersCount(manager: ID, client: ID, store: ID, date: Date, status: String): Int
+    orders(search: String, skip: Int, items: Boolean, limit: Int, manager: ID, client: ID, store: ID, date: Date, status: String): [Order]
+    ordersCount(search: String, manager: ID, client: ID, store: ID, date: Date, status: String): Int
     order(_id: ID!): Order
 `;
 
@@ -38,23 +38,24 @@ const mutation = `
 `;
 
 const resolvers = {
-    orders: async(parent, {skip, items, manager, client, store, limit, date, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    orders: async(parent, {search, skip, items, manager, client, store, limit, date, status}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            if(user.role==='менеджер') manager = user._id
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
             let dateStart, dateEnd
-            if (date) {
+            if (date&&date.toString()!=='Invalid Date') {
                 dateStart = new Date(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             let res = await Order.find({
+                ...search?{number: search}:{},
                 ...manager?{manager}:{},
                 ...client?{client}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
                 ...store?{store}:{},
-                ...status?{status}:{},
+                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
@@ -84,32 +85,33 @@ const resolvers = {
             return res
         }
     },
-    ordersCount: async(parent, {client, store, manager, date, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    ordersCount: async(parent, {search, client, store, manager, date, status}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            if(user.role==='менеджер') manager = user._id
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
             let dateStart, dateEnd
-            if (date) {
+            if (date&&date.toString()!=='Invalid Date') {
                 dateStart = new Date(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             return await Order.countDocuments({
+                ...search?{number: search}:{},
                 ...manager?{manager}:{},
                 ...client?{client}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
                 ...store?{store}:{},
-                ...status?{status}:{},
+                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .lean()
         }
     },
     order: async(parent, {_id}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let res = await Order.findOne({
                 _id,
-                ...user.role==='менеджер'?{manager: user._id}:{}
+                ...['менеджер', 'менеджер/завсклад'].includes(user.role)?{manager: user._id}:{}
             })
                 .populate({
                     path: 'manager',
@@ -133,7 +135,7 @@ const resolvers = {
         }
     },
     prepareAcceptOrder: async(parent, {_id}, {user}) => {
-        if(['admin', 'завсклад'].includes(user.role)) {
+        if(['admin', 'завсклад', 'менеджер/завсклад'].includes(user.role)) {
             let res = []
             let order = await Order.findOne({
                 _id
@@ -143,7 +145,7 @@ const resolvers = {
             let wayItems, usedAmount
             for(let i=0; i<order.itemsOrder.length; i++) {
                 res[i] = null
-                wayItems = await WayItem.find({item: order.itemsOrder[i].item, status: 'в пути'}).lean()
+                wayItems = await WayItem.find({item: order.itemsOrder[i].item, status: 'в пути', store: order.store}).lean()
                 for(let i1=0; i1<wayItems.length; i1++) {
                     usedAmount = 0
                     for(let i2=0; i2<wayItems[i1].bookings.length; i2++) {
@@ -162,7 +164,7 @@ const resolvers = {
 
 const resolversMutation = {
     addOrder: async(parent, {client, itemsOrder, amount, paid, typePayment, comment, currency}, {user}) => {
-        if('менеджер'===user.role) {
+        if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             for(let i=0; i<itemsOrder.length; i++) {
                 itemsOrder[i] = new ItemOrder(itemsOrder[i]);
                 itemsOrder[i] = (await ItemOrder.create(itemsOrder[i]))._id
@@ -213,10 +215,10 @@ const resolversMutation = {
         return 'ERROR'
     },
     setOrder: async(parent, {_id, itemsOrder, amount, paid, comment, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await Order.findOne({
                 _id,
-                ...user.role==='менеджер'?{manager: user._id}:{}
+                ...['менеджер', 'менеджер/завсклад'].includes(user.role)?{manager: user._id}:{}
             })
             if(object&&object.status==='обработка') {
                 let history = new History({
@@ -270,14 +272,14 @@ const resolversMutation = {
                     object.paid = paid
                 }
                 if (comment) {
-                    history.what = `${history.what}Информация:${object.comment}→${comment};\n`
+                    history.what = `${history.what}Комментарий:${object.comment}→${comment};\n`
                     object.comment = comment
                 }
                 if (status) {
                     history.what = `${history.what}Статус:${object.status}→${status};`
                     object.status = status
                     await ItemOrder.updateMany({_id: {$in: object.itemsOrder}}, {status})
-                    if(status==='отмена') {
+                    if(status==='отмена'&&object.paid) {
                         let balanceClient = await BalanceClient.findOne({client: object.client}).lean(), index
                         for(let i=0; i<balanceClient.balance.length; i++) {
                             if (balanceClient.balance[i].currency === object.currency) {

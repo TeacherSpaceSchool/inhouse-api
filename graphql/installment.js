@@ -2,7 +2,7 @@ const Installment = require('../models/installment');
 const Sale = require('../models/sale');
 const History = require('../models/history');
 const BalanceClient = require('../models/balanceClient');
-const {checkFloat} = require('../module/const');
+const {checkFloat, pdDDMMYY} = require('../module/const');
 
 const type = `
   type Installment {
@@ -35,8 +35,8 @@ const type = `
 `;
 
 const query = `
-    installments(_id: ID, skip: Int, client: ID, status: String, date: Date, soon: Boolean, late: Boolean, today: Boolean, store: ID): [Installment]
-    installmentsCount(_id: ID, client: ID, status: String, date: Date, soon: Boolean, late: Boolean, today: Boolean, store: ID): Int
+    installments(search: String, _id: ID, skip: Int, client: ID, status: String, date: Date, soon: Boolean, late: Boolean, today: Boolean, store: ID): [Installment]
+    installmentsCount(search: String, _id: ID, client: ID, status: String, date: Date, soon: Boolean, late: Boolean, today: Boolean, store: ID): Int
 `;
 
 const mutation = `
@@ -50,42 +50,44 @@ const setGridInstallment = async ({_id, newAmount, oldAmount, month, type, user}
     }).lean()
     let history = new History({
         who: user._id,
-        where: _id,
-        what: ''
+        where: _id
     });
-    history.what = `Сетка:${JSON.stringify(installment.grid)}→`
     let paid = 0
     let datePaid
     for (let i = 0; i < installment.grid.length; i++) {
-        if(installment.grid[i].month===month) {
+        if(pdDDMMYY(installment.grid[i].month)===pdDDMMYY(month)) {
+            history.what = `${pdDDMMYY(installment.grid[i].month)}:${checkFloat(installment.grid[i].paid)}`
             if(type==='-') {
-                installment.grid[i].paid = checkFloat(installment.grid[i].paid + checkFloat(oldAmount) - newAmount)
+                installment.grid[i].paid = checkFloat(checkFloat(installment.grid[i].paid) + checkFloat(oldAmount) - newAmount)
             }
             else if(type==='+') {
-                installment.grid[i].paid = checkFloat(installment.grid[i].paid - checkFloat(oldAmount) + newAmount)
+                installment.grid[i].paid = checkFloat(checkFloat(installment.grid[i].paid) - checkFloat(oldAmount) + newAmount)
             }
             else {
                 installment.grid[i].paid = newAmount
             }
+            history.what = `${history.what}→${installment.grid[i].paid};\n`
         }
     }
     for (let i = 0; i < installment.grid.length; i++) {
-        paid = checkFloat(paid + installment.grid[i].paid)
+        paid = checkFloat(paid + checkFloat(installment.grid[i].paid))
         if(!installment.grid[i].paid&&!datePaid)
             datePaid = installment.grid[i].month
     }
     let debt = checkFloat(installment.amount - paid)
-    history.what = `${history.what}${JSON.stringify(installment.grid)};\n`
-    history.what = `${history.what}Дата оплаты:${installment.datePaid}→${datePaid};\n`
     history.what = `${history.what}Долг:${installment.debt}→${debt};\n`
     history.what = `${history.what}Оплачено:${installment.paid}→${paid};\n`
-    await Installment.updateOne({_id}, {debt, paid, datePaid, grid: installment.grid})
+    await Installment.updateOne({_id}, {debt, paid, datePaid, grid: installment.grid, ...installment.status!=='отмена'?debt<1?{status: 'оплачен'}:{status: 'активна'}:{}})
+    await History.create(history)
 }
 
 const resolvers = {
-    installments: async(parent, {_id, skip, client, date, status, late, soon, today, store}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    installments: async(parent, {search, _id, skip, client, date, status, late, soon, today, store}, {user}) => {
+        if(['admin', 'управляющий', 'кассир', 'менеджер', 'менеджер/завсклад', 'юрист'].includes(user.role)) {
             if(user.store) store = user.store
+            let managerClients = []
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role))
+                managerClients = await Sale.find({manager: user._id}).distinct('client').lean()
             let dateStart, dateEnd
             if(late||today) {
                 date = new Date()
@@ -104,8 +106,12 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             let res = await Installment.find({
+                ...search?{number: search}:{},
                 ..._id ? {_id} : {},
-                ...client ? {client} : {},
+                ...client||['менеджер', 'менеджер/завсклад'].includes(user.role) ? {$and: [
+                    ...client?[{client}]:[],
+                    ...['менеджер', 'менеджер/завсклад'].includes(user.role)?[{client: {$in: managerClients}}]:[]
+                ]} : {},
                 ...store ? {store} : {},
                 ...late? {datePaid: {$lt: date}, status: 'активна'} :
                     today? {datePaid: date, status: 'активна'}
@@ -130,9 +136,12 @@ const resolvers = {
             return res
         }
     },
-    installmentsCount: async(parent, {_id, client, status, late, today, soon, store, date}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    installmentsCount: async(parent, {search, _id, client, status, late, today, soon, store, date}, {user}) => {
+        if(['admin', 'управляющий', 'кассир', 'менеджер', 'менеджер/завсклад', 'юрист'].includes(user.role)) {
             if(user.store) store = user.store
+            let managerClients = []
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role))
+                managerClients = await Sale.find({manager: user._id}).distinct('client').lean()
             let dateStart, dateEnd
             if(late||today) {
                 date = new Date()
@@ -151,9 +160,13 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             return await Installment.countDocuments({
+                ...search?{number: search}:{},
                 ..._id ? {_id} : {},
                 ...store ? {store} : {},
-                ...client ? {client} : {},
+                ...client||['менеджер', 'менеджер/завсклад'].includes(user.role) ? {$and: [
+                    ...client?[{client}]:[],
+                    ...['менеджер', 'менеджер/завсклад'].includes(user.role)?[{client: {$in: managerClients}}]:[]
+                ]} : {},
                 ...late? {datePaid: {$lt: date}, status: 'активна'} : today? {datePaid: date, status: 'активна'}
                     :
                     {
@@ -169,7 +182,7 @@ const resolvers = {
 
 const resolversMutation = {
     addInstallment: async(parent, {renew, grid, debt, client, currency, amount, paid, sale, datePaid, store}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let object = new Installment({
                 number: (await Installment.countDocuments({}).lean())+1,
@@ -205,13 +218,12 @@ const resolversMutation = {
                 ]
             else
                 balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount - (sale?debt:amount))
-            await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
 
             if(renew) {
                 let installments = await Installment.find({client, store, status: 'активна', _id: {$ne: object._id}})
                 for(let i=0; i<installments.length; i++) {
 
-                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + debt)
+                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + installments[i].debt)
 
                     installments[i].status = 'перерасчет'
                     await installments[i].save()
@@ -225,6 +237,7 @@ const resolversMutation = {
                 }
             }
 
+            await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
             let history = new History({
                 who: user._id,
                 where: object._id,
@@ -245,7 +258,7 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setInstallment: async(parent, {_id, info, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'кассир'].includes(user.role)) {
             let object = await Installment.findOne({
                 _id,
             })
@@ -255,27 +268,8 @@ const resolversMutation = {
                     where: object._id,
                     what: ''
                 });
-                if (paid!=undefined&&object.paid!==paid) {
-
-                    let balanceClient = await BalanceClient.findOne({client: object.client}).lean(), index
-                    for(let i=0; i<balanceClient.balance.length; i++) {
-                        if (balanceClient.balance[i].currency === 'сом') {
-                            index = i
-                            break
-                        }
-                    }
-                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount - object.paid + paid)
-                    await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
-
-                    history.what = `${history.what}Оплачено:${object.paid}→${paid};\n`
-                    object.paid = paid
-                }
-                if (grid&&JSON.stringify(object.grid)!==JSON.stringify(grid)) {
-                    history.what = `${history.what}Сетка:${JSON.stringify(object.grid)}→${JSON.stringify(grid)};\n`
-                    object.grid = grid
-                }
                 if (info&&object.info!==info) {
-                    history.what = `${history.what}Информация:${object.info}→${info};\n`
+                    history.what = `Комментарий:${object.info}→${info};\n`
                     object.info = info
                 }
                 if (status&&object.status!==status) {

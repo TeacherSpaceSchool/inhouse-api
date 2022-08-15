@@ -17,19 +17,19 @@ module.exports.weekDay = [
     'ПТ',
     'СБ',
 ]
-module.exports.month = [
-    'январь',
-    'февраль',
-    'март',
-    'апрель',
-    'май',
-    'июнь',
-    'июль',
-    'август',
-    'сентябрь',
-    'октябрь',
-    'ноябрь',
-    'декабрь'
+const months = [
+    'Январь',
+    'Февраль',
+    'Март',
+    'Апрель',
+    'Май',
+    'Июнь',
+    'Июль',
+    'Август',
+    'Сентябрь',
+    'Октябрь',
+    'Ноябрь',
+    'Декабрь'
 ]
 
 const statsCollection = async (collection) => {
@@ -112,12 +112,26 @@ const pdDDMMYYYY = (date) =>
     date = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getFullYear()}`
     return date
 }
+const pdDDMMYY = (date) =>
+{
+    date = new Date(date)
+    date = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getYear()-100}`
+    return date
+}
 const pdDDMMYYHHMM = (date) =>
 {
     date = new Date(date)
-    date = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getFullYear()} ${date.getHours()<10?'0':''}${date.getHours()}:${date.getMinutes()<10?'0':''}${date.getMinutes()}`
+    date = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getYear()-100} ${date.getHours()<10?'0':''}${date.getHours()}:${date.getMinutes()<10?'0':''}${date.getMinutes()}`
     return date
 }
+
+const pdMonthYYYY = (date) =>
+{
+    date = new Date(date)
+    date = `${months[date.getMonth()]} ${date.getFullYear()}`
+    return date
+}
+
 const pdHHMM = (date) =>
 {
     date = new Date(date)
@@ -125,7 +139,8 @@ const pdHHMM = (date) =>
     return date
 }
 
-
+module.exports.months = months
+module.exports.pdMonthYYYY = pdMonthYYYY;
 module.exports.statsCollection = statsCollection;
 module.exports.checkInt = checkInt;
 module.exports.pdHHMM = pdHHMM;
@@ -136,3 +151,4 @@ module.exports.adminPass = adminPass;
 module.exports.adminLogin = adminLogin;
 module.exports.urlMain = urlMain;
 module.exports.checkFloat = checkFloat;
+module.exports.pdDDMMYY = pdDDMMYY;

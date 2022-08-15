@@ -1,6 +1,12 @@
 const Category = require('../models/category');
 const Item = require('../models/item');
 const History = require('../models/history');
+const { saveFile, deleteFile, urlMain } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
+
 
 const type = `
   type Category {
@@ -11,17 +17,38 @@ const type = `
 `;
 
 const query = `
+    unloadCategorys(search: String): String
     categorys(skip: Int, search: String): [Category]
     categorysCount(search: String): Int
 `;
 
 const mutation = `
+    uploadCategory(document: Upload!): String
     addCategory(name: String!): Category
     setCategory(_id: ID!, name: String!): String
     deleteCategory(_id: ID!): String
 `;
 
 const resolvers = {
+    unloadCategorys: async(parent, {search}, {user}) => {
+        if(user.role) {
+            let res = await Category.find({
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+            })
+                .sort('name')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            for(let i = 0; i < res.length; i++) {
+                worksheet.getRow(i+1).getCell(1).value = res[i]._id.toString()
+                worksheet.getRow(i+1).getCell(2).value = res[i].name
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
     categorys: async(parent, {skip, search}, {user}) => {
         if(user.role) {
             return await Category.find({
@@ -35,7 +62,7 @@ const resolvers = {
         }
     },
     categorysCount: async(parent, {search}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(user.role) {
             return await Category.countDocuments({
                 del: {$ne: true},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{}
@@ -46,8 +73,56 @@ const resolvers = {
 };
 
 const resolversMutation = {
+    uploadCategory: async(parent, { document }, {user}) => {
+        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+            let {createReadStream, filename} = await document;
+            let stream = createReadStream()
+            filename = await saveFile(stream, filename);
+            let xlsxpath = path.join(app.dirname, 'public', filename);
+            let workbook = new ExcelJS.Workbook();
+            workbook = await workbook.xlsx.readFile(xlsxpath);
+            let worksheet = workbook.worksheets[0];
+            let rowNumber = 1, row, _id, object
+            while(true) {
+                row = worksheet.getRow(rowNumber);
+                if(row.getCell(2).value) {
+                    _id = row.getCell(1).value
+                    if(_id) {
+                        object = await Category.findById(_id)
+                        if(object) {
+                            let history = new History({
+                                who: user._id,
+                                where: object._id,
+                                what: `Название:${object.name}→${row.getCell(2).value};`
+                            });
+                            object.name = row.getCell(2).value
+                            await object.save();
+                            await History.create(history)
+                        }
+                    }
+                    else {
+                        object = new Category({
+                            name: row.getCell(2).value
+                        });
+                        object = await Category.create(object)
+                        let history = new History({
+                            who: user._id,
+                            where: object._id,
+                            what: 'Создание'
+                        });
+                        await History.create(history)
+                    }
+                    rowNumber++
+                }
+                else break
+            }
+            await deleteFile(filename)
+            return 'OK'
+        }
+        return 'ERROR'
+    },
     addCategory: async(parent, {name}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = new Category({
                 name
             });
@@ -63,7 +138,7 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setCategory: async(parent, {_id, name}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await Category.findById(_id)
             if(object) {
                 let history = new History({
@@ -80,7 +155,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     deleteCategory: async(parent, { _id }, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await Category.findOne({_id})
             if(object) {
                 object.del = true

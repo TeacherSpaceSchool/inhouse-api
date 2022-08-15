@@ -43,7 +43,7 @@ const mutation = `
 
 const resolvers = {
     wayItem: async(parent, {_id}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'управляющий', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let res = await WayItem.findOne({
                 _id
             })
@@ -74,7 +74,7 @@ const resolvers = {
         }
     },
     wayItems: async(parent, {skip, item, store, date, status, late, today, soon}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'управляющий', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
             if(late||today) {
@@ -138,7 +138,7 @@ const resolvers = {
         }
     },
     wayItemsCount: async(parent, {item, date, store, status, late, today, soon}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'управляющий', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
             if(late||today) {
@@ -175,11 +175,13 @@ const resolvers = {
 
 const resolversMutation = {
     addWayItem: async(parent, {item, store, bookings, amount, arrivalDate, order}, {user}) => {
-        if(['admin'].includes(user.role)) {
-            if(arrivalDate) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+            if(arrivalDate&&arrivalDate.toString()!=='Invalid Date') {
                 arrivalDate = new Date(arrivalDate)
                 arrivalDate.setHours(0, 0, 0, 0)
             }
+            else
+                arrivalDate = null
             let object = new WayItem({
                 item,
                 store,
@@ -231,7 +233,7 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setWayItem: async(parent, {_id, bookings, amount, arrivalDate, status}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await WayItem.findOne({
                 _id,
             })

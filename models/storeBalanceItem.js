@@ -10,9 +10,9 @@ const StoreBalanceItemSchema = mongoose.Schema({
         ref: 'ItemINHOUSE'
     },
     amount: Number,
+    free: Number,
     reservation: Number,
     sale: Number,
-    free: Number,
 }, {
     timestamps: true
 });

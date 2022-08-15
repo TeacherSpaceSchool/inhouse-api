@@ -27,8 +27,8 @@ const type = `
 `;
 
 const query = `
-    reservations(skip: Int, items: Boolean, limit: Int, manager: ID, soon: Boolean, client: ID, store: ID, date: Date, status: String, late: Boolean, today: Boolean): [Reservation]
-    reservationsCount(manager: ID, client: ID, store: ID, soon: Boolean, date: Date, status: String, late: Boolean, today: Boolean): Int
+    reservations(search: String, skip: Int, items: Boolean, limit: Int, manager: ID, soon: Boolean, client: ID, store: ID, date: Date, status: String, late: Boolean, today: Boolean): [Reservation]
+    reservationsCount(search: String, manager: ID, client: ID, store: ID, soon: Boolean, date: Date, status: String, late: Boolean, today: Boolean): Int
     reservation(_id: ID!): Reservation
 `;
 
@@ -38,8 +38,8 @@ const mutation = `
 `;
 
 const resolvers = {
-    reservations: async(parent, {skip, manager, items, client, store, soon, limit, date, status, late, today}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    reservations: async(parent, {search, skip, manager, items, client, store, soon, limit, date, status, late, today}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
             if(late||today) {
@@ -59,6 +59,7 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             let res = await Reservation.find({
+                ...search?{number: search}:{},
                 ...manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
@@ -68,10 +69,13 @@ const resolvers = {
                     today?
                         {term: date, status: 'обработка'}
                         :
-                        {
-                            ...status ? {status} : {},
-                            ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{}
-                        }
+                        soon?
+                            {$and: [{term: {$gte: dateStart}}, {term: {$lt: dateEnd}}], status: 'обработка'}
+                            :
+                            {
+                                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{}
+                            }
 
             })
                 .skip(skip != undefined ? skip : 0)
@@ -102,8 +106,8 @@ const resolvers = {
             return res
         }
     },
-    reservationsCount: async(parent, {client, store, manager, date, soon, status, late, today}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    reservationsCount: async(parent, {search, client, store, manager, date, soon, status, late, today}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
             if(late||today) {
@@ -123,6 +127,7 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             return await Reservation.countDocuments({
+                ...search?{number: search}:{},
                 ...manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
@@ -132,16 +137,19 @@ const resolvers = {
                     today?
                         {term: date, status: 'обработка'}
                         :
-                        {
-                            ...status ? {status} : {},
-                            ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{}
-                        }
+                        soon?
+                            {$and: [{term: {$gte: dateStart}}, {term: {$lt: dateEnd}}], status: 'обработка'}
+                            :
+                            {
+                                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{}
+                            }
             })
                 .lean()
         }
     },
     reservation: async(parent, {_id}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             let res = await Reservation.findOne({
                 _id,
             })
@@ -170,7 +178,7 @@ const resolvers = {
 
 const resolversMutation = {
     addReservation: async(parent, {client, itemsReservation, term, paid, typePayment, amount, comment, currency}, {user}) => {
-        if('менеджер'===user.role) {
+        if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             for(let i=0; i<itemsReservation.length; i++) {
                 itemsReservation[i] = new ItemReservation(itemsReservation[i]);
                 let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsReservation[i].item})
@@ -228,10 +236,10 @@ const resolversMutation = {
         return 'ERROR'
     },
     setReservation: async(parent, {_id, itemsReservation, amount, term, paid, comment, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             let object = await Reservation.findOne({
                 _id,
-                ...user.role==='менеджер'?{manager: user._id}:{}
+                ...['менеджер', 'менеджер/завсклад'].includes(user.role)?{manager: user._id}:{}
             })
             if(object&&object.status==='обработка') {
                 let history = new History({
@@ -298,7 +306,7 @@ const resolversMutation = {
                     object.term = term
                 }
                 if (comment) {
-                    history.what = `${history.what}Информация:${object.comment}→${comment};\n`
+                    history.what = `${history.what}Комментарий:${object.comment}→${comment};\n`
                     object.comment = comment
                 }
                 if (status) {

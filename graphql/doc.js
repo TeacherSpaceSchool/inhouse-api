@@ -87,43 +87,43 @@ const resolversMutation = {
                     object.name = name
                 }
                 if (court) {
-                    history.what += `Суд:${object.court}→${court};\n`
+                    history.what += `${history.what}Суд:${object.court}→${court};\n`
                     object.court = court
                 }
                 if (address) {
-                    history.what += `Адрес:${object.address}→${address};\n`
+                    history.what += `${history.what}Адрес:${object.address}→${address};\n`
                     object.address = address
                 }
                 if (inn) {
-                    history.what += `ИНН:${object.inn}→${inn};\n`
+                    history.what += `${history.what}ИНН:${object.inn}→${inn};\n`
                     object.inn = inn
                 }
                 if (okpo) {
-                    history.what += `ОКПО:${object.okpo}→${okpo};\n`
+                    history.what += `${history.what}ОКПО:${object.okpo}→${okpo};\n`
                     object.okpo = okpo
                 }
                 if (bank) {
-                    history.what += `Банк:${object.bank}→${bank};\n`
+                    history.what += `${history.what}Банк:${object.bank}→${bank};\n`
                     object.bank = bank
                 }
                 if (bik) {
-                    history.what += `БИК:${object.bik}→${bik};\n`
+                    history.what += `${history.what}БИК:${object.bik}→${bik};\n`
                     object.bik = bik
                 }
                 if (account) {
-                    history.what += `Счет:${object.account}→${account};\n`
+                    history.what += `${history.what}Счет:${object.account}→${account};\n`
                     object.account = account
                 }
                 if (wallet) {
-                    history.what += `Кошелек:${object.wallet}→${wallet};\n`
+                    history.what += `${history.what}Кошелек:${object.wallet}→${wallet};\n`
                     object.wallet = wallet
                 }
                 if (phoneCheckInstallment) {
-                    history.what += `Телефон проверки:${object.phoneCheckInstallment}→${phoneCheckInstallment};\n`
+                    history.what += `${history.what}Телефон проверки:${object.phoneCheckInstallment}→${phoneCheckInstallment};\n`
                     object.phoneCheckInstallment = phoneCheckInstallment
                 }
                 if (director) {
-                    history.what += `Директор:${object.director}→${director};`
+                    history.what += `${history.what}Директор:${object.director}→${director};`
                     object.director = director
                 }
                 await object.save();

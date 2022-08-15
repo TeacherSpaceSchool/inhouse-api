@@ -20,7 +20,7 @@ const mutation = `
 
 const resolvers = {
     errors: async(parent,  {skip}, {user}) => {
-        if(['admin', 'superadmin'].includes(user.role)) {
+        if(['admin'].includes(user.role)) {
             return await Error.find({})
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? 30 : 10000000000)
@@ -29,7 +29,7 @@ const resolvers = {
         }
     },
     errorsCount: async(parent,  ctx, {user}) => {
-        if(['admin', 'superadmin'].includes(user.role)) {
+        if(['admin'].includes(user.role)) {
             return await Error.countDocuments()
                 .lean()
         }
@@ -38,7 +38,7 @@ const resolvers = {
 
 const resolversMutation = {
     clearAllErrors: async(parent, ctx, {user}) => {
-        if(user.role==='superadmin') {
+        if(user.role==='admin') {
             await Error.deleteMany()
             return 'OK'
         }

@@ -27,8 +27,8 @@ const type = `
 `;
 
 const query = `
-    refunds(skip: Int, limit: Int, manager: ID, client: ID, store: ID, date: Date, status: String): [Refund]
-    refundsCount(manager: ID, client: ID, store: ID, date: Date, status: String): Int
+    refunds(search: String, skip: Int, limit: Int, manager: ID, client: ID, store: ID, date: Date, status: String): [Refund]
+    refundsCount(search: String, manager: ID, client: ID, store: ID, date: Date, status: String): Int
     refund(_id: ID!): Refund
 `;
 
@@ -38,23 +38,24 @@ const mutation = `
 `;
 
 const resolvers = {
-    refunds: async(parent, {skip, manager, client, store, limit, date, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    refunds: async(parent, {search, skip, manager, client, store, limit, date, status}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            if(user.role==='менеджер') manager = user._id
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
             let dateStart, dateEnd
-            if (date) {
+            if (date&&date.toString()!=='Invalid Date') {
                 dateStart = new Date(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             return await Refund.find({
+                ...search?{number: search}:{},
                 ...manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
-                ...status?{status}:{},
+                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
@@ -78,29 +79,30 @@ const resolvers = {
                 .lean()
         }
     },
-    refundsCount: async(parent, {client, store, manager, date, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    refundsCount: async(parent, {search, client, store, manager, date, status}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            if(user.role==='менеджер') manager = user._id
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
             let dateStart, dateEnd
-            if (date) {
+            if (date&&date.toString()!=='Invalid Date') {
                 dateStart = new Date(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             return await Refund.countDocuments({
+                ...search?{number: search}:{},
                 ...manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
-                ...status?{status}:{},
+                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .lean()
         }
     },
     refund: async(parent, {_id}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let res = await Refund.findOne({
                 _id,
             })
@@ -129,7 +131,7 @@ const resolvers = {
 
 const resolversMutation = {
     addRefund: async(parent, {client, discount, itemsRefund, amount, comment, currency, sale}, {user}) => {
-        if('менеджер'===user.role) {
+        if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             for(let i=0; i<itemsRefund.length; i++) {
                 itemsRefund[i] = new ItemRefund(itemsRefund[i]);
                 itemsRefund[i] = (await ItemRefund.create(itemsRefund[i]))._id
@@ -168,29 +170,36 @@ const resolversMutation = {
             balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + amount)
             await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
             if(sale.installment) {
-                let history = new History({
-                    who: user._id,
-                    where: sale.installment,
-                    what: 'Возврат продажи'
-                });
-                await History.create(history)
-                let installment = await Installment.findOne({_id: sale.installment}).lean()
-                installment.amount = installment.amount - amount
-                installment.debt = installment.amount - installment.paid
-                if(installment.debt<0)
-                    installment.debt = 0
-                let grid = [...installment.grid]
-                let gridDebt = installment.amount - grid[0].paid
-                if(gridDebt<0)
-                    gridDebt = 0
-                let monthInstallment = grid.length-1
-                let paidInstallment = checkFloat(gridDebt/monthInstallment)
-                for(let i = 0; i < monthInstallment; i++)
-                    grid[i+1].amount = paidInstallment
-                if(!installment.debt)
-                    installment.status = 'оплачен'
+                let installment = await Installment.findOne({_id: sale.installment, status: {$nin: ['перерасчет', 'отмена']}}).lean()
+                if(installment) {
+                    let history = new History({
+                        who: user._id,
+                        where: sale.installment,
+                        what: 'Возврат продажи'
+                    });
+                    await History.create(history)
+                    installment.amount = installment.amount - amount
+                    installment.debt = installment.amount - installment.paid
+                    if (installment.debt < 0)
+                        installment.debt = 0
+                    let grid = [...installment.grid]
+                    let gridDebt = installment.amount - checkFloat(grid[0].amount)
+                    if (gridDebt < 0)
+                        gridDebt = 0
+                    let monthInstallment = grid.length - 1
+                    let paidInstallment = checkFloat(gridDebt / monthInstallment)
+                    for (let i = 0; i < monthInstallment; i++)
+                        grid[i + 1].amount = paidInstallment
+                    if (!installment.debt)
+                        installment.status = 'оплачен'
 
-                await Installment.updateOne({_id: sale.installment}, {amount: installment.amount, debt: installment.debt, status: installment.status, grid})
+                    await Installment.updateOne({_id: sale.installment}, {
+                        amount: installment.amount,
+                        debt: installment.debt,
+                        status: installment.status,
+                        grid
+                    })
+                }
             }
 
             //Бонус менеджера
@@ -215,12 +224,7 @@ const resolversMutation = {
                     await History.create(history)
                 }
                 else {
-                    let prevDate = new Date(date)
-                    prevDate.setMonth(prevDate.getMonth() - 1)
-                    let debtStart = await Salary.findOne({
-                        employment: object.manager,
-                        date: prevDate
-                    }).select('debtEnd').lean()
+                    let debtStart = await Salary.findOne({employment: sale.manager, date: {$lt: date}}).select('debtEnd').sort('-date').lean()
                     if (debtStart)
                         debtStart = debtStart.debtEnd
                     else
@@ -239,9 +243,9 @@ const resolversMutation = {
                         accrued: 0,
                         penaltie: 0,
                         advance: 0,
-                        pay: newBonusManager,
+                        pay: newBonusManager+debtStart,
                         paid: 0,
-                        debtEnd: newBonusManager
+                        debtEnd: newBonusManager+debtStart
                     });
                     salary = await Salary.create(salary)
                     let history = new History({
@@ -256,7 +260,7 @@ const resolversMutation = {
                 let lastDebtEnd = salary.debtEnd
                 let _salary
                 while(lastSalary) {
-                    _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: object._id}})
+                    _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: sale.manager, _id: {$ne: object._id}}).sort('date')
                     if(_salary) {
                         _salary.debtStart = lastDebtEnd
                         _salary.pay = checkFloat(_salary.debtStart+_salary.accrued+_salary.bonus+_salary.premium-_salary.penaltie-_salary.advance)
@@ -275,7 +279,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     setRefund: async(parent, {_id, comment, status}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await Refund.findById(_id)
             if(object&&object.status!=='принят') {
                 let history = new History({
@@ -284,7 +288,7 @@ const resolversMutation = {
                     what: ''
                 });
                 if (comment) {
-                    history.what = `${history.what}Информация:${object.info}→${comment};\n`
+                    history.what = `${history.what}Комментарий:${object.info}→${comment};\n`
                     object.info = comment
                 }
                 if (status) {
@@ -314,26 +318,33 @@ const resolversMutation = {
                         await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
 
                         if(sale.installment) {
-                            let history = new History({
-                                who: user._id,
-                                where: sale.installment,
-                                what: 'Отмена возврата'
-                            });
-                            await History.create(history)
-                            let installment = await Installment.findOne({_id: sale.installment}).lean()
-                            installment.amount = installment.amount + object.amount
-                            installment.debt = installment.amount - installment.paid
-                            let grid = [...installment.grid]
-                            let gridDebt = installment.amount - grid[0].paid
-                            let monthInstallment = grid.length-1
-                            let paidInstallment = checkFloat(gridDebt/monthInstallment)
-                            for(let i = 0; i < monthInstallment; i++)
-                                grid[i+1].amount = paidInstallment
-                            if(installment.debt<1)
-                                installment.status = 'оплачен'
-                            else
-                                installment.status = 'активна'
-                            await Installment.updateOne({_id: sale.installment}, {amount: installment.amount, debt: installment.debt, status: installment.status, grid})
+                            let installment = await Installment.findOne({_id: sale.installment, status: {$nin: ['перерасчет', 'отмена']}}).lean()
+                            if(installment) {
+                                let history = new History({
+                                    who: user._id,
+                                    where: sale.installment,
+                                    what: 'Отмена возврата'
+                                });
+                                await History.create(history)
+                                installment.amount = installment.amount + object.amount
+                                installment.debt = installment.amount - installment.paid
+                                let grid = [...installment.grid]
+                                let gridDebt = installment.amount - checkFloat(grid[0].amount)
+                                let monthInstallment = grid.length - 1
+                                let paidInstallment = checkFloat(gridDebt / monthInstallment)
+                                for (let i = 0; i < monthInstallment; i++)
+                                    grid[i + 1].amount = paidInstallment
+                                if (!installment.debt)
+                                    installment.status = 'оплачен'
+                                else
+                                    installment.status = 'активна'
+                                await Installment.updateOne({_id: sale.installment}, {
+                                    amount: installment.amount,
+                                    debt: installment.debt,
+                                    status: installment.status,
+                                    grid
+                                })
+                            }
                         }
 
 
@@ -359,12 +370,7 @@ const resolversMutation = {
                                 await History.create(history)
                             }
                             else {
-                                let prevDate = new Date(date)
-                                prevDate.setMonth(prevDate.getMonth() - 1)
-                                let debtStart = await Salary.findOne({
-                                    employment: object.manager,
-                                    date: prevDate
-                                }).select('debtEnd').lean()
+                                let debtStart = await Salary.findOne({employment: sale.manager, date: {$lt: date}}).select('debtEnd').sort('-date').lean()
                                 if (debtStart)
                                     debtStart = debtStart.debtEnd
                                 else
@@ -383,9 +389,9 @@ const resolversMutation = {
                                     accrued: 0,
                                     penaltie: 0,
                                     advance: 0,
-                                    pay: newBonusManager,
+                                    pay: newBonusManager+debtStart,
                                     paid: 0,
-                                    debtEnd: newBonusManager
+                                    debtEnd: newBonusManager+debtStart
                                 });
                                 salary = await Salary.create(salary)
                                 let history = new History({
@@ -400,7 +406,7 @@ const resolversMutation = {
                             let lastDebtEnd = salary.debtEnd
                             let _salary
                             while(lastSalary) {
-                                _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: object._id}})
+                                _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: sale.manager, _id: {$ne: object._id}}).sort('date')
                                 if(_salary) {
                                     _salary.debtStart = lastDebtEnd
                                     _salary.pay = checkFloat(_salary.debtStart+_salary.accrued+_salary.bonus+_salary.premium-_salary.penaltie-_salary.advance)

@@ -97,9 +97,9 @@ const resolvers = {
 
 const resolversMutation = {
     addTask: async(parent, {whom, date, info}, {user}) => {
-        date = new Date(date)
-        date.setHours(0, 0, 0, 0)
         if(user.role) {
+            date = new Date(date)
+            date.setHours(0, 0, 0, 0)
             let object = new Task({
                 whom,
                 who: user._id,
@@ -122,20 +122,20 @@ const resolversMutation = {
         let object = await Task.findOne({
             _id,
         })
-        if(['admin'].includes(user.role)||object.who===user._id||object.whom===user._id) {
+        if(['admin'].includes(user.role)||object.who.toString()===user._id.toString()||object.whom.toString()===user._id.toString()) {
             let history = new History({
                 who: user._id,
                 where: object._id,
                 what: ''
             });
-            if (date&&(['admin'].includes(user.role)||object.who===user._id)&&object.status==='обработка') {
+            if (date&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())&&object.status==='обработка') {
                 history.what = `Срок:${object.date}→${date};\n`
                 date = new Date(date)
                 date.setHours(0, 0, 0, 0)
                 object.date = date
             }
-            if (info&&(['admin'].includes(user.role)||object.who===user._id)&&object.status==='обработка') {
-                history.what = `${history.what}Информация:${object.info}→${info};\n`
+            if (info&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())&&object.status==='обработка') {
+                history.what = `${history.what}Комментарий:${object.info}→${info};\n`
                 object.info = info
             }
             if (object.status!=='проверен') {
@@ -150,7 +150,7 @@ const resolversMutation = {
     },
     deleteTask: async(parent, { _id }, {user}) => {
         let object = await Task.findOne({_id})
-        if(object&&object.status==='обработка'&&(['admin'].includes(user.role)||object.who===user._id)) {
+        if(object&&object.status==='обработка'&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())) {
             await Task.deleteOne({_id})
             await History.deleteMany({where: _id})
             return 'OK'

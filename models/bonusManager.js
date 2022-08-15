@@ -5,7 +5,11 @@ const BonusManagerSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'UserINHOUSE'
     },
-    bonus: mongoose.Schema.Types.Mixed
+    bonus: mongoose.Schema.Types.Mixed,
+    store: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'StoreINHOUSE'
+    }
 }, {
     timestamps: true
 });

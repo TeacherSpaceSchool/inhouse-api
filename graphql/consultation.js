@@ -1,4 +1,9 @@
 const Consultation = require('../models/consultation');
+const { urlMain, pdDDMMYYHHMM } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
 
 const type = `
   type Consultation {
@@ -11,6 +16,7 @@ const type = `
 `;
 
 const query = `
+    unloadConsultations(manager: ID, date: Date, store: ID): String
     consultations(skip: Int, manager: ID, store: ID, date: Date, active: Boolean): [Consultation]
     consultationsCount(manager: ID, date: Date, store: ID): Int
 `;
@@ -21,12 +27,54 @@ const mutation = `
 `;
 
 const resolvers = {
-    consultations: async(parent, {skip, manager, date, store, active}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    unloadConsultations: async(parent, {manager, date, store, active}, {user}) => {
+        if(['admin', 'управляющий'].includes(user.role)) {
             if(user.store) store = user.store
-            if(user.role==='менеджер') manager = user._id
             let dateStart, dateEnd
-            if (!active&&date) {
+            if (date) {
+                dateStart = new Date(date)
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 1)
+            }
+            if(user.store) store = user.store
+            let res =  await Consultation.find({
+                del: {$ne: true},
+                ...manager?{manager}:{},
+                ...store?{store}:{},
+                ...active?{end: null}:{},
+                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+            })
+                .sort('-createdAt')
+                .populate({
+                    path: 'manager',
+                    select: 'name _id'
+                })
+                .populate({
+                    path: 'store',
+                    select: 'name _id'
+                })
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            for(let i = 0; i < res.length; i++) {
+                worksheet.getRow(i+1).getCell(1).value = `${res[i].manager.name}|${res[i].manager._id.toString()}`
+                worksheet.getRow(i+1).getCell(2).value = `${res[i].store.name}|${res[i].store._id.toString()}`
+                worksheet.getRow(i+1).getCell(3).value = pdDDMMYYHHMM(res[i].createdAt)
+                worksheet.getRow(i+1).getCell(4).value = res[i].end?pdDDMMYYHHMM(res[i].end):''
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
+    consultations: async(parent, {skip, manager, date, store, active}, {user}) => {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
+            if(user.store) store = user.store
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
+            let dateStart, dateEnd
+            if (date) {
                 dateStart = new Date(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
@@ -36,7 +84,8 @@ const resolvers = {
                 del: {$ne: true},
                 ...manager?{manager}:{},
                 ...store?{store}:{},
-                ...active?{end: null}:date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...active?{end: null}:{},
+                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? 30 : 10000000000)
@@ -53,11 +102,10 @@ const resolvers = {
         }
     },
     consultationsCount: async(parent, {manager, date, store, active}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'управляющий'].includes(user.role)) {
             if(user.store) store = user.store
-            if(user.role==='менеджер') manager = user._id
             let dateStart, dateEnd
-            if (!active&&date) {
+            if (date) {
                 dateStart = new Date(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
@@ -67,7 +115,8 @@ const resolvers = {
                 del: {$ne: true},
                 ...store?{store}:{},
                 ...manager?{manager}:{},
-                ...active?{end: null}:date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...active?{end: null}:{},
+                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
             })
                 .lean()
         }
@@ -76,7 +125,7 @@ const resolvers = {
 
 const resolversMutation = {
     startConsultation: async(parent, ctx, {user}) => {
-        if(['менеджер'].includes(user.role)&&!(await Consultation.countDocuments({manager: user._id, end: null}).lean())) {
+        if(['менеджер', 'менеджер/завсклад'].includes(user.role)&&!(await Consultation.countDocuments({manager: user._id, end: null}).lean())) {
             let object = new Consultation({
                 manager: user._id,
                 store: user.store,
@@ -88,9 +137,9 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     endConsultation: async(parent, {_id}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             let object = await Consultation.findOne({
-                ...user.role==='менеджер'?{manager: user._id}:{_id},
+                ...['менеджер', 'менеджер/завсклад'].includes(user.role)?{manager: user._id}:{_id},
                 end: null
             })
             if(object) {

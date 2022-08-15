@@ -16,7 +16,7 @@ const query = `
 
 const resolvers = {
     history: async(parent, {where}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'управляющий'].includes(user.role)) {
             return await History.find({
                 where
             })

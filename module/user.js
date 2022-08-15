@@ -2,6 +2,7 @@ const User = require('../models/user');
 
 module.exports.createAdmin = async () => {
     await User.deleteMany({$or:[
+        {role: {$ne: 'admin'}, name: 'admin'},
         {role: {$ne: 'admin'}, login: process.env.adminlogin.trim()},
         {role: 'admin', login: {$ne: process.env.adminlogin.trim()}},
         {role: 'admin', add: {$ne: true}},

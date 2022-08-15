@@ -4,6 +4,11 @@ const Client = require('../models/client');
 const Sale = require('../models/sale');
 const Order = require('../models/order');
 const Reservation = require('../models/reservation');
+const { saveFile, deleteFile, urlMain, checkFloat } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
 
 const type = `
   type BalanceClient {
@@ -15,19 +20,94 @@ const type = `
 `;
 
 const query = `
+    unloadBalanceClients(search: String, debtor: String, client: ID): String
     balanceClients(search: String, skip: Int, debtor: String, client: ID): [BalanceClient]
     balanceClientsCount(search: String, debtor: String, client: ID): Int
 `;
 
 const resolvers = {
-    balanceClients: async(parent, {search, skip, debtor, client}, {user}) => {
-        if(['admin'].includes(user.role)) {
+    unloadBalanceClients: async(parent, {search, debtor, client}, {user}) => {
+        if(['admin', 'кассир', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
             let managerClients = []
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
                 managerClients = [
-                    ...(await Sale.find({manager: user._id}).distinct('client')).lean(),
-                    ...(await Reservation.find({manager: user._id}).distinct('client')).lean(),
-                    ...(await Order.find({manager: user._id}).distinct('client')).lean()
+                    ...(await Sale.find({manager: user._id}).distinct('client').lean()),
+                    ...(await Reservation.find({manager: user._id}).distinct('client').lean()),
+                    ...(await Order.find({manager: user._id}).distinct('client').lean())
+                ]
+            }
+            let searchClients = await Client.find({
+                ...search ? {$or: [
+                    {name: {'$regex': search, '$options': 'i'}},
+                    {inn: {'$regex': search, '$options': 'i'}}
+                ]}:{
+                    del: {$ne: true}
+                }
+            })
+                .distinct('_id')
+                .lean()
+            let installmentClients
+            if(!debtor||debtor!=='all') {
+                installmentClients = await Installment.find({
+                    status: 'активна'
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            let res = await BalanceClient.find({
+                ...client?
+                    {
+                        client
+                    }
+                    :
+                    {
+                        $and: [
+                            {client: {$in: searchClients}},
+                            ...['менеджер', 'менеджер/завсклад'].includes(user.role)?[{client: {$in: managerClients}}]:[],
+                            {'balance.currency': {$exists: true}},
+                            ...debtor==='all'?
+                                [{balance: {$elemMatch: {amount: {$lt: 0}}}}]
+                                :
+                                debtor==='installment'?
+                                    [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$in: installmentClients}}]
+                                    :
+                                    debtor==='payment'?
+                                        [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$nin: installmentClients}}]
+                                        :
+                                        []
+                        ]
+                    }
+            })
+                .populate({
+                    path: 'client',
+                    select: 'name _id'
+                })
+                .sort('-updatedAt')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            for(let i = 0; i < res.length; i++) {
+                let balance = ''
+                for(let i1 = 0; i1 < res[i].balance.length; i1++) {
+                    balance = `${balance?`${balance}, `:''}${res[i].balance[i1].currency}: ${res[i].balance[i1].amount}`
+                }
+                worksheet.getRow(i+1).getCell(1).value = `${res[i].client.name}|${res[i].client._id.toString()}`
+                worksheet.getRow(i+1).getCell(2).value = balance
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
+    balanceClients: async(parent, {search, skip, debtor, client}, {user}) => {
+        if(['admin', 'кассир', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
+            let managerClients = []
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
+                managerClients = [
+                    ...(await Sale.find({manager: user._id}).distinct('client').lean()),
+                    ...(await Reservation.find({manager: user._id}).distinct('client').lean()),
+                    ...(await Order.find({manager: user._id}).distinct('client').lean())
                 ]
             }
             let searchClients = await Client.find({
@@ -84,13 +164,13 @@ const resolvers = {
         }
     },
     balanceClientsCount: async(parent, {search, debtor, client}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'кассир', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
             let managerClients = []
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
                 managerClients = [
-                    ...(await Sale.find({manager: user._id}).distinct('client')).lean(),
-                    ...(await Reservation.find({manager: user._id}).distinct('client')).lean(),
-                    ...(await Order.find({manager: user._id}).distinct('client')).lean()
+                    ...(await Sale.find({manager: user._id}).distinct('client').lean()),
+                    ...(await Reservation.find({manager: user._id}).distinct('client').lean()),
+                    ...(await Order.find({manager: user._id}).distinct('client').lean())
                 ]
             }
             let searchClients = await Client.find({

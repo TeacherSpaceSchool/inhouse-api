@@ -1,7 +1,4 @@
 const { createAdmin } = require('./user');
-const { reductionMoneyArticle } = require('./moneyArticle');
-const { reductionBalanceItem } = require('./balanceItem');
-const numberToWord = require('./numberToWord');
 const { Worker, isMainThread } = require('worker_threads');
 const { clearDB } = require('./const');
 
@@ -36,11 +33,10 @@ let startWebPush = async () => {
 }
 
 let start = async () => {
-    /*//await clearDB()*/
+
+    /*await clearDB()*/
 
     await createAdmin();
-    //await reductionMoneyArticle();
-    //await reductionBalanceItem();
     await startResetUnloading()
     await startWebPush()
 }

@@ -3,8 +3,14 @@ const WayItem = require('../models/wayItem');
 const BalanceItem = require('../models/balanceItem');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const History = require('../models/history');
-const { saveImage, deleteFile, urlMain } = require('../module/const');
+const Category = require('../models/category');
+const Factory = require('../models/factory');
 const mongoose = require('mongoose');
+const { saveImage, saveFile, deleteFile, urlMain, checkFloat } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
 
 const type = `
   type Item {
@@ -32,12 +38,14 @@ const type = `
 `;
 
 const query = `
-    items(skip: Int, limit: Int, search: String, category: ID, factory: ID, catalog: Boolean): [Item]
+    unloadItems(search: String, category: ID, factory: ID): String
+    items(skip: Int, store: ID, limit: Int, search: String, category: ID, factory: ID, catalog: Boolean): [Item]
     itemsCount(search: String, category: ID, factory: ID): Int
     item(_id: String!): Item
 `;
 
 const mutation = `
+    uploadItem(document: Upload!): String
     addItem(ID: String!, art: String!, typeDiscount: String!, name: String!, uploads: [Upload], priceUSD: Float!, primeCostUSD: Float!, priceKGS: Float!, primeCostKGS: Float!, discount: Float!, priceAfterDiscountKGS: Float!, info: String!, unit: String!, size: String!, characteristics: [[String]]!, category: ID!, factory: ID!): String
     setItem(_id: ID!, ID: String, art: String, typeDiscount: String, name: String, uploads: [Upload], images: [String], priceUSD: Float, primeCostUSD: Float, priceKGS: Float, primeCostKGS: Float, discount: Float, priceAfterDiscountKGS: Float, info: String, unit: String, size: String, characteristics: [[String]], category: ID, factory: ID): String
     deleteItem(_id: ID!): String
@@ -45,11 +53,58 @@ const mutation = `
 `;
 
 const resolvers = {
-    items: async(parent, {skip, limit, search, category, factory, catalog}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+    unloadItems: async(parent, {search, category, factory}, {user}) => {
+        if(user.role) {
+            let res =  await Item.find({
+                del: {$ne: true},
+                ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {ID: {'$regex': search, '$options': 'i'}}]}:{},
+                ...category?{category}:{},
+                ...factory?{factory}:{}
+            })
+                .populate({
+                    path: 'category',
+                    select: 'name _id'
+                })
+                .populate({
+                    path: 'factory',
+                    select: 'name _id'
+                })
+                .sort('name')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            for(let i = 0; i < res.length; i++) {
+                let characteristics = ''
+                for(let i1 = 0; i1 < res[i].characteristics.length; i1++) {
+                    characteristics = `${characteristics?`${characteristics}, `:''}${res[i].characteristics[i1][0]}: ${res[i].characteristics[i1][1]}`
+                }
+                worksheet.getRow(i+1).getCell(1).value = res[i]._id.toString()
+                worksheet.getRow(i+1).getCell(2).value = res[i].name
+                worksheet.getRow(i+1).getCell(3).value = res[i].art
+                worksheet.getRow(i+1).getCell(4).value = res[i].ID
+                worksheet.getRow(i+1).getCell(5).value = `${res[i].category.name}|${res[i].category._id.toString()}`
+                worksheet.getRow(i+1).getCell(6).value = `${res[i].factory.name}|${res[i].factory._id.toString()}`
+                worksheet.getRow(i+1).getCell(7).value = res[i].priceUSD
+                worksheet.getRow(i+1).getCell(8).value = res[i].priceKGS
+                worksheet.getRow(i+1).getCell(9).value = res[i].priceUSD
+                worksheet.getRow(i+1).getCell(10).value = res[i].primeCostUSD
+                worksheet.getRow(i+1).getCell(11).value = res[i].discount
+                worksheet.getRow(i+1).getCell(12).value = res[i].unit
+                worksheet.getRow(i+1).getCell(13).value = res[i].size
+                worksheet.getRow(i+1).getCell(14).value = characteristics
+                worksheet.getRow(i+1).getCell(15).value = res[i].comment
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
+    items: async(parent, {skip, store, limit, search, category, factory, catalog}, {user}) => {
+        if(user.role) {
             let catalogItems = {items: [], free: {}}
-            if(catalog&&user.store) {
-                const storeBalanceItems = await StoreBalanceItem.find({store: user.store, free: {$gt: 0}}).select('item free').lean()
+            if(catalog&&(store||user.store)) {
+                const storeBalanceItems = await StoreBalanceItem.find({store: store?store:user.store, free: {$gt: 0}}).select('item free').lean()
                 for(let i=0; i<storeBalanceItems.length; i++) {
                     catalogItems.items.push(storeBalanceItems[i].item)
                     catalogItems.free[storeBalanceItems[i].item] = storeBalanceItems[i].free
@@ -83,7 +138,7 @@ const resolvers = {
         }
     },
     itemsCount: async(parent, {search, category, factory}, {user}) => {
-        if(['admin', 'менеджер'].includes(user.role)) {
+        if(user.role) {
             return await Item.countDocuments({
                 del: {$ne: true},
                 ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {ID: {'$regex': search, '$options': 'i'}}]}:{},
@@ -95,7 +150,7 @@ const resolvers = {
         return 0
     },
     item: async(parent, {_id}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(user.role) {
             return await Item.findOne({
                 ...mongoose.isValidObjectId(_id)?{_id}:{ID: _id}
             })
@@ -113,8 +168,167 @@ const resolvers = {
 };
 
 const resolversMutation = {
+    uploadItem: async(parent, { document }, {user}) => {
+        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+            let {createReadStream, filename} = await document;
+            let stream = createReadStream()
+            filename = await saveFile(stream, filename);
+            let xlsxpath = path.join(app.dirname, 'public', filename);
+            let workbook = new ExcelJS.Workbook();
+            workbook = await workbook.xlsx.readFile(xlsxpath);
+            let worksheet = workbook.worksheets[0];
+            let rowNumber = 1, row, _id, object
+            while(true) {
+                row = worksheet.getRow(rowNumber);
+                if(row.getCell(2).value) {
+                    if(row.getCell(5).value&&row.getCell(5).value.split('|')[1]) {
+                        row.getCell(5).value = row.getCell(5).value.split('|')[1]
+                    }
+                    if(row.getCell(6).value&&row.getCell(6).value.split('|')[1]) {
+                        row.getCell(6).value = row.getCell(6).value.split('|')[1]
+                    }
+                    _id = row.getCell(1).value
+                    if(_id) {
+                        object = await Item.findById(_id)
+                        if(object) {
+                            let history = new History({
+                                who: user._id,
+                                where: object._id,
+                                what: ''
+                            });
+                            if (row.getCell(2).value&&object.name!==row.getCell(2).value) {
+                                history.what = `Название:${object.name}→${row.getCell(2)};\n`
+                                object.name = row.getCell(2).value
+                            }
+                            if (row.getCell(3).value&&object.art!==row.getCell(3).value) {
+                                history.what = `${history.what}Артикул:${object.art}→${row.getCell(3)};\n`
+                                object.art = row.getCell(3).value
+                            }
+                            if (row.getCell(4).value&&object.ID!==row.getCell(4).value) {
+                                history.what = `${history.what}ID:${object.ID}→${row.getCell(4)};\n`
+                                object.ID = row.getCell(4).value
+                            }
+                            if (row.getCell(5).value&&object.category.toString()!==row.getCell(5).value.toString()&&(await Category.findById(row.getCell(5).value).select('_id').lean())) {
+                                history.what = `${history.what}Категория:${object.category}→${row.getCell(5)};\n`
+                                object.category = row.getCell(5).value
+                            }
+                            if (row.getCell(6).value&&object.factory.toString()!==row.getCell(6).value.toString()&&(await Factory.findById(row.getCell(6).value).select('_id').lean())) {
+                                history.what = `${history.what}Фабрика:${object.factory}→${row.getCell(6)};\n`
+                                object.factory = row.getCell(6).value
+                            }
+                            if (row.getCell(7).value) {
+                                row.getCell(7).value = checkFloat(row.getCell(7).value)
+                                if (object.priceUSD!==row.getCell(7).value) {
+                                    history.what = `${history.what}Цена в долларах:${object.priceUSD}→${row.getCell(7)};\n`
+                                    object.priceUSD = row.getCell(7).value
+                                }
+                            }
+                            if (row.getCell(8).value) {
+                                row.getCell(8).value = checkFloat(row.getCell(8).value)
+                                if (object.priceKGS!==row.getCell(8).value) {
+                                    history.what = `${history.what}Цена в сомах:${object.priceKGS}→${row.getCell(8)};\n`
+                                    object.priceKGS = row.getCell(8).value
+                                }
+                            }
+                            if (row.getCell(9).value) {
+                                row.getCell(9).value = checkFloat(row.getCell(9).value)
+                                if (object.primeCostUSD!==row.getCell(9).value) {
+                                    history.what = `${history.what}Себестоимость в долларах:${object.primeCostUSD}→${row.getCell(9)};\n`
+                                    object.primeCostUSD = row.getCell(11).value
+                                }
+                            }
+                            if (row.getCell(10).value) {
+                                row.getCell(10).value = checkFloat(row.getCell(10).value)
+                                if (object.primeCostKGS!==row.getCell(10).value) {
+                                    history.what = `${history.what}Себестоимость в сомах:${object.primeCostKGS}→${row.getCell(10)};\n`
+                                    object.primeCostKGS = row.getCell(11).value
+                                }
+                            }
+                            if (row.getCell(11).value) {
+                                row.getCell(11).value = checkFloat(row.getCell(11).value)
+                                if (object.discount!==row.getCell(11).value) {
+                                    history.what = `${history.what}Скидка:${object.discount}→${row.getCell(11)};\n`
+                                    object.discount = row.getCell(11).value
+                                    object.typeDiscount = 'сом'
+                                }
+                            }
+                            let priceAfterDiscountKGS = checkFloat(object.priceKGS - object.discount)
+                            if(priceAfterDiscountKGS!==object.priceAfterDiscountKGS) {
+                                history.what = `${history.what}Цена после скидки в сомах:${object.priceKGS}→${priceAfterDiscountKGS};\n`
+                                object.priceAfterDiscountKGS = priceAfterDiscountKGS
+                            }
+                            if (row.getCell(12).value&&object.unit!==row.getCell(12).value) {
+                                history.what = `${history.what}Единица измерения:${object.unit}→${row.getCell(12).value};\n`
+                                object.unit = row.getCell(12).value
+                            }
+                            if (row.getCell(13).value&&object.size!==row.getCell(13).value) {
+                                history.what = `${history.what}Размер:${object.size}→${row.getCell(13).value};\n`
+                                object.size = row.getCell(13).value
+                            }
+                            if (row.getCell(14).value) {
+                                row.getCell(14).value = row.getCell(14).value.split(', ')
+                                for(let i=0; i<row.getCell(14).value.length; i++) {
+                                    row.getCell(14).value[i] = row.getCell(14).value[i].split(': ')
+                                }
+                                if (object.characteristics.toString()!==row.getCell(14).value.toString()) {
+                                    history.what = `${history.what}Характеристики:${object.characteristics}→${row.getCell(14).value};\n`
+                                    object.characteristics = row.getCell(14).value
+                                }
+                            }
+                            if (row.getCell(15).value&&object.info!==row.getCell(15).value) {
+                                history.what = `${history.what}Комментарий:${object.info}→${row.getCell(15).value};\n`
+                                object.info = row.getCell(15).value
+                            }
+                            await object.save();
+                            await History.create(history)
+                        }
+                    }
+                    else if(row.getCell(2).value&&row.getCell(5).value&&(await Category.findById(row.getCell(5).value).select('_id').lean())&&row.getCell(6).value&&(await Factory.findById(row.getCell(6).value).select('_id').lean())&&row.getCell(7).value&&row.getCell(8).value) {
+                        if(row.getCell(14).value) {
+                            row.getCell(14).value = row.getCell(14).value.split(', ')
+                            for(let i=0; i<row.getCell(14).value.length; i++) {
+                                row.getCell(14).value[i] = row.getCell(14).value[i].split(': ')
+                            }
+                        }
+                        else row.getCell(14).value = []
+                        object = new Item({
+                            name: row.getCell(2).value,
+                            ID: row.getCell(4).value?row.getCell(4).value:'',
+                            images: [],
+                            priceUSD: checkFloat(row.getCell(7).value),
+                            primeCostUSD: checkFloat(row.getCell(9).value),
+                            priceKGS: checkFloat(row.getCell(8).value),
+                            primeCostKGS: checkFloat(row.getCell(10).value),
+                            discount: checkFloat(row.getCell(11).value),
+                            info: row.getCell(15).value?row.getCell(15).value:'',
+                            unit: row.getCell(12).value?row.getCell(12).value:'шт',
+                            size: row.getCell(13).value?row.getCell(13).value:'',
+                            characteristics: row.getCell(14).value,
+                            category: row.getCell(5).value,
+                            typeDiscount: 'сом',
+                            factory: row.getCell(6).value,
+                            art: row.getCell(3).value?row.getCell(3).value:''
+                        });
+                        object.priceAfterDiscountKGS = checkFloat(object.priceKGS - object.discount)
+                        object = await Item.create(object)
+                        let history = new History({
+                            who: user._id,
+                            where: object._id,
+                            what: 'Создание'
+                        });
+                        await History.create(history)
+                    }
+                    rowNumber++
+                }
+                else break
+            }
+            await deleteFile(filename)
+            return 'OK'
+        }
+        return 'ERROR'
+    },
     addItem: async(parent, {art, ID, typeDiscount, name, uploads, priceUSD, primeCostUSD, priceKGS, primeCostKGS, discount, priceAfterDiscountKGS, info, unit, size, characteristics, category, factory}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let images = []
             for (let i = 0; i < uploads.length; i++) {
                 let {createReadStream, filename} = await uploads[i];
@@ -153,7 +367,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     setItem: async(parent, {_id, art, ID, name, uploads, typeDiscount, images, priceUSD, primeCostUSD, priceKGS, primeCostKGS, discount, priceAfterDiscountKGS, info, unit, size, characteristics, category, factory}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await Item.findOne({
                 _id
             })
@@ -208,7 +422,7 @@ const resolversMutation = {
                     object.unit = unit
                 }
                 if (info) {
-                    history.what = `${history.what}Информация:${object.info}→${info};\n`
+                    history.what = `${history.what}Комментарий:${object.info}→${info};\n`
                     object.info = info
                 }
                 if (size) {
@@ -230,12 +444,13 @@ const resolversMutation = {
                             }
                         }
                     }
+                    images = [...object.images]
                     if (uploads) {
                         for (let i = 0; i < uploads.length; i++) {
                             let {createReadStream, filename} = await uploads[i];
                             let stream = createReadStream()
                             filename = await saveImage(stream, filename)
-                            images = [urlMain + filename, ...object.images]
+                            images = [urlMain + filename, ...images]
                         }
                     }
                     object.images = images
@@ -256,7 +471,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     deleteItem: async(parent, { _id }, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await Item.findOne({_id})
 
             let USED
@@ -290,7 +505,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     kgsFromUsdItem: async(parent, { USD, ceil }, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let items = await Item.find({del: {$ne: true}})
             for (let i = 0; i < items.length; i++) {
                 items[i].primeCostKGS = items[i].primeCostUSD*USD

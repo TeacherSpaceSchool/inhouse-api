@@ -1,8 +1,13 @@
 const User = require('../models/user');
-const randomstring = require('randomstring');
 const History = require('../models/history');
 const jwtsecret = process.env.jwtsecret.trim();
 const jwt = require('jsonwebtoken');
+const { saveFile, deleteFile, urlMain, pdDDMMYYYY } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
+const Store = require('../models/store');
 
 const type = `
   type User {
@@ -29,6 +34,7 @@ const type = `
 `;
 
 const query = `
+    unloadUsers(search: String, store: ID, role: String, department: String, position: String): String
     checkLogin(login: String!): String
     departments(search: String): [User]
     positions(search: String): [User]
@@ -38,6 +44,7 @@ const query = `
 `;
 
 const mutation = `
+    uploadUser(document: Upload!): String
     addUser(login: String!, add: Boolean!, edit: Boolean!, deleted: Boolean!, role: String!, password: String!, name: String!, phones: [String]!, store: ID, department: String!, position: String!, startWork: Date): String
     setUser(_id: ID!, login: String, add: Boolean, edit: Boolean, deleted: Boolean, status: String, password: String, name: String, phones: [String], store: ID, department: String, position: String, startWork: Date): String
     setDevice(device: String!): String
@@ -45,8 +52,44 @@ const mutation = `
 `;
 
 const resolvers = {
+    unloadUsers: async(parent, {search, store, role, department, position}, {user}) => {
+        if(['admin',  'управляющий'].includes(user.role)) {
+            if(user.store) store = user.store
+            let res =  await User.find({
+                ...role?{role: {'$regex': role, '$options': 'i'}}:{role: {$ne: 'admin'}},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                ...store ? {store} : {},
+                ...department ? {department} : {},
+                ...position ? {position} : {},
+                del: {$ne: true}
+            })
+                .populate({
+                    path: 'store',
+                    select: 'name _id'
+                })
+                .sort('name')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            for(let i = 0; i < res.length; i++) {
+                worksheet.getRow(i+1).getCell(1).value = res[i]._id.toString()
+                worksheet.getRow(i+1).getCell(2).value = res[i].login
+                worksheet.getRow(i+1).getCell(3).value = res[i].name
+                worksheet.getRow(i+1).getCell(4).value = res[i].role
+                worksheet.getRow(i+1).getCell(5).value = res[i].department
+                worksheet.getRow(i+1).getCell(6).value = res[i].position
+                worksheet.getRow(i+1).getCell(7).value = pdDDMMYYYY(res[i].startWork)
+                worksheet.getRow(i+1).getCell(8).value = (res[i].phones.map(phone=>`+996${phone}`)).toString()
+                worksheet.getRow(i+1).getCell(9).value = `${res[i].store.name}|${res[i].store._id.toString()}`
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
     positions: async(parent, {search}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin',  'управляющий'].includes(user.role)) {
             let res = await User.find({
                 ...search?{position: {'$regex': search, '$options': 'i'}}:{},
             })
@@ -61,7 +104,7 @@ const resolvers = {
         return []
     },
     departments: async(parent, {search}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin',  'управляющий'].includes(user.role)) {
             let res = await User.find({
                 ...search?{department: {'$regex': search, '$options': 'i'}}:{},
             })
@@ -76,10 +119,16 @@ const resolvers = {
         return []
     },
     users: async(parent, {skip, search, store, role, limit, department, position}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin', 'менеджер/завсклад', 'управляющий', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let res = await User.find({
-                ...role?{role}:{role: {$ne: 'admin'}},
+                ...['менеджер/завсклад', 'завсклад'].includes(user.role)?
+                    {role: {'$regex': 'менеджер', '$options': 'i'}}
+                    :
+                    role?
+                        {role: {'$regex': role, '$options': 'i'}}
+                        :
+                        {role: {$ne: 'admin'}},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{},
                 ...store ? {store} : {},
                 ...department ? {department} : {},
@@ -96,10 +145,10 @@ const resolvers = {
         return []
     },
     usersCount: async(parent, {search, store, role, department, position}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin',  'управляющий'].includes(user.role)) {
             if(user.store) store = user.store
             return await User.countDocuments({
-                ...role?{role}:{role: {$ne: 'admin'}},
+                ...role?{role: {'$regex': role, '$options': 'i'}}:{role: {$ne: 'admin'}},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{},
                 ...store ? {store} : {},
                 ...department ? {department} : {},
@@ -111,7 +160,7 @@ const resolvers = {
         return 0
     },
     user: async(parent, {_id}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin',  'управляющий'].includes(user.role)) {
             let res = await User.findOne({
                 role: {$ne: 'admin'},
                 _id
@@ -134,6 +183,108 @@ const resolvers = {
 };
 
 const resolversMutation = {
+    uploadUser: async(parent, { document }, {user}) => {
+        if (user.role === 'admin') {
+            let {createReadStream, filename} = await document;
+            let stream = createReadStream()
+            filename = await saveFile(stream, filename);
+            let xlsxpath = path.join(app.dirname, 'public', filename);
+            let workbook = new ExcelJS.Workbook();
+            workbook = await workbook.xlsx.readFile(xlsxpath);
+            let worksheet = workbook.worksheets[0];
+            let rowNumber = 1, row, _id, object
+            while(true) {
+                row = worksheet.getRow(rowNumber);
+                if(row.getCell(2).value) {
+                    if(row.getCell(10).value&&row.getCell(10).value.split('|')[1]) {
+                        row.getCell(10).value = row.getCell(10).value.split('|')[1]
+                    }
+                    _id = row.getCell(1).value
+                    if(_id) {
+                        object = await User.findById(_id)
+                        if(object) {
+                            let history = new History({
+                                who: user._id,
+                                where: object._id,
+                                what: ''
+                            });
+                            if (row.getCell(2).value&&object.login!==row.getCell(2).value) {
+                                history.what = `Логин:${object.login}→${row.getCell(2).value};\n`
+                                object.login = row.getCell(2).value
+                            }
+                            if (row.getCell(3).value) {
+                                history.what = `${history.what}Пароль;\n`
+                                object.password = row.getCell(3).value.toString()
+                            }
+                            if (row.getCell(4).value&&row.getCell(4).value!=='admin'&&object.name!==row.getCell(4).value) {
+                                history.what = `${history.what}ФИО:${object.name}→${row.getCell(4).value};\n`
+                                object.name = row.getCell(4).value
+                            }
+                            if (row.getCell(6).value&&object.department!==row.getCell(6).value) {
+                                history.what = `${history.what}Отдел:${object.department}→${row.getCell(6).value};\n`
+                                object.department = row.getCell(6).value
+                            }
+                            if (row.getCell(7).value&&object.position!==row.getCell(7).value) {
+                                history.what = `${history.what}Должность:${object.position}→${row.getCell(7).value};\n`
+                                object.position = row.getCell(7).value
+                            }
+                            if(row.getCell(8).value) {
+                                if (pdDDMMYYYY(object.startWork)!==row.getCell(8).value) {
+                                    history.what = `${history.what}Начало работы:${pdDDMMYYYY(object.startWork)}→${row.getCell(8).value};\n`
+                                    row.getCell(8).value = row.getCell(8).value.split('.')
+                                    object.startWork = new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`)
+                                }
+                            }
+                            if (row.getCell(9).value) {
+                                row.getCell(9).value = row.getCell(9).value.split(', ')
+                                if(JSON.stringify(row.getCell(9).value)!==JSON.stringify(object.phones)) {
+                                    history.what = `${history.what}Телефоны:${object.phones.toString()}→${row.getCell(9).value.toString()};\n`
+                                    object.phones = row.getCell(9).value
+                                }
+                            }
+                            if(row.getCell(10).value&&(await Store.findById(row.getCell(10).value).select('_id').lean())&&object.store.toString()!==row.getCell(10).value.toString()) {
+                                history.what = `${history.what}Магазин:${object.store}→${row.getCell(10)};\n`
+                                object.store = row.getCell(10)
+                            }
+                            await object.save();
+                            await History.create(history)
+                        }
+                    }
+                    else if(row.getCell(2).value&&row.getCell(3).value&&row.getCell(4).value&&row.getCell(4).value!=='admin'&&row.getCell(5).value&&['менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист', 'сотрудник'].includes(row.getCell(5).value)&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(10).value&&(await Store.findById(row.getCell(10).value).select('_id').lean())) {
+                        row.getCell(9).value = row.getCell(9).value?row.getCell(9).value.split(', '):[]
+                        row.getCell(8).value = row.getCell(8).value.split('.')
+                        object = new User({
+                            login: row.getCell(2).value,
+                            role: row.getCell(5).value,
+                            status: 'active',
+                            password: row.getCell(3).value.toString(),
+                            name: row.getCell(4).value,
+                            phones: row.getCell(9).value,
+                            store: row.getCell(10).value,
+                            department: row.getCell(6).value,
+                            position: row.getCell(7).value,
+                            startWork: new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`),
+                            add: true,
+                            edit: true,
+                            deleted: true
+                        });
+                        object = await User.create(object)
+                        let history = new History({
+                            who: user._id,
+                            where: object._id,
+                            what: 'Создание'
+                        });
+                        await History.create(history)
+                    }
+                    rowNumber++
+                }
+                else break
+            }
+            await deleteFile(filename)
+            return 'OK'
+        }
+        return 'ERROR'
+    },
     addUser: async(parent, {login, role, password, add, edit, deleted, name, phones, store, department, startWork, position}, {user}) => {
         if(['admin'].includes(user.role)&&name!=='admin') {
             let object = new User({
@@ -218,19 +369,21 @@ const resolversMutation = {
                     object.position = position
                 }
                 if (startWork) {
-                    history.what = `${history.what}Начало работы:${object.startWork}→${startWork};\n`
+                    history.what = `${history.what}Начало работы:${pdDDMMYYYY(object.startWork)}→${pdDDMMYYYY(startWork)};\n`
                     object.startWork = startWork
                 }
                 if (phones) {
-                    history.what = `${history.what}Телефоны:${object.phones}→${phones};\n`
+                    history.what = `${history.what}Телефоны:${object.phones.toString()}→${phones.toString()};\n`
                     object.phones = phones
                 }
                 if (status) {
                     history.what = `${history.what}Статус:${object.status}→${status};`
                     object.status = status
                 }
-                history.what = `${history.what}Магазин:${object.store}→${store};\n`
-                object.store = store
+                if(store) {
+                    history.what = `${history.what}Магазин:${object.store}→${store};\n`
+                    object.store = store
+                }
                 await object.save();
                 await History.create(history)
                 return 'OK'
