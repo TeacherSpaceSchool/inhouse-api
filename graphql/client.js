@@ -166,6 +166,7 @@ const resolversMutation = {
                                     history.what = `${history.what}День рождения:${pdDDMMYYYY(object.birthday)}→${row.getCell(9).value};\n`
                                     row.getCell(9).value = row.getCell(9).value.split('.')
                                     object.startWork = new Date(`${row.getCell(9).value[1]}.${row.getCell(9).value[0]}.${row.getCell(9).value[2]}`)
+                                    object.startWork.setHours(0, 0, 0, 0)
                                 }
                             }
                             if (row.getCell(10).value) {
@@ -192,6 +193,8 @@ const resolversMutation = {
                     }
                     else if(row.getCell(2).value&&['Бронза', 'Серебро', 'Золото', 'Платина'].includes(row.getCell(2).value)&&row.getCell(3).value&&row.getCell(4).value&&row.getCell(5).value&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(9).value){
                         row.getCell(9).value = row.getCell(9).value.split('.')
+                        row.getCell(9).value = new Date(`${row.getCell(9).value[1]}.${row.getCell(9).value[0]}.${row.getCell(9).value[2]}`)
+                        row.getCell(9).value.setHours(0, 0, 0, 0)
                         row.getCell(10).value = row.getCell(10).value?row.getCell(10).value.split(', '):[]
                         row.getCell(11).value = row.getCell(11).value?row.getCell(11).value.split(', '):[]
                         object = new Client({
@@ -205,7 +208,7 @@ const resolversMutation = {
                             passport: row.getCell(5).value,
                             inn: row.getCell(4).value,
                             level: row.getCell(2).value,
-                            birthday: new Date(`${row.getCell(9).value[1]}.${row.getCell(9).value[0]}.${row.getCell(9).value[2]}`),
+                            birthday: row.getCell(9).value
                         });
                         object = await Client.create(object)
                         let balanceClient = new BalanceClient({

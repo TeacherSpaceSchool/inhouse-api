@@ -138,7 +138,6 @@ const resolversMutation = {
             let rowNumber = 1, row, object, item, warehouse, amount
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                console.log(!!row.getCell(1).value, !!row.getCell(2).value)
                 if(row.getCell(1).value&&(await Item.findById(row.getCell(1).value).select('_id').lean())&&row.getCell(2).value&&(await Warehouse.findById(row.getCell(2).value).select('_id').lean())) {
                     item = row.getCell(1).value
                     warehouse = row.getCell(2).value

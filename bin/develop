@@ -17,8 +17,7 @@ let graphql  = require('../graphql/index');
     let httpServer = http.createServer(app);
     await graphql.run(app, httpServer)
 
-    httpServer.listen(port, () => {
-    });
+    httpServer.listen(port, () => {});
     httpServer.on('error', onError);
     httpServer.on('listening', onListening);
 

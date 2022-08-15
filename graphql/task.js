@@ -1,5 +1,10 @@
 const Task = require('../models/task');
 const History = require('../models/history');
+const { urlMain, pdDDMMYYYY } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
 
 const type = `
   type Task {
@@ -14,6 +19,7 @@ const type = `
 `;
 
 const query = `
+    unloadTasks(status: String, search: String): String
     tasks(status: String, search: String, skip: Int, limit: Int): [Task]
     tasksCount(status: String, search: String): Int
     task(_id: ID!): Task
@@ -26,6 +32,44 @@ const mutation = `
 `;
 
 const resolvers = {
+    unloadTasks: async(parent, {status, search}, {user}) => {
+        if(user.role) {
+            let res = await Task.find({
+                ...user.role!=='admin'?{
+                    $or: [
+                        {who: user._id},
+                        {whom: user._id}
+                    ]
+                }:{},
+                del: {$ne: true},
+                ...search?{info: {'$regex': search, '$options': 'i'}}:{},
+                ...status?{status}:{},
+            })
+                .sort('-createdAt')
+                .populate({
+                    path: 'who',
+                    select: 'name _id'
+                })
+                .populate({
+                    path: 'whom',
+                    select: 'name _id'
+                })
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            for(let i = 0; i < res.length; i++) {
+                worksheet.getRow(i+1).getCell(1).value = res[i].status
+                worksheet.getRow(i+1).getCell(2).value = pdDDMMYYYY(res[i].date)
+                worksheet.getRow(i+1).getCell(3).value = `${res[i].who.name}|${res[i].who._id}`
+                worksheet.getRow(i+1).getCell(4).value = `${res[i].whom.name}|${res[i].whom._id}`
+                worksheet.getRow(i+1).getCell(5).value = res[i].info
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
     tasks: async(parent, {status, search, skip, limit}, {user}) => {
         if(user.role) {
             return await Task.find({

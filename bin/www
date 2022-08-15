@@ -7,87 +7,62 @@ let http = require('http');
 const start = require('../module/start');
 let graphql  = require('../graphql/index');
 
-if (cluster.isMaster) {
-    start.start();
-    let cpuCount = os.cpus().length
-    for (let i = 0; i < cpuCount; i += 1) {
-        cluster.fork();
-        console.log('cluster '+i+' run')
+(async ()=>{
+    if (cluster.isMaster) {
+        start.start();
+        let cpuCount = os.cpus().length
+        for (let i = 0; i < cpuCount; i += 1) {
+            cluster.fork();
+            console.log('cluster '+i+' run')
+        }
     }
-} else {
+    else {
 
-
-    let port = normalizePort(process.env.URL.trim()!=='http://localhost'?'4000':'3000');
-    app.set('port', port);
-    let server = http.createServer(app);
-    serverGQL.installSubscriptionHandlers(server)
-
-    /**
-     * Listen on provided port, on all network interfaces.
-     */
-
-    server.listen(port, () => {
-    });
-    server.on('error', onError);
-    server.on('listening', onListening);
-
-    /**
-     * Normalize a port into a number, string, or false.
-     */
-    module.exports = server;
-    function normalizePort(val) {
-        var port = parseInt(val, 10);
-
-        if (isNaN(port)) {
-            // named pipe
-            return val;
+        const normalizePort = (val) => {
+            let port = parseInt(val, 10);
+            if (isNaN(port))
+                return val;
+            if (port >= 0)
+                return port;
+            return false;
         }
 
-        if (port >= 0) {
-            // port number
-            return port;
-        }
+        let port = normalizePort(process.env.URL.trim()!=='http://localhost'?'4000':'3000');
+        app.set('port', port);
 
-        return false;
-    }
+        let httpServer = http.createServer(app);
+        await graphql.run(app, httpServer)
 
-    /**
-     * Event listener for HTTP server "error" event.
-     */
-
-    function onError(error) {
-        if (error.syscall !== 'listen') {
-            throw error;
-        }
-
-        var bind = typeof port === 'string'
-            ? 'Pipe ' + port
-            : 'Port ' + port;
-
-        // handle specific listen errors with friendly messages
-        switch (error.code) {
-            case 'EACCES':
-                console.error(bind + ' requires elevated privileges');
-                process.exit(1);
-                break;
-            case 'EADDRINUSE':
-                console.error(bind + ' is already in use');
-                process.exit(1);
-                break;
-            default:
+        const onError = (error) => {
+            if (error.syscall !== 'listen')
                 throw error;
+            let bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
+            switch (error.code) {
+                case 'EACCES':
+                    console.error(bind + ' requires elevated privileges');
+                    process.exit(1);
+                    break;
+                case 'EADDRINUSE':
+                    console.error(bind + ' is already in use');
+                    process.exit(1);
+                    break;
+                default:
+                    throw error;
+            }
         }
-    }
-    /**
-     * Event listener for HTTP server "listening" event.
-     */
+        const onListening = () => {
+            let addr = httpServer.address();
+            let bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + addr.port;
+            debug('Listening on ' + bind);
+        }
 
-    function onListening() {
-        var addr = server.address();
-        var bind = typeof addr === 'string'
-            ? 'pipe ' + addr
-            : 'port ' + addr.port;
-        debug('Listening on ' + bind);
-    }
+        httpServer.listen(port);
+        httpServer.on('error', onError);
+        httpServer.on('listening', onListening);
 
-}
+        module.exports = httpServer;
+
+
+    }
+})()
+

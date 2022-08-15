@@ -233,6 +233,7 @@ const resolversMutation = {
                                     history.what = `${history.what}Начало работы:${pdDDMMYYYY(object.startWork)}→${row.getCell(8).value};\n`
                                     row.getCell(8).value = row.getCell(8).value.split('.')
                                     object.startWork = new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`)
+                                    object.startWork.setHours(0, 0, 0, 0)
                                 }
                             }
                             if (row.getCell(9).value) {
@@ -253,6 +254,8 @@ const resolversMutation = {
                     else if(row.getCell(2).value&&row.getCell(3).value&&row.getCell(4).value&&row.getCell(4).value!=='admin'&&row.getCell(5).value&&['менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист', 'сотрудник'].includes(row.getCell(5).value)&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(10).value&&(await Store.findById(row.getCell(10).value).select('_id').lean())) {
                         row.getCell(9).value = row.getCell(9).value?row.getCell(9).value.split(', '):[]
                         row.getCell(8).value = row.getCell(8).value.split('.')
+                        row.getCell(8).value = new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`)
+                        row.getCell(8).value.setHours(0, 0, 0, 0)
                         object = new User({
                             login: row.getCell(2).value,
                             role: row.getCell(5).value,
@@ -263,7 +266,7 @@ const resolversMutation = {
                             store: row.getCell(10).value,
                             department: row.getCell(6).value,
                             position: row.getCell(7).value,
-                            startWork: new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`),
+                            startWork: row.getCell(8).value,
                             add: true,
                             edit: true,
                             deleted: true

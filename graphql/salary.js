@@ -182,6 +182,7 @@ const resolversMutation = {
                     let employment = await User.findById(row.getCell(2).value).select('_id store').lean()
                     let date = row.getCell(1).value.split('.')
                     date = checkDate(`${date[0]}.01.${date[1]}`)
+                    date.setHours(0, 0, 0, 0)
                     object = await Salary.findOne({
                         employment,
                         date
