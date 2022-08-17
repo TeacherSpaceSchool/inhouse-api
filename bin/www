@@ -59,6 +59,7 @@ const runServer = async () => {
     if (cluster.isMaster) {
         start.start();
         let cpuCount = os.cpus().length
+        console.log('cluster count '+cpuCount)
         for (let i = 0; i < cpuCount; i += 1) {
             cluster.fork();
             console.log('cluster '+i+' run')
