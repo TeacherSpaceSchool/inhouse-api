@@ -49,7 +49,7 @@ const resolvers = {
             let installmentClients
             if(!debtor||debtor!=='all') {
                 installmentClients = await Installment.find({
-                    status: 'активна'
+                    status: {$in: ['активна', 'безнадежна']}
                 })
                     .distinct('client')
                     .lean()
@@ -86,13 +86,21 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(1).width = 40
+            worksheet.getRow(1).getCell(1).font = {bold: true};
+            worksheet.getRow(1).getCell(1).value = 'Клиент'
+            worksheet.getColumn(2).width = 30
+            worksheet.getRow(1).getCell(2).font = {bold: true};
+            worksheet.getRow(1).getCell(2).value = 'Баланс'
             for(let i = 0; i < res.length; i++) {
                 let balance = ''
                 for(let i1 = 0; i1 < res[i].balance.length; i1++) {
-                    balance = `${balance?`${balance}, `:''}${res[i].balance[i1].currency}: ${res[i].balance[i1].amount}`
+                    balance = `${balance?`${balance}\n`:''}${res[i].balance[i1].currency}: ${res[i].balance[i1].amount}`
                 }
-                worksheet.getRow(i+1).getCell(1).value = `${res[i].client.name}|${res[i].client._id.toString()}`
-                worksheet.getRow(i+1).getCell(2).value = balance
+                worksheet.getRow(i+2).getCell(1).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(1).value = `${res[i].client.name}\n${res[i].client._id.toString()}`
+                worksheet.getRow(i+2).getCell(2).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(2).value = balance
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -123,7 +131,7 @@ const resolvers = {
             let installmentClients
             if(!debtor||debtor!=='all') {
                 installmentClients = await Installment.find({
-                    status: 'активна'
+                    status: {$in: ['активна', 'безнадежна']}
                 })
                     .distinct('client')
                     .lean()
@@ -186,7 +194,7 @@ const resolvers = {
             let installmentClients
             if(!debtor||debtor!=='all') {
                 installmentClients = await Installment.find({
-                    status: 'активна'
+                    status: {$in: ['активна', 'безнадежна']}
                 })
                     .distinct('client')
                     .lean()

@@ -4,8 +4,12 @@ const Sale = require('../models/sale');
 const History = require('../models/history');
 const ItemRefund = require('../models/itemRefund');
 const BalanceClient = require('../models/balanceClient');
-const {checkFloat} = require('../module/const');
 const Salary = require('../models/salary');
+const {checkFloat, pdDDMMYYYY, urlMain, pdDDMMYYHHMM } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
 
 const type = `
   type Refund {
@@ -27,6 +31,7 @@ const type = `
 `;
 
 const query = `
+    unloadRefunds(search: String, manager: ID, client: ID, store: ID, date: Date, status: String, _id: ID): String
     refunds(search: String, skip: Int, limit: Int, manager: ID, client: ID, store: ID, date: Date, status: String): [Refund]
     refundsCount(search: String, manager: ID, client: ID, store: ID, date: Date, status: String): Int
     refund(_id: ID!): Refund
@@ -38,6 +43,132 @@ const mutation = `
 `;
 
 const resolvers = {
+    unloadRefunds: async(parent, {search, client, store, manager, date, status, _id}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+            if(user.store) store = user.store
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
+            let dateStart, dateEnd
+            if (date&&date.toString()!=='Invalid Date') {
+                dateStart = new Date(date)
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 1)
+            }
+            let res = await Refund.find(
+                _id?
+                    {
+                        _id
+                    }
+                    :
+                    {
+                        ...search?{number: search}:{},
+                        ...manager?{manager}:{},
+                        ...client?{client}:{},
+                        ...store?{store}:{},
+                        ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                        ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                    }
+            )
+                .sort('-createdAt')
+                .populate({
+                    path: 'manager',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'client',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'store',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'sale',
+                    select: '_id number'
+                })
+                .populate('itemsRefund')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(1).width = 20
+            let row = 1
+            for(let i = 0; i < res.length; i++) {
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = '_id'
+                worksheet.getRow(row).getCell(2).value = res[i]._id.toString()
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Возврат №'
+                worksheet.getRow(row).getCell(2).value = res[i].number
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Статус'
+                worksheet.getRow(row).getCell(2).value = `${res[i].status} ${res[i].paymentConfirmation?'оплачен':''}`
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Создан'
+                worksheet.getRow(row).getCell(2).value = pdDDMMYYHHMM(res[i].createdAt)
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Продажа'
+                worksheet.getRow(row).getCell(2).value = `№${res[i].sale.number}`
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Магазин'
+                worksheet.getRow(row).getCell(2).value = res[i].store.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Менеджер'
+                worksheet.getRow(row).getCell(2).value = res[i].manager.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Клиент'
+                worksheet.getRow(row).getCell(2).value = res[i].client.name
+                row +=1
+                if(res[i].discount) {
+                    worksheet.getRow(row).getCell(1).font = {bold: true};
+                    worksheet.getRow(row).getCell(1).value = 'Уценка'
+                    worksheet.getRow(row).getCell(2).value = `${res[i].discount} сом`
+                    row +=1
+                }
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Итого'
+                worksheet.getRow(row).getCell(2).value = `${res[i].amount} сом`
+                row +=1
+                if(res[i].comment) {
+                    worksheet.getRow(row).getCell(1).font = {bold: true};
+                    worksheet.getRow(row).getCell(1).value = 'Комментарий'
+                    worksheet.getRow(row).getCell(2).value = res[i].comment
+                    row +=1
+                }
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Позиции'
+                worksheet.getRow(row).getCell(2).value = res[i].itemsRefund.length
+                row +=1
+                for(let i1=0; i1<res[i].itemsRefund.length; i1++) {
+                    worksheet.getRow(row).getCell(1).font = {bold: true};
+                    worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
+                    worksheet.getRow(row).getCell(1).value = res[i].itemsRefund[i1].name
+                    worksheet.getRow(row).getCell(2).value = `${res[i].itemsRefund[i1].price} сом * ${res[i].itemsRefund[i1].count} ${res[i].itemsRefund[i1].unit} = ${res[i].itemsRefund[i1].amount} сом`
+                    row +=1
+                    if(res[i].itemsRefund[i1].characteristics.length) {
+                        let characteristics = ''
+                        for(let i2=0; i2<res[i].itemsRefund[i1].characteristics.length; i2++) {
+                            characteristics = `${characteristics?`${characteristics}\n`:''}${res[i].itemsRefund[i1].characteristics[i2][0]}: ${res[i].itemsRefund[i1].characteristics[i2][1]}`
+                        }
+                        worksheet.getRow(row).getCell(2).alignment = {wrapText: true}
+                        worksheet.getRow(row).getCell(2).value = characteristics
+                        row +=1
+                    }
+                }
+                row +=1
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
     refunds: async(parent, {search, skip, manager, client, store, limit, date, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
@@ -49,7 +180,7 @@ const resolvers = {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
-            return await Refund.find({
+            let res = await Refund.find({
                 ...search?{number: search}:{},
                 ...manager?{manager}:{},
                 ...client?{client}:{},
@@ -77,6 +208,7 @@ const resolvers = {
                     select: '_id number'
                 })
                 .lean()
+            return res
         }
     },
     refundsCount: async(parent, {search, client, store, manager, date, status}, {user}) => {

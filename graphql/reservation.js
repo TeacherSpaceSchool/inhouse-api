@@ -3,7 +3,11 @@ const ItemReservation = require('../models/itemReservation');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const History = require('../models/history');
 const BalanceClient = require('../models/balanceClient');
-const {checkFloat, pdDDMMYYYY} = require('../module/const');
+const {checkFloat, pdDDMMYYYY, urlMain, pdDDMMYYHHMM } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
 
 const type = `
   type Reservation {
@@ -27,6 +31,7 @@ const type = `
 `;
 
 const query = `
+    unloadReservations(search: String, manager: ID, client: ID, store: ID, soon: Boolean, date: Date, status: String, late: Boolean, today: Boolean, _id: ID): String
     reservations(search: String, skip: Int, items: Boolean, limit: Int, manager: ID, soon: Boolean, client: ID, store: ID, date: Date, status: String, late: Boolean, today: Boolean): [Reservation]
     reservationsCount(search: String, manager: ID, client: ID, store: ID, soon: Boolean, date: Date, status: String, late: Boolean, today: Boolean): Int
     reservation(_id: ID!): Reservation
@@ -38,6 +43,155 @@ const mutation = `
 `;
 
 const resolvers = {
+    unloadReservations: async(parent, {search, client, store, manager, date, soon, status, late, today, _id}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+            if(user.store) store = user.store
+            let dateStart, dateEnd
+            if(late||today) {
+                date = new Date()
+                date.setHours(0, 0, 0, 0)
+            }
+            else if (soon) {
+                dateStart = new Date()
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 3)
+            }
+            else if (date) {
+                dateStart = new Date(date)
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 1)
+            }
+            let res = await Reservation.find(
+                _id?
+                    {
+                        _id
+                    }
+                    :
+                    {
+                        ...search?{number: search}:{},
+                        ...manager?{manager}:{},
+                        ...client?{client}:{},
+                        ...store?{store}:{},
+                        ...late?
+                            {term: {$lt: date}, status: 'обработка'}
+                            :
+                            today?
+                                {term: date, status: 'обработка'}
+                                :
+                                soon?
+                                    {$and: [{term: {$gte: dateStart}}, {term: {$lt: dateEnd}}], status: 'обработка'}
+                                    :
+                                    {
+                                        ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                                        ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{}
+                                    }
+
+                    }
+            )
+                .sort('-createdAt')
+                .populate({
+                    path: 'manager',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'client',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'store',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'sale',
+                    select: '_id number'
+                })
+                .populate('itemsReservation')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(1).width = 20
+            let row = 1
+            for(let i = 0; i < res.length; i++) {
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = '_id'
+                worksheet.getRow(row).getCell(2).value = res[i]._id.toString()
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Бронь №'
+                worksheet.getRow(row).getCell(2).value = res[i].number
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Статус'
+                worksheet.getRow(row).getCell(2).value = `${res[i].status} ${res[i].paymentConfirmation?'оплачен':''}`
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Создан'
+                worksheet.getRow(row).getCell(2).value = pdDDMMYYHHMM(res[i].createdAt)
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Срок'
+                worksheet.getRow(row).getCell(2).value = pdDDMMYYYY(res[i].term)
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Магазин'
+                worksheet.getRow(row).getCell(2).value = res[i].store.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Менеджер'
+                worksheet.getRow(row).getCell(2).value = res[i].manager.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Клиент'
+                worksheet.getRow(row).getCell(2).value = res[i].client.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Тип платежа'
+                worksheet.getRow(row).getCell(2).value = res[i].typePayment
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Итого'
+                worksheet.getRow(row).getCell(2).value = `${res[i].amount} сом`
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Оплачено'
+                worksheet.getRow(row).getCell(2).value = `${res[i].paid} ${res[i].currency}`
+                row +=1
+                if(res[i].comment) {
+                    worksheet.getRow(row).getCell(1).font = {bold: true};
+                    worksheet.getRow(row).getCell(1).value = 'Комментарий'
+                    worksheet.getRow(row).getCell(2).value = res[i].comment
+                    row +=1
+                }
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Позиции'
+                worksheet.getRow(row).getCell(2).value = res[i].itemsReservation.length
+                row +=1
+                for(let i1=0; i1<res[i].itemsReservation.length; i1++) {
+                    worksheet.getRow(row).getCell(1).font = {bold: true};
+                    worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
+                    worksheet.getRow(row).getCell(1).value = res[i].itemsReservation[i1].name
+                    worksheet.getRow(row).getCell(2).value = `${res[i].itemsReservation[i1].price} сом * ${res[i].itemsReservation[i1].count} ${res[i].itemsReservation[i1].unit} = ${res[i].itemsReservation[i1].amount} сом`
+                    row +=1
+                    if(res[i].itemsReservation[i1].characteristics.length) {
+                        let characteristics = ''
+                        for(let i2=0; i2<res[i].itemsReservation[i1].characteristics.length; i2++) {
+                            characteristics = `${characteristics?`${characteristics}\n`:''}${res[i].itemsReservation[i1].characteristics[i2][0]}: ${res[i].itemsReservation[i1].characteristics[i2][1]}`
+                        }
+                        worksheet.getRow(row).getCell(2).alignment = {wrapText: true}
+                        worksheet.getRow(row).getCell(2).value = characteristics
+                        row +=1
+                    }
+                }
+                row +=1
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
     reservations: async(parent, {search, skip, manager, items, client, store, soon, limit, date, status, late, today}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             if(user.store) store = user.store

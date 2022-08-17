@@ -53,19 +53,43 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getRow(1).getCell(1).font = {bold: true};
+            worksheet.getRow(1).getCell(1).value = '_id'
+            worksheet.getRow(1).getCell(2).font = {bold: true};
+            worksheet.getRow(1).getCell(2).value = 'Уровень'
+            worksheet.getRow(1).getCell(3).font = {bold: true};
+            worksheet.getRow(1).getCell(3).value = 'Название'
+            worksheet.getRow(1).getCell(4).font = {bold: true};
+            worksheet.getRow(1).getCell(4).value = 'ИНН'
+            worksheet.getRow(1).getCell(5).font = {bold: true};
+            worksheet.getRow(1).getCell(5).value = 'Паспорт'
+            worksheet.getRow(1).getCell(6).font = {bold: true};
+            worksheet.getRow(1).getCell(6).value = 'Работа'
+            worksheet.getRow(1).getCell(7).font = {bold: true};
+            worksheet.getRow(1).getCell(7).value = 'Адрес проживания'
+            worksheet.getRow(1).getCell(8).font = {bold: true};
+            worksheet.getRow(1).getCell(8).value = 'Адрес прописки'
+            worksheet.getRow(1).getCell(9).font = {bold: true};
+            worksheet.getRow(1).getCell(9).value = 'День рождения'
+            worksheet.getRow(1).getCell(10).font = {bold: true};
+            worksheet.getRow(1).getCell(10).value = 'Телефоны'
+            worksheet.getRow(1).getCell(11).font = {bold: true};
+            worksheet.getRow(1).getCell(11).value = 'Email'
+            worksheet.getRow(1).getCell(12).font = {bold: true};
+            worksheet.getRow(1).getCell(12).value = 'Комментарий'
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(i+1).getCell(1).value = res[i]._id.toString()
-                worksheet.getRow(i+1).getCell(2).value = res[i].level
-                worksheet.getRow(i+1).getCell(3).value = res[i].name
-                worksheet.getRow(i+1).getCell(4).value = res[i].inn
-                worksheet.getRow(i+1).getCell(5).value = res[i].passport
-                worksheet.getRow(i+1).getCell(6).value = res[i].work
-                worksheet.getRow(i+1).getCell(7).value = res[i].address
-                worksheet.getRow(i+1).getCell(8).value = res[i].address1
-                worksheet.getRow(i+1).getCell(9).value = pdDDMMYYYY(res[i].birthday)
-                worksheet.getRow(i+1).getCell(10).value = (res[i].phones.map(phone=>`+996${phone}`)).toString()
-                worksheet.getRow(i+1).getCell(11).value = res[i].emails.toString()
-                worksheet.getRow(i+1).getCell(12).value = res[i].info
+                worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
+                worksheet.getRow(i+2).getCell(2).value = res[i].level
+                worksheet.getRow(i+2).getCell(3).value = res[i].name
+                worksheet.getRow(i+2).getCell(4).value = res[i].inn
+                worksheet.getRow(i+2).getCell(5).value = res[i].passport
+                worksheet.getRow(i+2).getCell(6).value = res[i].work
+                worksheet.getRow(i+2).getCell(7).value = res[i].address
+                worksheet.getRow(i+2).getCell(8).value = res[i].address1
+                worksheet.getRow(i+2).getCell(9).value = pdDDMMYYYY(res[i].birthday)
+                worksheet.getRow(i+2).getCell(10).value = (res[i].phones.map(phone=>`+996${phone}`)).toString()
+                worksheet.getRow(i+2).getCell(11).value = res[i].emails.toString()
+                worksheet.getRow(i+2).getCell(12).value = res[i].info
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -332,7 +356,7 @@ const resolversMutation = {
     },
     deleteClient: async(parent, { _id }, {user}) => {
         if(['admin'].includes(user.role)) {
-            if(await Installment.countDocuments({client: _id, status: 'активна'}).lean())
+            if(await Installment.countDocuments({client: _id, status: {$in: ['активна', 'безнадежна']}}).lean())
                 return 'USED'
             if(await BalanceClient.countDocuments({client: _id, balance: {$elemMatch: {amount: {$gte: 0}}}}).lean())
                 return 'USED'

@@ -3,7 +3,11 @@ const WayItem = require('../models/wayItem');
 const ItemOrder = require('../models/itemOrder');
 const History = require('../models/history');
 const BalanceClient = require('../models/balanceClient');
-const {checkFloat} = require('../module/const');
+const {checkFloat, urlMain, pdDDMMYYHHMM } = require('../module/const');
+const ExcelJS = require('exceljs');
+const app = require('../app');
+const path = require('path');
+const randomstring = require('randomstring');
 
 const type = `
   type Order {
@@ -26,6 +30,7 @@ const type = `
 `;
 
 const query = `
+    unloadOrders(search: String, manager: ID, client: ID, store: ID, date: Date, status: String, _id: ID): String
     prepareAcceptOrder(_id: ID!): [ID]
     orders(search: String, skip: Int, items: Boolean, limit: Int, manager: ID, client: ID, store: ID, date: Date, status: String): [Order]
     ordersCount(search: String, manager: ID, client: ID, store: ID, date: Date, status: String): Int
@@ -38,6 +43,130 @@ const mutation = `
 `;
 
 const resolvers = {
+    unloadOrders: async(parent, {search, client, store, manager, date, status, _id}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+            if(user.store) store = user.store
+            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
+            let dateStart, dateEnd
+            if (date&&date.toString()!=='Invalid Date') {
+                dateStart = new Date(date)
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 1)
+            }
+            let res = await Order.find(
+                _id?
+                    {
+                        _id
+                    }
+                    :
+                    {
+                        ...search?{number: search}:{},
+                        ...manager?{manager}:{},
+                        ...client?{client}:{},
+                        ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                        ...store?{store}:{},
+                        ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                    }
+            )
+                .sort('-createdAt')
+                .populate({
+                    path: 'manager',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'client',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'store',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'sale',
+                    select: '_id number'
+                })
+                .populate('itemsOrder')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(1).width = 20
+            let row = 1
+            for(let i = 0; i < res.length; i++) {
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = '_id'
+                worksheet.getRow(row).getCell(2).value = res[i]._id.toString()
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'На заказ №'
+                worksheet.getRow(row).getCell(2).value = res[i].number
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Статус'
+                worksheet.getRow(row).getCell(2).value = `${res[i].status} ${res[i].paymentConfirmation?'оплачен':''}`
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Создан'
+                worksheet.getRow(row).getCell(2).value = pdDDMMYYHHMM(res[i].createdAt)
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Магазин'
+                worksheet.getRow(row).getCell(2).value = res[i].store.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Менеджер'
+                worksheet.getRow(row).getCell(2).value = res[i].manager.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Клиент'
+                worksheet.getRow(row).getCell(2).value = res[i].client.name
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Тип платежа'
+                worksheet.getRow(row).getCell(2).value = res[i].typePayment
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Итого'
+                worksheet.getRow(row).getCell(2).value = `${res[i].amount} сом`
+                row +=1
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Оплачено'
+                worksheet.getRow(row).getCell(2).value = `${res[i].paid} ${res[i].currency}`
+                row +=1
+                if(res[i].comment) {
+                    worksheet.getRow(row).getCell(1).font = {bold: true};
+                    worksheet.getRow(row).getCell(1).value = 'Комментарий'
+                    worksheet.getRow(row).getCell(2).value = res[i].comment
+                    row +=1
+                }
+                worksheet.getRow(row).getCell(1).font = {bold: true};
+                worksheet.getRow(row).getCell(1).value = 'Позиции'
+                worksheet.getRow(row).getCell(2).value = res[i].itemsOrder.length
+                row +=1
+                for(let i1=0; i1<res[i].itemsOrder.length; i1++) {
+                    worksheet.getRow(row).getCell(1).font = {bold: true};
+                    worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
+                    worksheet.getRow(row).getCell(1).value = res[i].itemsOrder[i1].name
+                    worksheet.getRow(row).getCell(2).value = `${res[i].itemsOrder[i1].price} сом * ${res[i].itemsOrder[i1].count} ${res[i].itemsOrder[i1].unit} = ${res[i].itemsOrder[i1].amount} сом`
+                    row +=1
+                    if(res[i].itemsOrder[i1].characteristics.length) {
+                        let characteristics = ''
+                        for(let i2=0; i2<res[i].itemsOrder[i1].characteristics.length; i2++) {
+                            characteristics = `${characteristics?`${characteristics}\n`:''}${res[i].itemsOrder[i1].characteristics[i2][0]}: ${res[i].itemsOrder[i1].characteristics[i2][1]}`
+                        }
+                        worksheet.getRow(row).getCell(2).alignment = {wrapText: true}
+                        worksheet.getRow(row).getCell(2).value = characteristics
+                        row +=1
+                    }
+                }
+                row +=1
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
     orders: async(parent, {search, skip, items, manager, client, store, limit, date, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store

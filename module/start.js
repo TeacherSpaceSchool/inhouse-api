@@ -1,6 +1,5 @@
 const { createAdmin } = require('./user');
 const { Worker, isMainThread } = require('worker_threads');
-const { clearDB } = require('./const');
 
 let startResetUnloading = async () => {
     if(isMainThread) {
@@ -33,9 +32,6 @@ let startWebPush = async () => {
 }
 
 let start = async () => {
-
-    /*await clearDB()*/
-
     await createAdmin();
     await startResetUnloading()
     await startWebPush()

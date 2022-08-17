@@ -142,38 +142,64 @@ const resolvers = {
                 res = []
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(2).width = 15
+            worksheet.getColumn(3).width = 40
+            worksheet.getColumn(4).width = 40
+            worksheet.getColumn(5).width = 40
+            worksheet.getRow(1).getCell(1).font = {bold: true};
+            worksheet.getRow(1).getCell(1).value = '_id'
+            worksheet.getRow(1).getCell(2).font = {bold: true};
+            worksheet.getRow(1).getCell(2).value = 'Дата'
+            worksheet.getRow(1).getCell(3).font = {bold: true};
+            worksheet.getRow(1).getCell(3).value = 'Касса'
+            worksheet.getRow(1).getCell(4).font = {bold: true};
+            worksheet.getRow(1).getCell(4).value = 'Получатель'
+            worksheet.getRow(1).getCell(5).font = {bold: true};
+            worksheet.getRow(1).getCell(5).value = 'Статья'
+            worksheet.getRow(1).getCell(6).font = {bold: true};
+            worksheet.getRow(1).getCell(6).value = 'Операция'
+            worksheet.getRow(1).getCell(7).font = {bold: true};
+            worksheet.getRow(1).getCell(7).value = 'Сумма'
+            worksheet.getRow(1).getCell(8).font = {bold: true};
+            worksheet.getRow(1).getCell(8).value = 'Валюта'
+            worksheet.getRow(1).getCell(9).font = {bold: true};
+            worksheet.getRow(1).getCell(9).value = 'Коментарий'
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(i+1).getCell(1).value = `${pdDDMMYYYY(res[i].date)}/${res[i].number}`
-                worksheet.getRow(i+1).getCell(2).value = `${res[i].cashbox.name}|${res[i].cashbox._id.toString()}`
+                worksheet.getRow(i+2).getCell(1).value = `${res[i]._id.toString()}`
+                worksheet.getRow(i+2).getCell(2).value = `${pdDDMMYYYY(res[i].date)}/${res[i].number}`
+                worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(3).value = `${res[i].cashbox.name}\n${res[i].cashbox._id.toString()}`
+                worksheet.getRow(i+2).getCell(4).alignment = {wrapText: true}
                 if(res[i].client) {
-                    worksheet.getRow(i+1).getCell(3).value = `${res[i].client.name}|${res[i].client._id.toString()}`
+                    worksheet.getRow(i+2).getCell(4).value = `${res[i].client.name}\n${res[i].client._id.toString()}`
                     if(res[i].sale)
-                        worksheet.getRow(i+1).getCell(3).value += `\nПродажа №${res[i].sale.number}|${res[i].sale._id.toString()}`
+                        worksheet.getRow(i+2).getCell(4).value += `\nПродажа №${res[i].sale.number}\n${res[i].sale._id.toString()}`
                     else if(res[i].refund)
-                        worksheet.getRow(i+1).getCell(3).value += `\nВозврат №${res[i].refund.number}|${res[i].refund._id.toString()}`
+                        worksheet.getRow(i+2).getCell(4).value += `\nВозврат №${res[i].refund.number}\n${res[i].refund._id.toString()}`
                     else if(res[i].reservation)
-                        worksheet.getRow(i+1).getCell(3).value += `\nБронь №${res[i].reservation.number}|${res[i].reservation._id.toString()}`
+                        worksheet.getRow(i+2).getCell(4).value += `\nБронь №${res[i].reservation.number}\n${res[i].reservation._id.toString()}`
                     else if(res[i].order)
-                        worksheet.getRow(i+1).getCell(3).value += `\nНа заказ №${res[i].order.number}|${res[i].order._id.toString()}`
+                        worksheet.getRow(i+2).getCell(4).value += `\nНа заказ №${res[i].order.number}\n${res[i].order._id.toString()}`
                     if(res[i].installment) {
-                        worksheet.getRow(i+1).height = 60
-                        worksheet.getRow(i+1).getCell(3).value += `\nРассрочка №${res[i].installment.number}|${res[i].installment._id.toString()}`
-                        worksheet.getRow(i+1).getCell(3).value += `\n${pdDDMMYYYY(res[i].installmentMonth)}`
+                        worksheet.getRow(i+2).height = 60
+                        worksheet.getRow(i+2).getCell(4).value += `\nРассрочка №${res[i].installment.number}\n${res[i].installment._id.toString()}`
+                        worksheet.getRow(i+2).getCell(4).value += `\n${pdDDMMYYYY(res[i].installmentMonth)}`
                     }
                 }
                 else if(res[i].moneyRecipient)
-                    worksheet.getRow(i+1).getCell(3).value = `${res[i].moneyRecipient.name}|${res[i].moneyRecipient._id.toString()}`
+                    worksheet.getRow(i+2).getCell(4).value = `${res[i].moneyRecipient.name}\n${res[i].moneyRecipient._id.toString()}`
                 else if(res[i].employment)
-                    worksheet.getRow(i+1).getCell(3).value = `${res[i].employment.name}|${res[i].employment._id.toString()}`
+                    worksheet.getRow(i+2).getCell(4).value = `${res[i].employment.name}\n${res[i].employment._id.toString()}`
                 else if(res[i].cashboxRecipient)
-                    worksheet.getRow(i+1).getCell(3).value = `${res[i].cashboxRecipient.name}|${res[i].cashboxRecipient._id.toString()}`
+                    worksheet.getRow(i+2).getCell(4).value = `${res[i].cashboxRecipient.name}\n${res[i].cashboxRecipient._id.toString()}`
                 else
-                    worksheet.getRow(i+1).getCell(3).value = 'не указан'
-                worksheet.getRow(i+1).getCell(4).value = `${res[i].moneyArticle.name}|${res[i].moneyArticle._id.toString()}`
-                worksheet.getRow(i+1).getCell(5).value = res[i].operation
-                worksheet.getRow(i+1).getCell(6).value = res[i].amount
-                worksheet.getRow(i+1).getCell(7).value = res[i].currency
-                worksheet.getRow(i+1).getCell(8).value = res[i].info
+                    worksheet.getRow(i+2).getCell(4).value = 'не указан'
+                worksheet.getRow(i+2).getCell(5).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(5).value = `${res[i].moneyArticle.name}\n${res[i].moneyArticle._id.toString()}`
+                worksheet.getRow(i+2).getCell(6).value = res[i].operation
+                worksheet.getRow(i+2).getCell(7).value = res[i].amount
+                worksheet.getRow(i+2).getCell(8).value = res[i].currency
+                worksheet.getRow(i+2).getCell(9).value = res[i].info
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);

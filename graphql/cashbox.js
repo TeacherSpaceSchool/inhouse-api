@@ -47,15 +47,27 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(4).width = 40
+            worksheet.getRow(1).getCell(1).font = {bold: true};
+            worksheet.getRow(1).getCell(1).value = '_id'
+            worksheet.getRow(1).getCell(2).font = {bold: true};
+            worksheet.getRow(1).getCell(2).value = 'Название'
+            worksheet.getColumn(3).width = 30
+            worksheet.getRow(1).getCell(3).font = {bold: true};
+            worksheet.getRow(1).getCell(3).value = 'Баланс'
+            worksheet.getRow(1).getCell(4).font = {bold: true};
+            worksheet.getRow(1).getCell(4).value = 'Магазин'
             for(let i = 0; i < res.length; i++) {
                 let balance = ''
                 for(let i1 = 0; i1 < res[i].balance.length; i1++) {
-                    balance = `${balance?`${balance}, `:''}${res[i].balance[i1].currency}: ${res[i].balance[i1].amount}`
+                    balance = `${balance?`${balance}\n`:''}${res[i].balance[i1].currency}: ${res[i].balance[i1].amount}`
                 }
-                worksheet.getRow(i+1).getCell(1).value = res[i]._id.toString()
-                worksheet.getRow(i+1).getCell(2).value = res[i].name
-                worksheet.getRow(i+1).getCell(3).value = balance
-                worksheet.getRow(i+1).getCell(4).value = `${res[i].store.name}|${res[i].store._id.toString()}`
+                worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
+                worksheet.getRow(i+2).getCell(2).value = res[i].name
+                worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(3).value = balance
+                worksheet.getRow(i+2).getCell(4).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(4).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);

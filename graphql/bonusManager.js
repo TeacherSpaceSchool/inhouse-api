@@ -54,14 +54,26 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(1).width = 40
+            worksheet.getColumn(2).width = 40
+            worksheet.getRow(1).getCell(1).font = {bold: true};
+            worksheet.getRow(1).getCell(1).value = 'Менеджер'
+            worksheet.getRow(1).getCell(2).font = {bold: true};
+            worksheet.getRow(1).getCell(2).value = 'Магазин'
+            worksheet.getColumn(3).width = 30
+            worksheet.getRow(1).getCell(3).font = {bold: true};
+            worksheet.getRow(1).getCell(3).value = 'Бонус'
             for(let i = 0; i < res.length; i++) {
                 let bonus = ''
                 for(let i1 = 0; i1 < res[i].bonus.length; i1++) {
-                    bonus = `${bonus?`${bonus}, `:''}${res[i].bonus[i1][0]}%: ${res[i].bonus[i1][1]}%`
+                    bonus = `${bonus?`${bonus}\n`:''}${res[i].bonus[i1][0]}%: ${res[i].bonus[i1][1]}%`
                 }
-                worksheet.getRow(i+1).getCell(1).value = `${res[i].manager.name}|${res[i].manager._id.toString()}`
-                worksheet.getRow(i+1).getCell(2).value = `${res[i].store.name}|${res[i].store._id.toString()}`
-                worksheet.getRow(i+1).getCell(3).value = bonus
+                worksheet.getRow(i+2).getCell(1).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(1).value = `${res[i].manager.name}\n${res[i].manager._id.toString()}`
+                worksheet.getRow(i+2).getCell(2).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(2).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
+                worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(3).value = bonus
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);

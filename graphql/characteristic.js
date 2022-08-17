@@ -37,9 +37,13 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getRow(1).getCell(1).font = {bold: true};
+            worksheet.getRow(1).getCell(1).value = '_id'
+            worksheet.getRow(1).getCell(2).font = {bold: true};
+            worksheet.getRow(1).getCell(2).value = 'Название'
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(i+1).getCell(1).value = res[i]._id.toString()
-                worksheet.getRow(i+1).getCell(2).value = res[i].name
+                worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
+                worksheet.getRow(i+2).getCell(2).value = res[i].name
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);

@@ -1,4 +1,5 @@
 const Error = require('../models/error');
+const { clearDB } = require('../module/const');
 
 const type = `
   type Error {
@@ -16,6 +17,7 @@ const query = `
 
 const mutation = `
     clearAllErrors: String
+    clearDB(password: String): String
 `;
 
 const resolvers = {
@@ -43,7 +45,15 @@ const resolversMutation = {
             return 'OK'
         }
         return 'ERROR'
-    }
+    },
+    clearDB: async(parent, {password}, {user}) => {
+        console.log(user.role==='admin', password===process.env.passwordClearDB.trim())
+        if(user.role==='admin'&&password===process.env.passwordClearDB.trim()) {
+            await clearDB()
+            return 'OK'
+        }
+        return 'ERROR'
+    },
 };
 
 module.exports.resolversMutation = resolversMutation;
