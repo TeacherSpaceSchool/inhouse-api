@@ -7,6 +7,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const Store = require('../models/store');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Warehouse {
@@ -120,7 +121,7 @@ const resolversMutation = {
                         row.getCell(3).value = row.getCell(3).value.split('|')[1]
                     }
                     _id = row.getCell(1).value
-                    if(_id) {
+                    if(_id&&await checkUniqueName(row.getCell(2).value, 'warehouse')) {
                         object = await Warehouse.findById(_id)
                         if(object) {
                             let history = new History({
@@ -133,7 +134,10 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(user.store||row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean())) {
+                    else if(
+                        (user.store||row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean()))
+                        &&await checkUniqueName(row.getCell(2).value, 'warehouse')
+                    ) {
                         object = new Warehouse({
                             name: row.getCell(2).value,
                             store: user.store?user.store:row.getCell(3).value
@@ -156,7 +160,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addWarehouse: async(parent, {name, store}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'warehouse')) {
             let object = new Warehouse({
                 name,
                 store
@@ -175,10 +179,10 @@ const resolversMutation = {
                 })
                 .lean()
         }
-        return 'ERROR'
+        return {_id: 'ERROR'}
     },
     setWarehouse: async(parent, {_id, name}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'warehouse')) {
             let object = await Warehouse.findOne({
                 _id,
             })

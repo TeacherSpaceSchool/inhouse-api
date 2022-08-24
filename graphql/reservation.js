@@ -193,7 +193,7 @@ const resolvers = {
         }
     },
     reservations: async(parent, {search, skip, manager, items, client, store, soon, limit, date, status, late, today}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
             if(late||today) {
@@ -261,7 +261,7 @@ const resolvers = {
         }
     },
     reservationsCount: async(parent, {search, client, store, manager, date, soon, status, late, today}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
             if(late||today) {
@@ -303,7 +303,7 @@ const resolvers = {
         }
     },
     reservation: async(parent, {_id}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let res = await Reservation.findOne({
                 _id,
             })

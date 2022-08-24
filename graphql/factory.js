@@ -6,7 +6,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
-
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Factory {
@@ -90,7 +90,7 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value) {
+                if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'factory')) {
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Factory.findById(_id)
@@ -127,7 +127,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addFactory: async(parent, {name}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'factory')) {
             let object = new Factory({
                 name
             });
@@ -143,7 +143,7 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setFactory: async(parent, {_id, name}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'factory')) {
             let object = await Factory.findOne({
                 _id,
             })

@@ -33,6 +33,8 @@ const type = `
     operation: String
     info: String
     amount: Float
+    exchangeRate: Float
+    amountEnd: Float
     currency: String
     number: String
     date: Date
@@ -55,8 +57,8 @@ const query = `
 
 const mutation = `
     uploadMoneyFlow(document: Upload!): String
-    addMoneyFlow(installment: ID, installmentMonth: Date, client: ID, employment: ID, order: ID, sale: ID, reservation: ID, refund: ID, cashboxRecipient: ID, cashbox: ID!, moneyRecipient: ID, moneyArticle: ID!, operation: String!, info: String!, amount: Float!, currency: String!, date: Date!): MoneyFlow
-    setMoneyFlow(_id: ID!, info: String, amount: Float): String
+    addMoneyFlow(installment: ID, installmentMonth: Date, exchangeRate: Float!, amountEnd: Float!, client: ID, employment: ID, order: ID, sale: ID, reservation: ID, refund: ID, cashboxRecipient: ID, cashbox: ID!, moneyRecipient: ID, moneyArticle: ID!, operation: String!, info: String!, amount: Float!, currency: String!, date: Date!): MoneyFlow
+    setMoneyFlow(_id: ID!, info: String, amount: Float, moneyArticle: ID, exchangeRate: Float, amountEnd: Float): String
     deleteMoneyFlow(_id: ID!): String
 `;
 
@@ -157,13 +159,11 @@ const resolvers = {
             worksheet.getRow(1).getCell(5).font = {bold: true};
             worksheet.getRow(1).getCell(5).value = 'Статья'
             worksheet.getRow(1).getCell(6).font = {bold: true};
-            worksheet.getRow(1).getCell(6).value = 'Операция'
+            worksheet.getRow(1).getCell(6).value = 'Сумма'
             worksheet.getRow(1).getCell(7).font = {bold: true};
-            worksheet.getRow(1).getCell(7).value = 'Сумма'
+            worksheet.getRow(1).getCell(7).value = 'Валюта'
             worksheet.getRow(1).getCell(8).font = {bold: true};
-            worksheet.getRow(1).getCell(8).value = 'Валюта'
-            worksheet.getRow(1).getCell(9).font = {bold: true};
-            worksheet.getRow(1).getCell(9).value = 'Коментарий'
+            worksheet.getRow(1).getCell(8).value = 'Коментарий'
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(i+2).getCell(1).value = `${res[i]._id.toString()}`
                 worksheet.getRow(i+2).getCell(2).value = `${pdDDMMYYYY(res[i].date)}/${res[i].number}`
@@ -196,10 +196,9 @@ const resolvers = {
                     worksheet.getRow(i+2).getCell(4).value = 'не указан'
                 worksheet.getRow(i+2).getCell(5).alignment = {wrapText: true}
                 worksheet.getRow(i+2).getCell(5).value = `${res[i].moneyArticle.name}\n${res[i].moneyArticle._id.toString()}`
-                worksheet.getRow(i+2).getCell(6).value = res[i].operation
-                worksheet.getRow(i+2).getCell(7).value = res[i].amount
-                worksheet.getRow(i+2).getCell(8).value = res[i].currency
-                worksheet.getRow(i+2).getCell(9).value = res[i].info
+                worksheet.getRow(i+2).getCell(6).value = `${res[i].operation==='расход'?'-':''}${res[i].amount}`
+                worksheet.getRow(i+2).getCell(7).value = res[i].currency
+                worksheet.getRow(i+2).getCell(8).value = res[i].info
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -387,8 +386,8 @@ const resolvers = {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
-            if(!['менеджер', 'менеджер/завсклад'].includes(user.role)||order||installment||sale||reservation||refund)
-                return await MoneyFlow.find({
+            if(!['менеджер', 'менеджер/завсклад'].includes(user.role)||order||installment||sale||reservation||refund) {
+                let res = await MoneyFlow.find({
                     ...search?{number: search}:{},
                     ...store?{store}:{},
                     ...installment?{installment}:{},
@@ -455,6 +454,9 @@ const resolvers = {
                         select: '_id number'
                     })
                     .lean()
+                console.log(res)
+                return res
+            }
             else return []
         }
     },
@@ -667,13 +669,13 @@ const resolversMutation = {
                             date
                         });
 
-                        if(order)
+                        if(order&&operation==='приход')
                             await Order.updateOne({_id: order}, {paymentConfirmation: true})
-                        else if(reservation)
+                        else if(reservation&&operation==='приход')
                             await Reservation.updateOne({_id: reservation}, {paymentConfirmation: true})
-                        else if(refund)
+                        else if(refund&&operation==='расход')
                             await Refund.updateOne({_id: refund}, {paymentConfirmation: true})
-                        else if(sale) {
+                        else if(sale&&operation==='приход') {
                             let saleObject = await Sale.findById(sale)
                             if(saleObject.installment) {
                                 let installmentObject = await Installment.findById(saleObject.installment).lean()
@@ -684,7 +686,7 @@ const resolversMutation = {
                             saleObject.paymentConfirmation = true
                             await saleObject.save()
                         }
-                        else if(installment)
+                        else if(installment&&operation==='приход')
                             await setGridInstallment({_id: installment, newAmount: amount, oldAmount: 0, month: installmentMonth, type: '+', user})
 
                         object = await MoneyFlow.create(object)
@@ -810,7 +812,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    addMoneyFlow: async(parent, {installment, installmentMonth, order, sale, reservation, refund, client, employment, cashboxRecipient, cashbox, moneyRecipient, moneyArticle, operation, info, amount, currency, date}, {user}) => {
+    addMoneyFlow: async(parent, {installment, installmentMonth, order, exchangeRate, amountEnd, sale, reservation, refund, client, employment, cashboxRecipient, cashbox, moneyRecipient, moneyArticle, operation, info, amount, currency, date}, {user}) => {
         if(['admin', 'кассир'].includes(user.role)) {
             date = new Date(date)
             date.setHours(0, 0, 0, 0)
@@ -836,7 +838,9 @@ const resolversMutation = {
                 info,
                 amount,
                 currency,
-                date
+                date,
+                exchangeRate,
+                amountEnd
             });
 
             if(order)
@@ -849,7 +853,7 @@ const resolversMutation = {
                 let saleObject = await Sale.findById(sale)
                 if(saleObject.installment) {
                     let installmentObject = await Installment.findById(saleObject.installment).lean()
-                    await setGridInstallment({_id: installmentObject._id, newAmount: amount, oldAmount: 0, month: installmentObject.grid[0].month, type: '+', user})
+                    await setGridInstallment({_id: installmentObject._id, newAmount: amountEnd, oldAmount: 0, month: installmentObject.grid[0].month, type: '+', user})
                     object.installment = installmentObject._id
                     object.installmentMonth = installmentObject.grid[0].month
                 }
@@ -857,7 +861,7 @@ const resolversMutation = {
                 await saleObject.save()
             }
             else if(installment)
-                await setGridInstallment({_id: installment, newAmount: amount, oldAmount: 0, month: installmentMonth, type: '+', user})
+                await setGridInstallment({_id: installment, newAmount: amountEnd, oldAmount: 0, month: installmentMonth, type: '+', user})
 
             object = await MoneyFlow.create(object)
 
@@ -944,7 +948,7 @@ const resolversMutation = {
                         client.balance = [
                             {
                                 currency,
-                                amount
+                                amount: amountEnd
                             },
                             ...client.balance
                         ]
@@ -952,16 +956,16 @@ const resolversMutation = {
                         client.balance = [
                             {
                                 currency,
-                                amount: -amount
+                                amount: -amountEnd
                             },
                             ...client.balance
                         ]
                 }
                 else {
                     if (operation === 'приход')
-                        client.balance[index].amount = checkFloat(client.balance[index].amount + amount)
+                        client.balance[index].amount = checkFloat(client.balance[index].amount + amountEnd)
                     else
-                        client.balance[index].amount = checkFloat(client.balance[index].amount - amount)
+                        client.balance[index].amount = checkFloat(client.balance[index].amount - amountEnd)
                 }
                 await BalanceClient.updateOne({_id: client._id}, {balance: client.balance})
             }
@@ -1021,7 +1025,7 @@ const resolversMutation = {
         }
         return {_id: 'ERROR'}
     },
-    setMoneyFlow: async(parent, {_id, info, amount}, {user}) => {
+    setMoneyFlow: async(parent, {_id, info, amount, exchangeRate, amountEnd, moneyArticle}, {user}) => {
         if(['admin', 'кассир'].includes(user.role)) {
             let object = await MoneyFlow.findById(_id)
             if(object) {
@@ -1034,10 +1038,11 @@ const resolversMutation = {
                     history.what = `Комментарий:${object.info}→${info};\n`
                     object.info = info
                 }
+                if (moneyArticle&&object.moneyArticle.toString()!==moneyArticle.toString()) {
+                    history.what = 'Статья;\n'
+                    object.moneyArticle = moneyArticle
+                }
                 if (amount!=undefined&&object.amount!=amount) {
-
-                    if(object.installment)
-                        setGridInstallment({_id: object.installment, newAmount: amount, oldAmount: object.amount, month: object.installmentMonth, type: '+', user})
 
                     let cashbox = await Cashbox.findOne({_id: object.cashbox}).select('_id balance').lean()
                     for(let i=0; i<cashbox.balance.length; i++) {
@@ -1065,22 +1070,37 @@ const resolversMutation = {
                         await Cashbox.updateOne({_id: cashboxRecipient._id}, {balance: cashboxRecipient.balance})
                     }
 
+                    history.what = `${history.what}Сумма:${object.amount}→${amount};`
+                    object.amount = amount
+
+                }
+                if (exchangeRate!=undefined&&object.exchangeRate!=exchangeRate) {
+
+                    history.what = `${history.what}Курс:${object.exchangeRate}→${exchangeRate};`
+                    object.exchangeRate = exchangeRate
+
+                }
+                if (amountEnd!=undefined&&object.amountEnd!=amountEnd) {
+
+                    if(object.installment)
+                        setGridInstallment({_id: object.installment, newAmount: amountEnd, oldAmount: object.amountEnd, month: object.installmentMonth, type: '+', user})
+
                     if(object.client){
                         let client = await BalanceClient.findOne({client: object.client}).select('_id balance').lean()
                         for(let i=0; i<client.balance.length; i++) {
                             if (client.balance[i].currency === object.currency) {
                                 if (object.operation === 'приход')
-                                    client.balance[i].amount = checkFloat(client.balance[i].amount-object.amount+amount)
+                                    client.balance[i].amount = checkFloat(client.balance[i].amount-object.amountEnd+amountEnd)
                                 else
-                                    client.balance[i].amount = checkFloat(client.balance[i].amount+object.amount-amount)
+                                    client.balance[i].amount = checkFloat(client.balance[i].amount+object.amountEnd-amountEnd)
                                 break
                             }
                         }
                         await BalanceClient.updateOne({_id: client._id}, {balance: client.balance})
                     }
 
-                    history.what = `${history.what}Сумма:${object.amount}→${amount};`
-                    object.amount = amount
+                    history.what = `${history.what}Итого:${object.amountEnd}→${amountEnd};`
+                    object.amountEnd = amountEnd
 
                 }
                 await object.save();
@@ -1104,7 +1124,7 @@ const resolversMutation = {
                 else if(object.sale)
                     await Sale.updateOne({_id: object.sale}, {paymentConfirmation: false})
                 if(object.installment)
-                    setGridInstallment({_id: object.installment, newAmount: object.amount, oldAmount: 0, month: object.installmentMonth, type: '-', user})
+                    setGridInstallment({_id: object.installment, newAmount: object.amountEnd, oldAmount: 0, month: object.installmentMonth, type: '-', user})
 
                 let cashbox = await Cashbox.findOne({_id: object.cashbox}).select('_id balance').lean()
                 for(let i=0; i<cashbox.balance.length; i++) {
@@ -1135,9 +1155,9 @@ const resolversMutation = {
                     for(let i=0; i<client.balance.length; i++) {
                         if (client.balance[i].currency === object.currency) {
                             if (object.operation === 'приход')
-                                client.balance[i].amount = checkFloat(client.balance[i].amount - object.amount)
+                                client.balance[i].amount = checkFloat(client.balance[i].amount - object.amountEnd)
                             else
-                                client.balance[i].amount = checkFloat(client.balance[i].amount + object.amount)
+                                client.balance[i].amount = checkFloat(client.balance[i].amount + object.amountEnd)
                             break
                         }
                     }

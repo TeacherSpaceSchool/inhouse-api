@@ -8,6 +8,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const Store = require('../models/store');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type User {
@@ -30,6 +31,7 @@ const type = `
     add: Boolean
     edit: Boolean
     deleted: Boolean
+    cashbox: Cashbox
  }
 `;
 
@@ -45,8 +47,8 @@ const query = `
 
 const mutation = `
     uploadUser(document: Upload!): String
-    addUser(login: String!, add: Boolean!, edit: Boolean!, deleted: Boolean!, role: String!, password: String!, name: String!, phones: [String]!, store: ID, department: String!, position: String!, startWork: Date): String
-    setUser(_id: ID!, login: String, add: Boolean, edit: Boolean, deleted: Boolean, status: String, password: String, name: String, phones: [String], store: ID, department: String, position: String, startWork: Date): String
+    addUser(login: String!, add: Boolean!, cashbox: ID, edit: Boolean!, deleted: Boolean!, role: String!, password: String!, name: String!, phones: [String]!, store: ID, department: String!, position: String!, startWork: Date): String
+    setUser(_id: ID!, login: String, add: Boolean, cashbox: ID, edit: Boolean, deleted: Boolean, status: String, password: String, name: String, phones: [String], store: ID, department: String, position: String, startWork: Date): String
     setDevice(device: String!): String
     deleteUser(_id: ID!): String
 `;
@@ -201,6 +203,10 @@ const resolvers = {
                     path: 'store',
                     select: 'name _id'
                 })
+                .populate({
+                    path: 'cashbox',
+                    select: 'name _id'
+                })
                 .lean()
             return res
         }
@@ -240,7 +246,7 @@ const resolversMutation = {
                                 where: object._id,
                                 what: ''
                             });
-                            if (row.getCell(2).value&&object.login!==row.getCell(2).value) {
+                            if (row.getCell(2).value&&row.getCell(2).value!=='admin'&&object.login!==row.getCell(2).value) {
                                 history.what = `Логин:${object.login}→${row.getCell(2).value};\n`
                                 object.login = row.getCell(2).value
                             }
@@ -248,7 +254,7 @@ const resolversMutation = {
                                 history.what = `${history.what}Пароль;\n`
                                 object.password = row.getCell(3).value.toString()
                             }
-                            if (row.getCell(4).value&&row.getCell(4).value!=='admin'&&object.name!==row.getCell(4).value) {
+                            if (row.getCell(4).value&&row.getCell(4).value!=='admin'&&object.name!==row.getCell(4).value&&await checkUniqueName(row.getCell(4).value, 'user')) {
                                 history.what = `${history.what}ФИО:${object.name}→${row.getCell(4).value};\n`
                                 object.name = row.getCell(4).value
                             }
@@ -260,13 +266,11 @@ const resolversMutation = {
                                 history.what = `${history.what}Должность:${object.position}→${row.getCell(7).value};\n`
                                 object.position = row.getCell(7).value
                             }
-                            if(row.getCell(8).value) {
-                                if (pdDDMMYYYY(object.startWork)!==row.getCell(8).value) {
-                                    history.what = `${history.what}Начало работы:${pdDDMMYYYY(object.startWork)}→${row.getCell(8).value};\n`
-                                    row.getCell(8).value = row.getCell(8).value.split('.')
-                                    object.startWork = new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`)
-                                    object.startWork.setHours(0, 0, 0, 0)
-                                }
+                            if(row.getCell(8).value&&pdDDMMYYYY(object.startWork)!==row.getCell(8).value) {
+                                history.what = `${history.what}Начало работы:${pdDDMMYYYY(object.startWork)}→${row.getCell(8).value};\n`
+                                row.getCell(8).value = row.getCell(8).value.split('.')
+                                object.startWork = new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`)
+                                object.startWork.setHours(0, 0, 0, 0)
                             }
                             if (row.getCell(9).value) {
                                 row.getCell(9).value = row.getCell(9).value.split(', ')
@@ -283,7 +287,7 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(row.getCell(2).value&&row.getCell(3).value&&row.getCell(4).value&&row.getCell(4).value!=='admin'&&row.getCell(5).value&&['менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист', 'сотрудник'].includes(row.getCell(5).value)&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(10).value&&(await Store.findById(row.getCell(10).value).select('_id').lean())) {
+                    else if(row.getCell(2).value&&row.getCell(2).value!=='admin'&&row.getCell(3).value&&row.getCell(4).value&&row.getCell(4).value!=='admin'&&await checkUniqueName(row.getCell(4).value, 'user')&&row.getCell(5).value&&['менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист', 'сотрудник'].includes(row.getCell(5).value)&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(10).value&&(await Store.findById(row.getCell(10).value).select('_id').lean())) {
                         row.getCell(9).value = row.getCell(9).value?row.getCell(9).value.split(', '):[]
                         row.getCell(8).value = row.getCell(8).value.split('.')
                         row.getCell(8).value = new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`)
@@ -320,8 +324,8 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    addUser: async(parent, {login, role, password, add, edit, deleted, name, phones, store, department, startWork, position}, {user}) => {
-        if(['admin'].includes(user.role)&&name!=='admin') {
+    addUser: async(parent, {login, role, password, cashbox, add, edit, deleted, name, phones, store, department, startWork, position}, {user}) => {
+        if(['admin'].includes(user.role)&&name!=='admin'&&login!=='admin'&&await checkUniqueName(name, 'user')) {
             let object = new User({
                 login,
                 role,
@@ -335,7 +339,8 @@ const resolversMutation = {
                 startWork,
                 add,
                 edit,
-                deleted
+                deleted,
+                cashbox
             });
             object = await User.create(object)
             let history = new History({
@@ -348,8 +353,8 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setUser: async(parent, {_id, add, edit, deleted, login, status, password, name, phones, store, department, position, startWork}, {user, res}) => {
-        if(['admin'].includes(user.role)) {
+    setUser: async(parent, {_id, add, edit, deleted, cashbox, login, status, password, name, phones, store, department, position, startWork}, {user, res}) => {
+        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'user')) {
             let object = await User.findOne({
                 _id
             })
@@ -360,7 +365,7 @@ const resolversMutation = {
                     what: ''
                 });
                 if (['admin'].includes(user.role)) {
-                    if (login) {
+                    if (login&&login!=='admin') {
                         history.what = `Логин:${object.login}→${login};\n`
                         object.login = login
                         if(_id.toString()===user._id.toString()) {
@@ -394,6 +399,10 @@ const resolversMutation = {
                 if (name&&name!=='admin') {
                     history.what = `${history.what}ФИО:${object.name}→${name};\n`
                     object.name = name
+                }
+                if (cashbox) {
+                    history.what = `${history.what}Касса;\n`
+                    object.cashbox = cashbox
                 }
                 if (department) {
                     history.what = `${history.what}Отдел:${object.department}→${department};\n`
@@ -444,7 +453,7 @@ const resolversMutation = {
     deleteUser: async(parent, { _id }, {user}) => {
         if(['admin'].includes(user.role)) {
             let object = await User.findOne({_id: _id})
-            if(object) {
+            if(object&&object.name!=='admin'&&object.login!=='admin') {
                 object.del = true
                 object.login = randomstring.generate({length: 10, charset: 'numeric'});
                 object.save()

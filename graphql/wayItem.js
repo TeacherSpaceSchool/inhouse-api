@@ -21,6 +21,7 @@ const type = `
     status: String
     arrivalDate: Date
     order: Order
+    dispatchDate: Date
   }
   type WayItemBooking {
     manager: User
@@ -45,8 +46,8 @@ const query = `
 
 const mutation = `
     uploadWayItem(document: Upload!): String
-    addWayItem(item: ID!, store: ID!, order: ID, bookings: [WayItemBookingInput]!, amount: Float!, arrivalDate: Date): WayItem
-    setWayItem(_id: ID!, bookings: [WayItemBookingInput], amount: Float, arrivalDate: Date, status: String): String
+    addWayItem(item: ID!, store: ID!, dispatchDate: Date, order: ID, bookings: [WayItemBookingInput]!, amount: Float!, arrivalDate: Date): WayItem
+    setWayItem(_id: ID!, bookings: [WayItemBookingInput], dispatchDate: Date, amount: Float, arrivalDate: Date, status: String): String
 `;
 
 const resolvers = {
@@ -109,18 +110,29 @@ const resolvers = {
             worksheet.getColumn(4).width = 40
             worksheet.getRow(1).getCell(4).font = {bold: true};
             worksheet.getRow(1).getCell(4).value = 'Магазин'
+            worksheet.getColumn(5).width = 11
             worksheet.getRow(1).getCell(5).font = {bold: true};
             worksheet.getRow(1).getCell(5).value = 'Количество'
-            worksheet.getColumn(6).width = 15
+            worksheet.getColumn(6).width = 10
             worksheet.getRow(1).getCell(6).font = {bold: true};
-            worksheet.getRow(1).getCell(6).value = 'Прибытие'
-            worksheet.getColumn(7).width = 40
+            worksheet.getRow(1).getCell(6).value = 'Свободно'
+            worksheet.getColumn(7).width = 15
             worksheet.getRow(1).getCell(7).font = {bold: true};
-            worksheet.getRow(1).getCell(7).value = 'Бронь'
+            worksheet.getRow(1).getCell(7).value = 'Отправлен'
+            worksheet.getColumn(8).width = 15
+            worksheet.getRow(1).getCell(8).font = {bold: true};
+            worksheet.getRow(1).getCell(8).value = 'Прибытие'
+            worksheet.getColumn(9).width = 40
+            worksheet.getRow(1).getCell(9).font = {bold: true};
+            worksheet.getRow(1).getCell(9).value = 'Бронь'
             for(let i = 0; i < res.length; i++) {
+                let used = 0
                 let bookings = ''
-                for(let i1 = 0; i1 < res[i].bookings.length; i1++)
+                for(let i1 = 0; i1 < res[i].bookings.length; i1++) {
+                    used += res[i].bookings[i1].amount
                     bookings = `${bookings?`${bookings}\n`:''}${res[i].bookings[i1].nameManager}|${res[i].bookings[i1].manager}: ${res[i].bookings[i1].amount}`
+                }
+                const free = checkFloat(res[i].amount - used)
                 worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
                 worksheet.getRow(i+2).getCell(2).value = res[i].status
                 worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
@@ -128,9 +140,11 @@ const resolvers = {
                 worksheet.getRow(i+2).getCell(4).alignment = {wrapText: true}
                 worksheet.getRow(i+2).getCell(4).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
                 worksheet.getRow(i+2).getCell(5).value = res[i].amount
-                worksheet.getRow(i+2).getCell(6).value = pdDDMMYYYY(res[i].arrivalDate)
-                worksheet.getRow(i+2).getCell(7).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(7).value = bookings
+                worksheet.getRow(i+2).getCell(6).value = free
+                worksheet.getRow(i+2).getCell(7).value = res[i].dispatchDate?pdDDMMYYYY(res[i].dispatchDate):''
+                worksheet.getRow(i+2).getCell(8).value = res[i].arrivalDate?pdDDMMYYYY(res[i].arrivalDate):''
+                worksheet.getRow(i+2).getCell(9).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(9).value = bookings
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -284,29 +298,24 @@ const resolversMutation = {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value&&(await Item.findById(row.getCell(2).value).select('_id').lean())&&row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean())) {
                     _id = row.getCell(1).value
-                    if(row.getCell(5).value) {
-                        row.getCell(5).value = row.getCell(5).value.split('.')
-                        row.getCell(5).value = new Date(`${row.getCell(5).value[1]}.${row.getCell(5).value[0]}.${row.getCell(5).value[2]}`)
-                        row.getCell(5).value.setHours(0, 0, 0, 0)
-                    }
                     let bookings = []
                     let amountBookings = 0
-                    if(row.getCell(6).value) {
-                        row.getCell(6).value = row.getCell(6).value.split(', ')
-                        for (let i = 0; i < row.getCell(6).value.length; i++) {
-                            row.getCell(6).value[i] = row.getCell(6).value[i].split(': ')
-                            if (row.getCell(6).value[i][0].split('|')[1])
-                                row.getCell(6).value[i][0] = row.getCell(6).value[i][0].split('|')[1]
-                            row.getCell(6).value[i][0] = await User.findById(row.getCell(6).value[i][0]).select('_id name').lean()
-                            if (!row.getCell(6).value[i][0])
+                    if(row.getCell(7).value) {
+                        row.getCell(7).value = row.getCell(7).value.split(', ')
+                        for (let i = 0; i < row.getCell(7).value.length; i++) {
+                            row.getCell(7).value[i] = row.getCell(7).value[i].split(': ')
+                            if (row.getCell(7).value[i][0].split('|')[1])
+                                row.getCell(7).value[i][0] = row.getCell(7).value[i][0].split('|')[1]
+                            row.getCell(7).value[i][0] = await User.findById(row.getCell(7).value[i][0]).select('_id name').lean()
+                            if (!row.getCell(7).value[i][0])
                                 return 'ERROR'
-                            row.getCell(6).value[i][1] = checkFloat(row.getCell(6).value[i][1])
+                            row.getCell(7).value[i][1] = checkFloat(row.getCell(7).value[i][1])
                             bookings.push({
-                                manager: row.getCell(6).value[i][0]._id,
-                                nameManager: row.getCell(6).value[i][0].name,
-                                amount: row.getCell(6).value[i][1]
+                                manager: row.getCell(7).value[i][0]._id,
+                                nameManager: row.getCell(7).value[i][0].name,
+                                amount: row.getCell(7).value[i][1]
                             })
-                            amountBookings += row.getCell(6).value[i][1]
+                            amountBookings += row.getCell(7).value[i][1]
                         }
                     }
                     if(_id) {
@@ -328,9 +337,19 @@ const resolversMutation = {
                                     object.amount = row.getCell(4).value
                                 }
                             }
-                            if (row.getCell(5).value&&pdDDMMYYYY(object.arrivalDate)!==pdDDMMYYYY(row.getCell(5).value)) {
-                                history.what = `${history.what}Прибытие:${pdDDMMYYYY(object.arrivalDate)}→${pdDDMMYYYY(row.getCell(5).value)};\n`
-                                object.arrivalDate = row.getCell(5).value
+                            if (row.getCell(5).value&&pdDDMMYYYY(object.dispatchDate)!==row.getCell(5).value) {
+                                history.what = `${history.what}Отправлен:${pdDDMMYYYY(object.dispatchDate)}→${row.getCell(5).value};\n`
+                                row.getCell(5).value = row.getCell(5).value.split('.')
+                                row.getCell(5).value = new Date(`${row.getCell(5).value[1]}.${row.getCell(5).value[0]}.${row.getCell(5).value[2]}`)
+                                row.getCell(5).value.setHours(0, 0, 0, 0)
+                                object.dispatchDate = row.getCell(5).value
+                            }
+                            if (row.getCell(6).value&&pdDDMMYYYY(object.arrivalDate)!==row.getCell(6).value) {
+                                history.what = `${history.what}Прибытие:${pdDDMMYYYY(object.arrivalDate)}→${row.getCell(6).value};\n`
+                                row.getCell(6).value = row.getCell(6).value.split('.')
+                                row.getCell(6).value = new Date(`${row.getCell(6).value[1]}.${row.getCell(6).value[0]}.${row.getCell(6).value[2]}`)
+                                row.getCell(6).value.setHours(0, 0, 0, 0)
+                                object.arrivalDate = row.getCell(6).value
                             }
                             if(amountBookings>checkFloat(object.amount))
                                 return 'ERROR'
@@ -339,13 +358,24 @@ const resolversMutation = {
                         }
                     }
                     else if(row.getCell(4)){
+                        if(row.getCell(5).value) {
+                            row.getCell(5).value = row.getCell(5).value.split('.')
+                            row.getCell(5).value = new Date(`${row.getCell(5).value[1]}.${row.getCell(5).value[0]}.${row.getCell(5).value[2]}`)
+                            row.getCell(5).value.setHours(0, 0, 0, 0)
+                        }
+                        if(row.getCell(6).value) {
+                            row.getCell(6).value = row.getCell(6).value.split('.')
+                            row.getCell(6).value = new Date(`${row.getCell(6).value[1]}.${row.getCell(6).value[0]}.${row.getCell(6).value[2]}`)
+                            row.getCell(6).value.setHours(0, 0, 0, 0)
+                        }
                         let object = new WayItem({
                             item: row.getCell(2).value,
                             store: row.getCell(3).value,
                             bookings,
                             amount: checkFloat(row.getCell(4).value),
                             status: 'в пути',
-                            arrivalDate: row.getCell(5).value,
+                            dispatchDate: row.getCell(5).value,
+                            arrivalDate: row.getCell(6).value
                         });
                         if(amountBookings>checkFloat(object.amount))
                             return 'ERROR'
@@ -366,7 +396,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    addWayItem: async(parent, {item, store, bookings, amount, arrivalDate, order}, {user}) => {
+    addWayItem: async(parent, {item, store, bookings, amount, arrivalDate, order, dispatchDate}, {user}) => {
         if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(arrivalDate&&arrivalDate.toString()!=='Invalid Date') {
                 arrivalDate = new Date(arrivalDate)
@@ -374,6 +404,12 @@ const resolversMutation = {
             }
             else
                 arrivalDate = null
+            if(dispatchDate&&dispatchDate.toString()!=='Invalid Date') {
+                dispatchDate = new Date(dispatchDate)
+                dispatchDate.setHours(0, 0, 0, 0)
+            }
+            else
+                dispatchDate = null
             let object = new WayItem({
                 item,
                 store,
@@ -381,7 +417,8 @@ const resolversMutation = {
                 amount,
                 status: 'в пути',
                 arrivalDate,
-                order
+                order,
+                dispatchDate
             });
             object = await WayItem.create(object)
             let history = new History({
@@ -424,7 +461,7 @@ const resolversMutation = {
         }
         return {_id: 'ERROR'}
     },
-    setWayItem: async(parent, {_id, bookings, amount, arrivalDate, status}, {user}) => {
+    setWayItem: async(parent, {_id, bookings, amount, arrivalDate, dispatchDate, status}, {user}) => {
         if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await WayItem.findOne({
                 _id,
@@ -443,13 +480,21 @@ const resolversMutation = {
                     history.what = `${history.what}Количество:${object.amount}→${amount};\n`
                     object.amount = amount
                 }
-                if (arrivalDate&&pdDDMMYYYY(object.arrivalDate)!==pdDDMMYYYY(arrivalDate)) {
-                    history.what = `${history.what}Прибытие:${pdDDMMYYYY(object.arrivalDate)}→${pdDDMMYYYY(arrivalDate)};\n`
+                if ((!arrivalDate||arrivalDate.toString()!=='Invalid Date')&&pdDDMMYYYY(object.arrivalDate)!==pdDDMMYYYY(arrivalDate)) {
+                    history.what = `${history.what}Прибытие:${pdDDMMYYYY(object.arrivalDate)}→${arrivalDate?pdDDMMYYYY(arrivalDate):''};\n`
                     if(arrivalDate) {
                         arrivalDate = new Date(arrivalDate)
                         arrivalDate.setHours(0, 0, 0, 0)
                     }
                     object.arrivalDate = arrivalDate
+                }
+                if ((!dispatchDate||dispatchDate.toString()!=='Invalid Date')&&pdDDMMYYYY(object.dispatchDate)!==pdDDMMYYYY(dispatchDate)) {
+                    history.what = `${history.what}Отправлен:${pdDDMMYYYY(object.dispatchDate)}→${dispatchDate?pdDDMMYYYY(dispatchDate):''};\n`
+                    if(dispatchDate) {
+                        dispatchDate = new Date(dispatchDate)
+                        dispatchDate.setHours(0, 0, 0, 0)
+                    }
+                    object.dispatchDate = dispatchDate
                 }
                 if (status&&object.status!==status) {
                     history.what = `${history.what}Статус:${object.status}→${status};`

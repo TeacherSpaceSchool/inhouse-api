@@ -11,12 +11,14 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Item {
     _id: ID
     createdAt: Date
     ID: String
+    type: String
     name: String
     images: [String]
     priceUSD: Float
@@ -38,28 +40,45 @@ const type = `
 `;
 
 const query = `
-    unloadItems(search: String, category: ID, factory: ID): String
-    items(skip: Int, store: ID, limit: Int, search: String, category: ID, factory: ID, catalog: Boolean): [Item]
-    itemsCount(search: String, category: ID, factory: ID): Int
+    typeItems(search: String): [Item]
+    unloadItems(search: String, type: String, category: ID, factory: ID): String
+    items(skip: Int, store: ID, limit: Int, type: String, search: String, category: ID, factory: ID, catalog: Boolean): [Item]
+    itemsCount(search: String, category: ID, type: String, factory: ID): Int
     item(_id: String!): Item
 `;
 
 const mutation = `
     uploadItem(document: Upload!): String
-    addItem(ID: String!, art: String!, typeDiscount: String!, name: String!, uploads: [Upload], priceUSD: Float!, primeCostUSD: Float!, priceKGS: Float!, primeCostKGS: Float!, discount: Float!, priceAfterDiscountKGS: Float!, info: String!, unit: String!, size: String!, characteristics: [[String]]!, category: ID!, factory: ID!): String
-    setItem(_id: ID!, ID: String, art: String, typeDiscount: String, name: String, uploads: [Upload], images: [String], priceUSD: Float, primeCostUSD: Float, priceKGS: Float, primeCostKGS: Float, discount: Float, priceAfterDiscountKGS: Float, info: String, unit: String, size: String, characteristics: [[String]], category: ID, factory: ID): String
+    addItem(ID: String!, art: String!, type: String!, typeDiscount: String!, name: String!, uploads: [Upload], priceUSD: Float!, primeCostUSD: Float!, priceKGS: Float!, primeCostKGS: Float!, discount: Float!, priceAfterDiscountKGS: Float!, info: String!, unit: String!, size: String!, characteristics: [[String]]!, category: ID!, factory: ID!): String
+    setItem(_id: ID!, ID: String, art: String, type: String, typeDiscount: String, name: String, uploads: [Upload], images: [String], priceUSD: Float, primeCostUSD: Float, priceKGS: Float, primeCostKGS: Float, discount: Float, priceAfterDiscountKGS: Float, info: String, unit: String, size: String, characteristics: [[String]], category: ID, factory: ID): String
     deleteItem(_id: ID!): String
     kgsFromUsdItem(USD: Float!, ceil: Boolean!): String
 `;
 
 const resolvers = {
+    typeItems: async(parent, {search}, {user}) => {
+        if(user.role) {
+            let res = await Item.find({
+                ...search?{type: {'$regex': search, '$options': 'i'}}:{},
+            })
+                .distinct('type')
+                .lean()
+            let typeItems = []
+            for(let i=0; i<res.length; i++) {
+                typeItems = [...typeItems, {name: res[i]}]
+            }
+            return typeItems
+        }
+        return []
+    },
     unloadItems: async(parent, {search, category, factory}, {user}) => {
         if(user.role) {
             let res =  await Item.find({
                 del: {$ne: true},
                 ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {ID: {'$regex': search, '$options': 'i'}}]}:{},
                 ...category?{category}:{},
-                ...factory?{factory}:{}
+                ...factory?{factory}:{},
+                ...type?{type}:{}
             })
                 .populate({
                     path: 'category',
@@ -140,7 +159,7 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    items: async(parent, {skip, store, limit, search, category, factory, catalog}, {user}) => {
+    items: async(parent, {skip, store, limit, search, category, factory, catalog, type}, {user}) => {
         if(user.role) {
             let catalogItems = {items: [], free: {}}
             if(catalog&&(store||user.store)) {
@@ -155,7 +174,8 @@ const resolvers = {
                 ...catalog?{_id: {$in: catalogItems.items}}:{},
                 ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {ID: {'$regex': search, '$options': 'i'}}]}:{},
                 ...category?{category}:{},
-                ...factory?{factory}:{}
+                ...factory?{factory}:{},
+                ...type?{type}:{}
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
@@ -177,13 +197,14 @@ const resolvers = {
             return res
         }
     },
-    itemsCount: async(parent, {search, category, factory}, {user}) => {
+    itemsCount: async(parent, {search, category, factory, type}, {user}) => {
         if(user.role) {
             return await Item.countDocuments({
                 del: {$ne: true},
                 ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {ID: {'$regex': search, '$options': 'i'}}]}:{},
                 ...category?{category}:{},
-                ...factory?{factory}:{}
+                ...factory?{factory}:{},
+                ...type?{type}:{}
             })
                 .lean()
         }
@@ -236,7 +257,7 @@ const resolversMutation = {
                                 where: object._id,
                                 what: ''
                             });
-                            if (row.getCell(2).value&&object.name!==row.getCell(2).value) {
+                            if (row.getCell(2).value&&object.name!==row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'item')) {
                                 history.what = `Название:${object.name}→${row.getCell(2)};\n`
                                 object.name = row.getCell(2).value
                             }
@@ -323,7 +344,7 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(row.getCell(2).value&&row.getCell(5).value&&(await Category.findById(row.getCell(5).value).select('_id').lean())&&row.getCell(6).value&&(await Factory.findById(row.getCell(6).value).select('_id').lean())&&row.getCell(7).value&&row.getCell(8).value) {
+                    else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'item')&&row.getCell(5).value&&(await Category.findById(row.getCell(5).value).select('_id').lean())&&row.getCell(6).value&&(await Factory.findById(row.getCell(6).value).select('_id').lean())&&row.getCell(7).value&&row.getCell(8).value) {
                         if(row.getCell(14).value) {
                             row.getCell(14).value = row.getCell(14).value.split(', ')
                             for(let i=0; i<row.getCell(14).value.length; i++) {
@@ -367,8 +388,8 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    addItem: async(parent, {art, ID, typeDiscount, name, uploads, priceUSD, primeCostUSD, priceKGS, primeCostKGS, discount, priceAfterDiscountKGS, info, unit, size, characteristics, category, factory}, {user}) => {
-        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+    addItem: async(parent, {art, ID, typeDiscount, type, name, uploads, priceUSD, primeCostUSD, priceKGS, primeCostKGS, discount, priceAfterDiscountKGS, info, unit, size, characteristics, category, factory}, {user}) => {
+        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'item')) {
             let images = []
             for (let i = 0; i < uploads.length; i++) {
                 let {createReadStream, filename} = await uploads[i];
@@ -381,6 +402,7 @@ const resolversMutation = {
                 name,
                 images,
                 priceUSD,
+                type,
                 primeCostUSD,
                 priceKGS,
                 primeCostKGS,
@@ -406,8 +428,8 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setItem: async(parent, {_id, art, ID, name, uploads, typeDiscount, images, priceUSD, primeCostUSD, priceKGS, primeCostKGS, discount, priceAfterDiscountKGS, info, unit, size, characteristics, category, factory}, {user}) => {
-        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+    setItem: async(parent, {_id, art, ID, type, name, uploads, typeDiscount, images, priceUSD, primeCostUSD, priceKGS, primeCostKGS, discount, priceAfterDiscountKGS, info, unit, size, characteristics, category, factory}, {user}) => {
+        if(['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'item')) {
             let object = await Item.findOne({
                 _id
             })
@@ -432,6 +454,10 @@ const resolversMutation = {
                 if (priceUSD!=undefined) {
                     history.what = `${history.what}Цена USD:${object.priceUSD}→${priceUSD};\n`
                     object.priceUSD = priceUSD
+                }
+                if (type!=undefined) {
+                    history.what = `${history.what}Тип:${object.type}→${type};\n`
+                    object.type = type
                 }
                 if (art!=undefined) {
                     history.what = `${history.what}Артикул:${object.art}→${art};\n`

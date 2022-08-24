@@ -5,6 +5,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Characteristic {
@@ -85,7 +86,7 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value) {
+                if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'characteristic')) {
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Characteristic.findById(_id)
@@ -122,7 +123,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addCharacteristic: async(parent, {name}, {user}) => {
-        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'characteristic')) {
             let object = new Characteristic({
                 name
             });
@@ -138,7 +139,7 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setCharacteristic: async(parent, {_id, name}, {user}) => {
-        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'characteristic')) {
             let object = await Characteristic.findById(_id)
             if(object) {
                 let history = new History({

@@ -16,7 +16,8 @@ const WayItemSchema = mongoose.Schema({
     bookings: mongoose.Schema.Types.Mixed,
     amount: Number,
     status: String,
-    arrivalDate: Date
+    arrivalDate: Date,
+    dispatchDate: Date
 }, {
     timestamps: true
 });

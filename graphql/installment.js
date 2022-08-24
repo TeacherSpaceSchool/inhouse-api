@@ -46,7 +46,7 @@ const query = `
 
 const mutation = `
     addInstallment(grid: [InstallmentGridInput]!, currency: String!, renew: Boolean, amount: Float!, client: ID!, sale: ID, debt: Float!, paid: Float!, datePaid: Date!, store: ID!): Installment
-    setInstallment(_id: ID!, info: String, status: String): String
+    setInstallment(_id: ID!, info: String, status: String, grid: [InstallmentGridInput]): String
 `;
 
 const setGridInstallment = async ({_id, newAmount, oldAmount, month, type, user}) => {
@@ -76,7 +76,7 @@ const setGridInstallment = async ({_id, newAmount, oldAmount, month, type, user}
     }
     for (let i = 0; i < installment.grid.length; i++) {
         paid = checkFloat(paid + checkFloat(installment.grid[i].paid))
-        if(!installment.grid[i].paid&&!datePaid)
+        if(installment.grid[i].paid<installment.grid[i].amount&&!datePaid)
             datePaid = installment.grid[i].month
     }
     let debt = checkFloat(installment.amount - paid)
@@ -138,6 +138,7 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(3).width = 20
             worksheet.getColumn(4).width = 5
             worksheet.getColumn(5).width = 15
             worksheet.getColumn(7).width = 15
@@ -187,19 +188,22 @@ const resolvers = {
                 worksheet.getRow(row).getCell(3).alignment = {wrapText: true}
                 worksheet.getRow(row).getCell(3).value = res[i].client.name
                 if(res[i].sale) {
-                    worksheet.getRow(row).getCell(3).value += `\nПродажа №${res[i].sale.number}`
-                    worksheet.getRow(row).getCell(3).value += `\n${res[i].sale._id}`
+                    worksheet.getRow(row+1).getCell(3).value = `Продажа №${res[i].sale.number}`
+                    worksheet.getRow(row+2).getCell(3).value = res[i].sale._id.toString()
                 }
                 worksheet.getRow(row).getCell(4).value = res[i].info
                 worksheet.getRow(row).getCell(5).value = pdDDMMYYYY(res[i].datePaid)
                 worksheet.getRow(row).getCell(6).value = res[i].debt
                 worksheet.getRow(row).getCell(7).alignment = {wrapText: true, horizontal: 'right'}
-                worksheet.getRow(row).getCell(7).value = `\n${res[i].amount}\n${res[i].paid}`
+                worksheet.getRow(row+1).getCell(7).value = res[i].amount
+                worksheet.getRow(row+2).getCell(7).value = res[i].paid
                 for(let i1 = 0; i1 < res[i].grid.length; i1++) {
                     worksheet.getRow(row).getCell(8+i1).alignment = {wrapText: true, horizontal: 'right'}
-                    worksheet.getRow(row).getCell(8+i1).value = `${pdDDMMYYYY(res[i].grid[i1].month)}\n${res[i].grid[i1].amount}\n${res[i].grid[i1].paid}`
+                    worksheet.getRow(row).getCell(8+i1).value = pdDDMMYYYY(res[i].grid[i1].month)
+                    worksheet.getRow(row+1).getCell(8+i1).value = res[i].grid[i1].amount
+                    worksheet.getRow(row+2).getCell(8+i1).value = res[i].grid[i1].paid
                 }
-                row += 1
+                row += 4
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -382,7 +386,7 @@ const resolversMutation = {
         }
         return {_id: 'ERROR'}
     },
-    setInstallment: async(parent, {_id, info, status}, {user}) => {
+    setInstallment: async(parent, {_id, info, status, grid}, {user}) => {
         if(['admin', 'кассир'].includes(user.role)) {
             let object = await Installment.findOne({
                 _id,
@@ -393,6 +397,10 @@ const resolversMutation = {
                     where: object._id,
                     what: ''
                 });
+                if (grid&&JSON.stringify(object.grid)!==JSON.stringify(grid)) {
+                    history.what = 'Изменение графика;\n'
+                    object.grid = grid
+                }
                 if (info&&object.info!==info) {
                     history.what = `Комментарий:${object.info}→${info};\n`
                     object.info = info

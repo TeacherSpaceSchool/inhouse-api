@@ -112,7 +112,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'installment',
-                    select: '_id status'
+                    select: '_id status number'
                 })
                 .populate({
                     path: 'orders',
@@ -383,7 +383,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'installment',
-                    select: '_id status'
+                    select: '_id status number'
                 })
                 .populate({
                     path: 'orders',
@@ -466,7 +466,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'installment',
-                    select: '_id status'
+                    select: '_id status number'
                 })
                 .populate({
                     path: 'orders',

@@ -6,6 +6,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const Store = require('../models/store');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Cashbox {
@@ -134,7 +135,7 @@ const resolversMutation = {
                                 where: object._id,
                                 what: ''
                             });
-                            if (row.getCell(2).value&&object.name!==row.getCell(2).value) {
+                            if (row.getCell(2).value&&object.name!==row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cashbox')) {
                                 history.what = `Название:${object.name}→${row.getCell(2).value};\n`
                                 object.name = row.getCell(2).value
                             }
@@ -146,7 +147,10 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(user.store||row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean())){
+                    else if(
+                        (user.store||row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean()))
+                        &&await checkUniqueName(row.getCell(2).value, 'cashbox')
+                    ){
                         object = new Cashbox({
                             name: row.getCell(2).value,
                             store: user.store?user.store:row.getCell(3).value,
@@ -170,7 +174,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addCashbox: async(parent, {name, store}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'cashbox')) {
             let object = new Cashbox({
                 name,
                 store,
@@ -201,7 +205,7 @@ const resolversMutation = {
                     where: object._id,
                     what: ''
                 });
-                if (name&&object.name!==name) {
+                if (name&&object.name!==name&&await checkUniqueName(name, 'cashbox')) {
                     history.what = `Название:${object.name}→${name};\n`
                     object.name = name
                 }

@@ -1,4 +1,5 @@
 const { signinuserGQL } = require('../module/passport');
+const Cashbox = require('../models/cashbox');
 
 const type = `
   type Status {
@@ -8,6 +9,7 @@ const type = `
     login: String
     error: String
     store: ID
+    cashbox: Cashbox
     add: Boolean
     edit: Boolean
     deleted: Boolean
@@ -30,6 +32,7 @@ const resolvers = {
             login: user.login,
             _id: user._id,
             store: user.store,
+            cashbox: await Cashbox.findOne({_id: user.cashbox}).select('_id name').lean(),
             add: user.add,
             edit: user.edit,
             deleted: user.deleted

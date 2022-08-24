@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const FaqSchema = mongoose.Schema({
-    url: String,
     name: String,
+    url: String,
     text: String,
     video: String
 }, {

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const userSchema = mongoose.Schema({
+    name: String,
     login: {
         type: String,
         required: true,
@@ -15,13 +16,16 @@ const userSchema = mongoose.Schema({
     IP: String,
     passwordHash: String,
     salt: String,
-    name: String,
     phones: [String],
     device: String,
     notification: Boolean,
     add: Boolean,
     edit: Boolean,
     deleted: Boolean,
+    cashbox: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CashboxINHOUSE'
+    },
     store: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StoreINHOUSE'

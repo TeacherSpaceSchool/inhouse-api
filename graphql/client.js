@@ -7,6 +7,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Client {
@@ -161,7 +162,7 @@ const resolversMutation = {
                                 history.what = `Уровень:${object.level}→${row.getCell(2).value};\n`
                                 object.level = row.getCell(2).value
                             }
-                            if (row.getCell(3).value&&object.name!==row.getCell(3).value) {
+                            if (row.getCell(3).value&&object.name!==row.getCell(3).value&&await checkUniqueName(row.getCell(3).value, 'client')) {
                                 history.what = `${history.what}ФИО:${object.name}→${row.getCell(3).value};\n`
                                 object.name = row.getCell(3).value
                             }
@@ -185,13 +186,11 @@ const resolversMutation = {
                                 history.what = `${history.what}Адрес прописки:${object.address1}→${row.getCell(8).value};\n`
                                 object.address1 = row.getCell(8).value
                             }
-                            if(row.getCell(9).value) {
-                                if (pdDDMMYYYY(object.birthday)!==row.getCell(9).value) {
-                                    history.what = `${history.what}День рождения:${pdDDMMYYYY(object.birthday)}→${row.getCell(9).value};\n`
-                                    row.getCell(9).value = row.getCell(9).value.split('.')
-                                    object.startWork = new Date(`${row.getCell(9).value[1]}.${row.getCell(9).value[0]}.${row.getCell(9).value[2]}`)
-                                    object.startWork.setHours(0, 0, 0, 0)
-                                }
+                            if(row.getCell(9).value&&pdDDMMYYYY(object.birthday)!==row.getCell(9).value) {
+                                history.what = `${history.what}День рождения:${pdDDMMYYYY(object.birthday)}→${row.getCell(9).value};\n`
+                                row.getCell(9).value = row.getCell(9).value.split('.')
+                                object.startWork = new Date(`${row.getCell(9).value[1]}.${row.getCell(9).value[0]}.${row.getCell(9).value[2]}`)
+                                object.startWork.setHours(0, 0, 0, 0)
                             }
                             if (row.getCell(10).value) {
                                 row.getCell(10).value = row.getCell(10).value.split(', ')
@@ -215,7 +214,7 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(row.getCell(2).value&&['Бронза', 'Серебро', 'Золото', 'Платина'].includes(row.getCell(2).value)&&row.getCell(3).value&&row.getCell(4).value&&row.getCell(5).value&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(9).value){
+                    else if(row.getCell(2).value&&['Бронза', 'Серебро', 'Золото', 'Платина'].includes(row.getCell(2).value)&&row.getCell(3).value&&await checkUniqueName(row.getCell(3).value, 'client')&&row.getCell(4).value&&row.getCell(5).value&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(9).value){
                         row.getCell(9).value = row.getCell(9).value.split('.')
                         row.getCell(9).value = new Date(`${row.getCell(9).value[1]}.${row.getCell(9).value[0]}.${row.getCell(9).value[2]}`)
                         row.getCell(9).value.setHours(0, 0, 0, 0)
@@ -257,7 +256,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addClient: async(parent, {name, address1, emails, phones, geo, address, info, work, passport, inn, level, birthday}, {user}) => {
-        if(['admin', 'менеджер', 'менеджер/завсклад', 'кассир'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'кассир'].includes(user.role)&&await checkUniqueName(name, 'client')) {
             let object = new Client({
                 name,
                 emails,
@@ -289,7 +288,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     setClient: async(parent, {_id, name, emails, phones, geo, address, address1, info, work, passport, inn, level, birthday}, {user}) => {
-        if(['admin', 'менеджер', 'менеджер/завсклад', 'кассир'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'кассир'].includes(user.role)&&await checkUniqueName(name, 'client')) {
             let object = await Client.findOne({
                 _id,
             })

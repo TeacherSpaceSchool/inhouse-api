@@ -5,7 +5,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
-
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type MoneyArticle {
@@ -16,6 +16,7 @@ const type = `
 `;
 
 const query = `
+    moneyArticleByName(name: String): MoneyArticle
     unloadMoneyArticles(search: String): String
     moneyArticles(skip: Int, search: String): [MoneyArticle]
     moneyArticlesCount(search: String): Int
@@ -50,6 +51,14 @@ const resolvers = {
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
             await workbook.xlsx.writeFile(xlsxpath);
             return urlMain + '/xlsx/' + xlsxname
+        }
+    },
+    moneyArticleByName: async(parent, {name}, {user}) => {
+        if(['admin', 'управляющий', 'кассир'].includes(user.role)) {
+            return await MoneyArticle.findOne({
+                name
+            })
+                .lean()
         }
     },
     moneyArticles: async(parent, {skip, search}, {user}) => {
@@ -88,7 +97,7 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value) {
+                if(row.getCell(2).value&&!['Не указано', 'Зарплата'].includes(row.getCell(2).value)&&await checkUniqueName(row.getCell(2).value, 'moneyArticle')) {
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await MoneyArticle.findById(_id)
@@ -125,7 +134,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addMoneyArticle: async(parent, {name}, {user}) => {
-        if(['admin', 'кассир'].includes(user.role)) {
+        if(['admin', 'кассир'].includes(user.role)&&!['Не указано', 'Зарплата'].includes(name)&&await checkUniqueName(name, 'moneyArticle')) {
             let object = new MoneyArticle({
                 name
             });
@@ -141,9 +150,9 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setMoneyArticle: async(parent, {_id, name}, {user}) => {
-        if(['admin', 'кассир'].includes(user.role)) {
+        if(['admin', 'кассир'].includes(user.role)&&await checkUniqueName(name, 'moneyArticle')) {
             let object = await MoneyArticle.findById(_id)
-            if(object) {
+            if(object&&!['Не указано', 'Зарплата'].includes(object.name)) {
                 let history = new History({
                     who: user._id,
                     where: object._id,
@@ -160,7 +169,7 @@ const resolversMutation = {
     deleteMoneyArticle: async(parent, { _id }, {user}) => {
         if(['admin', 'кассир'].includes(user.role)) {
             let object = await MoneyArticle.findOne({_id})
-            if(object) {
+            if(object&&!['Не указано', 'Зарплата'].includes(object.name)) {
                 object.del = true
                 await object.save()
                 let history = new History({

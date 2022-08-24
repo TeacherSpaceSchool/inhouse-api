@@ -6,7 +6,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
-
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Category {
@@ -89,7 +89,7 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value) {
+                if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'category')) {
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Category.findById(_id)
@@ -126,7 +126,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addCategory: async(parent, {name}, {user}) => {
-        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'category')) {
             let object = new Category({
                 name
             });
@@ -144,7 +144,7 @@ const resolversMutation = {
     setCategory: async(parent, {_id, name}, {user}) => {
         if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await Category.findById(_id)
-            if(object) {
+            if(object&&await checkUniqueName(name, 'category')) {
                 let history = new History({
                     who: user._id,
                     where: object._id,

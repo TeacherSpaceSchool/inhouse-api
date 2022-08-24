@@ -10,6 +10,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Store {
@@ -97,7 +98,7 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value) {
+                if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'store')) {
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Store.findById(_id)
@@ -134,7 +135,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addStore: async(parent, {name}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'store')) {
             let object = new Store({
                 name
             });
@@ -150,7 +151,7 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setStore: async(parent, {_id, name}, {user}) => {
-        if(['admin'].includes(user.role)) {
+        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'store')) {
             let object = await Store.findOne({
                 _id,
             })

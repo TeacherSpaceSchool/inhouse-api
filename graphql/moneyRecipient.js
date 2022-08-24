@@ -1,6 +1,6 @@
 const MoneyRecipient = require('../models/moneyRecipient');
 const History = require('../models/history');
-const { saveFile, deleteFile, urlMain } = require('../module/const');
+const { saveFile, deleteFile, urlMain, checkUniqueName } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -89,7 +89,7 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value) {
+                if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'moneyRecipient')) {
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await MoneyRecipient.findById(_id)
@@ -126,7 +126,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addMoneyRecipient: async(parent, {name}, {user}) => {
-        if(['admin', 'кассир'].includes(user.role)) {
+        if(['admin', 'кассир'].includes(user.role)&&await checkUniqueName(name, 'moneyRecipient')) {
             let object = new MoneyRecipient({
                 name
             });
@@ -142,7 +142,7 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setMoneyRecipient: async(parent, {_id, name}, {user}) => {
-        if(['admin', 'кассир'].includes(user.role)) {
+        if(['admin', 'кассир'].includes(user.role)&&await checkUniqueName(name, 'moneyRecipient')) {
             let object = await MoneyRecipient.findOne({
                 _id,
             })

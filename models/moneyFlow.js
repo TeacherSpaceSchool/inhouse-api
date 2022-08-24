@@ -54,6 +54,8 @@ const MoneyFlowSchema = mongoose.Schema({
     operation: String,
     info: String,
     amount: Number,
+    exchangeRate: Number,
+    amountEnd: Number,
     currency: String,
     date: Date,
 }, {

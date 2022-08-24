@@ -30,7 +30,7 @@ const query = `
 const mutation = `
     uploadBalanceItem(document: Upload!): String
     addBalanceItem(item: ID!, warehouse: ID!, amount: Float!): BalanceItem
-    setBalanceItem(item: ID!, warehouse: ID!, amount: Float!, type: String): String
+    setBalanceItem(item: ID!, warehouse: ID!, amount: Float!, type: String, warehouse2: String): String
 `;
 
 const resolvers = {
@@ -300,7 +300,7 @@ const resolversMutation = {
         }
         return {_id: 'ERROR'}
     },
-    setBalanceItem: async (parent, {item, warehouse, amount, type}, {user}) => {
+    setBalanceItem: async (parent, {item, warehouse, amount, type, warehouse2}, {user}) => {
         if (['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await BalanceItem.findOne({item, warehouse});
             let store = (await Warehouse.findOne({_id: warehouse}).select('store').lean()).store
@@ -361,10 +361,12 @@ const resolversMutation = {
                     let history = new History({
                         who: user._id,
                         where: object._id,
-                        what: 'Создание'
+                        what: warehouse2?`Перемещение со склада ${warehouse2}`:'Создание'
                     });
                     await History.create(history)
                 }
+                else
+                    return 'ERROR'
             }
             else {
                 let history = new History({
@@ -382,6 +384,8 @@ const resolversMutation = {
                 else
                     object.amount = amount
                 history.what += `${object.amount};`
+                if(warehouse2)
+                    history.what = `${history.what}\nПеремещение ${type==='-'?'на склад':'со склада'} ${warehouse2}`
                 await object.save();
                 await History.create(history)
             }

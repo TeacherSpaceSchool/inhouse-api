@@ -5,6 +5,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
+const { checkUniqueName } = require('../module/const');
 
 const type = `
   type Cpa {
@@ -126,7 +127,7 @@ const resolversMutation = {
                                 where: object._id,
                                 what: ''
                             });
-                            if (row.getCell(2).value&&object.name!==row.getCell(2).value) {
+                            if (row.getCell(2).value&&object.name!==row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cpa')) {
                                 history.what = `Название:${object.name}→${row.getCell(2)};\n`
                                 object.name = row.getCell(2).value
                             }
@@ -159,7 +160,7 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(row.getCell(2).value&&row.getCell(3).value) {
+                    else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cpa')&&row.getCell(3).value) {
                         row.getCell(4).value = row.getCell(4).value?row.getCell(4).value.split(', '):[]
                         row.getCell(5).value = row.getCell(5).value?row.getCell(5).value.split(', '):[]
                         object = new Cpa({
@@ -187,7 +188,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addCpa: async(parent, {name, emails, phones, percent, info}, {user}) => {
-        if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'cpa')) {
             let object = new Cpa({
                 name,
                 emails,
@@ -207,7 +208,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     setCpa: async(parent, {_id, name, emails, phones, percent, info}, {user}) => {
-        if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'cpa')) {
             let object = await Cpa.findOne({
                 _id,
             })

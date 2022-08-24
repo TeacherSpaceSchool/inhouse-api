@@ -8,6 +8,10 @@ const limit = 15;
 const adminLogin = '000000000';
 const adminPass = 'cE59eDeaA82d';
 
+module.exports.checkUniqueName = async (name, db) => {
+    return !await (require(`../models/${db}`)).countDocuments({name}).lean()
+}
+
 module.exports.weekDay = [
     'BC',
     'ПН',
