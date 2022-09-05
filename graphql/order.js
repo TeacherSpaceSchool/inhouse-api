@@ -3,7 +3,7 @@ const WayItem = require('../models/wayItem');
 const ItemOrder = require('../models/itemOrder');
 const History = require('../models/history');
 const BalanceClient = require('../models/balanceClient');
-const {checkFloat, urlMain, pdDDMMYYHHMM } = require('../module/const');
+const {checkFloat, urlMain, pdDDMMYYHHMM, checkDate } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -212,18 +212,15 @@ const resolvers = {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
-            let dateStart, dateEnd
-            if (date&&date.toString()!=='Invalid Date') {
-                dateStart = new Date(date)
-                dateStart.setHours(0, 0, 0, 0)
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
-            }
+            let dateStart = checkDate(date)
+            dateStart.setHours(0, 0, 0, 0)
+            let dateEnd = new Date(dateStart)
+            dateEnd.setDate(dateEnd.getDate() + 1)
             return await Order.countDocuments({
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
-                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
                 ...store?{store}:{},
                 ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })

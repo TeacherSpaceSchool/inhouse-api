@@ -11,7 +11,7 @@ const ItemOrder = require('../models/itemOrder');
 const Item = require('../models/item');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const BalanceClient = require('../models/balanceClient');
-const {urlMain, checkFloat, pdDDMMYYYY, pdDDMMYYHHMM} = require('../module/const');
+const {urlMain, checkFloat, pdDDMMYYYY, pdDDMMYYHHMM, checkDate} = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -436,8 +436,8 @@ const resolvers = {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd, deliveryStart, deliveryEnd
-            if (date) {
-                dateStart = new Date(date)
+            if (!delivery||date) {
+                dateStart = checkDate(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
@@ -456,7 +456,7 @@ const resolvers = {
                 ...store?{store}:{},
                 ...cpa?{cpa}:{},
                 ...delivery?{$and: [{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]}:{},
-                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
                 ...user.role==='доставщик'?{status: 'отгружен', deliverymans: user._id}:status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .lean()
@@ -517,10 +517,8 @@ const resolvers = {
 const resolversMutation = {
     addSale: async(parent, {client, prepaid, promotion, itemsSale, geo, discount, cpa, percentCpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, orders, reservations}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
-            if (delivery&&delivery.toString()!=='Invalid Date') {
+            if (delivery&&delivery.toString()!=='Invalid Date') 
                 delivery = new Date(delivery)
-                delivery.setHours(0, 0, 0, 0)
-            }
             else
                 delivery = null
             let object = new Sale({

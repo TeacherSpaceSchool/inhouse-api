@@ -3,7 +3,7 @@ const ItemReservation = require('../models/itemReservation');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const History = require('../models/history');
 const BalanceClient = require('../models/balanceClient');
-const {checkFloat, pdDDMMYYYY, urlMain, pdDDMMYYHHMM } = require('../module/const');
+const {checkFloat, pdDDMMYYYY, urlMain, pdDDMMYYHHMM, checkDate } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -268,8 +268,8 @@ const resolvers = {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 3)
             }
-            else if (date) {
-                dateStart = new Date(date)
+            else {
+                dateStart = checkDate(date)
                 dateStart.setHours(0, 0, 0, 0)
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
