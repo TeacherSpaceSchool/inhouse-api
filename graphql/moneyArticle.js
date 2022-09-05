@@ -34,7 +34,7 @@ const resolvers = {
     unloadMoneyArticles: async(parent, {search}, {user}) => {
         if(['admin', 'управляющий', 'кассир'].includes(user.role)) {
             let res = await MoneyArticle.find({
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{name: {$nin: ['Зарплата', 'Не указано']}},
             })
                 .sort('name')
                 .lean()
@@ -66,7 +66,7 @@ const resolvers = {
         if(['admin', 'управляющий', 'кассир'].includes(user.role)) {
             return await MoneyArticle.find({
                 del: {$ne: true},
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{}
+                ...search?{name: {'$regex': search, '$options': 'i'}}:skip != undefined?{name: {$nin: ['Зарплата', 'Не указано']}}:{}
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? 30 : 10000000000)
@@ -78,7 +78,7 @@ const resolvers = {
         if(['admin', 'управляющий', 'кассир'].includes(user.role)) {
             return await MoneyArticle.countDocuments({
                 del: {$ne: true},
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{}
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{name: {$nin: ['Зарплата', 'Не указано']}}
             })
                 .lean()
         }
@@ -98,9 +98,9 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value&&!['Не указано', 'Зарплата'].includes(row.getCell(2).value)&&await checkUniqueName(row.getCell(2).value, 'moneyArticle')) {
-                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
-                        row.getCell(1).value = (await Item.findOne({name: row.getCell(1).value}).select('_id').lean())._id
+                if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'moneyArticle')) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value)&&!['Зарплата', 'Не указано'].includes(row.getCell(1).value))
+                        row.getCell(1).value = (await MoneyArticle.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await MoneyArticle.findById(_id)

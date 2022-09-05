@@ -40,7 +40,7 @@ const resolvers = {
             if(user.store) store = user.store
             let res =  await Warehouse.find({
                 del: {$ne: true},
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{name: {$nin: ['Брак', 'Реставрация']}},
                 ...store?{store}:{},
             })
                 .populate({
@@ -75,7 +75,7 @@ const resolvers = {
             if(user.store) store = user.store
             let res =  await Warehouse.find({
                 del: {$ne: true},
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:skip != undefined?{name: {$nin: ['Брак', 'Реставрация']}}:{},
                 ...store?{store}:{},
             })
                 .skip(skip != undefined ? skip : 0)
@@ -94,7 +94,7 @@ const resolvers = {
             if(user.store) store = user.store
             return await Warehouse.countDocuments({
                 del: {$ne: true},
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{name: {$nin: ['Брак', 'Реставрация']}},
                 ...store?{store}:{},
             })
                 .lean()
@@ -119,7 +119,7 @@ const resolversMutation = {
                 if(row.getCell(2).value) {
                     if(row.getCell(3).value)
                         row.getCell(3).value = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
-                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value)&&!['Брак', 'Реставрация'].includes(row.getCell(1).value))
                         row.getCell(1).value = (await Warehouse.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {

@@ -4,7 +4,6 @@ const CpaSchema = mongoose.Schema({
     name: String,
     emails: [String],
     phones: [String],
-    percent: Number,
     info: String,
     del: Boolean
 }, {

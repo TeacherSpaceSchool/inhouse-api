@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 
 const BonusManagerSchema = mongoose.Schema({
-    manager: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserINHOUSE'
-    },
-    bonus: mongoose.Schema.Types.Mixed,
+    sale: [[Number]],
+    saleInstallment: [[Number]],
+    order: [[Number]],
+    orderInstallment: [[Number]],
+    promotion: [[Number]],
     store: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StoreINHOUSE'

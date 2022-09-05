@@ -20,9 +20,9 @@ const type = `
 `;
 
 const query = `
-    unloadTasks(status: String, search: String): String
-    tasks(status: String, search: String, skip: Int, limit: Int): [Task]
-    tasksCount(status: String, search: String): Int
+    unloadTasks(status: String, search: String, employment: ID): String
+    tasks(status: String, search: String, skip: Int, employment: ID, limit: Int): [Task]
+    tasksCount(status: String, search: String, employment: ID): Int
     task(_id: ID!): Task
 `;
 
@@ -33,13 +33,23 @@ const mutation = `
 `;
 
 const resolvers = {
-    unloadTasks: async(parent, {status, search}, {user}) => {
+    unloadTasks: async(parent, {status, search, employment}, {user}) => {
         if(user.role) {
             let res = await Task.find({
-                ...user.role!=='admin'?{
-                    $or: [
-                        {who: user._id},
-                        {whom: user._id}
+                ...user.role!=='admin'||employment?{
+                    $and: [
+                        ...user.role!=='admin'?[{
+                            $or: [
+                                {who: user._id},
+                                {whom: user._id}
+                            ]
+                        }]:[],
+                        ...employment?[{
+                            $or: [
+                                {who: employment},
+                                {whom: employment}
+                            ]
+                        }]:[],
                     ]
                 }:{},
                 del: {$ne: true},
@@ -84,13 +94,23 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    tasks: async(parent, {status, search, skip, limit}, {user}) => {
+    tasks: async(parent, {status, search, skip, limit, employment}, {user}) => {
         if(user.role) {
             return await Task.find({
-                ...user.role!=='admin'?{
-                    $or: [
-                        {who: user._id},
-                        {whom: user._id}
+                ...user.role!=='admin'||employment?{
+                    $and: [
+                        ...user.role!=='admin'?[{
+                            $or: [
+                                {who: user._id},
+                                {whom: user._id}
+                            ]
+                        }]:[],
+                        ...employment?[{
+                            $or: [
+                                {who: employment},
+                                {whom: employment}
+                            ]
+                        }]:[],
                     ]
                 }:{},
                 del: {$ne: true},
@@ -134,13 +154,23 @@ const resolvers = {
             return res
         }
     },
-    tasksCount: async(parent, {status, search}, {user}) => {
+    tasksCount: async(parent, {status, search, employment}, {user}) => {
         if(user.role) {
             return await Task.countDocuments({
-                ...user.role!=='admin'?{
-                    $or: [
-                        {who: user._id},
-                        {whom: user._id}
+                ...user.role!=='admin'||employment?{
+                    $and: [
+                        ...user.role!=='admin'?[{
+                            $or: [
+                                {who: user._id},
+                                {whom: user._id}
+                            ]
+                        }]:[],
+                        ...employment?[{
+                            $or: [
+                                {who: employment},
+                                {whom: employment}
+                            ]
+                        }]:[],
                     ]
                 }:{},
                 del: {$ne: true},

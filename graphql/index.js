@@ -4,6 +4,7 @@ const BalanceClient = require('./balanceClient');
 const StoreBalanceItem = require('./storeBalanceItem');
 const BalanceItem = require('./balanceItem');
 const BonusManager = require('./bonusManager');
+const BonusCpa = require('./bonusCpa');
 const Cashbox = require('./cashbox');
 const Characteristic = require('./characteristic');
 const Category = require('./category');
@@ -106,6 +107,7 @@ const typeDefs = gql`
     ${BalanceItem.type}
     ${Cashbox.type}
     ${BonusManager.type}
+    ${BonusCpa.type}
     ${Characteristic.type}
     ${Cpa.type}
     ${Doc.type}
@@ -151,6 +153,7 @@ const typeDefs = gql`
         ${User.mutation}
         ${BalanceItem.mutation}
         ${BonusManager.mutation}
+        ${BonusCpa.mutation}
         ${Characteristic.mutation}
         ${Cpa.mutation}
         ${Doc.mutation}
@@ -186,6 +189,7 @@ const typeDefs = gql`
         ${StoreBalanceItem.query}
         ${BalanceItem.query}
         ${BonusManager.query}
+        ${BonusCpa.query}
         ${Characteristic.query}
         ${Cpa.query}
         ${Doc.query}
@@ -244,6 +248,7 @@ const resolvers = {
         ...Item.resolvers,
         ...BalanceItem.resolvers,
         ...BonusManager.resolvers,
+        ...BonusCpa.resolvers,
         ...Characteristic.resolvers,
         ...Cpa.resolvers,
         ...Doc.resolvers,
@@ -276,6 +281,7 @@ const resolvers = {
         ...Item.resolversMutation,
         ...BalanceItem.resolversMutation,
         ...BonusManager.resolversMutation,
+        ...BonusCpa.resolversMutation,
         ...Characteristic.resolversMutation,
         ...Cpa.resolversMutation,
         ...Doc.resolversMutation,

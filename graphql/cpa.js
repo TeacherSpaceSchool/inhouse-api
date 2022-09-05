@@ -16,7 +16,6 @@ const type = `
     name: String
     emails: [String]
     phones: [String]
-    percent: Float
     info: String
   }
 `;
@@ -32,8 +31,8 @@ const query = `
 
 const mutation = `
     uploadCpa(document: Upload!): String
-    addCpa(name: String!, emails: [String]!, phones: [String]!, percent: Float!, info: String!): String
-    setCpa(_id: ID!, name: String, emails: [String], phones: [String], percent: Float, info: String): String
+    addCpa(name: String!, emails: [String]!, phones: [String]!, info: String!): String
+    setCpa(_id: ID!, name: String, emails: [String], phones: [String], info: String): String
     deleteCpa(_id: ID!): String
 `;
 
@@ -165,20 +164,17 @@ const resolvers = {
             worksheet.getRow(1).getCell(2).font = {bold: true};
             worksheet.getRow(1).getCell(2).value = 'ФИО'
             worksheet.getRow(1).getCell(3).font = {bold: true};
-            worksheet.getRow(1).getCell(3).value = 'Процент'
+            worksheet.getRow(1).getCell(3).value = 'Телефоны'
             worksheet.getRow(1).getCell(4).font = {bold: true};
-            worksheet.getRow(1).getCell(4).value = 'Телефоны'
+            worksheet.getRow(1).getCell(4).value = 'Email'
             worksheet.getRow(1).getCell(5).font = {bold: true};
-            worksheet.getRow(1).getCell(5).value = 'Email'
-            worksheet.getRow(1).getCell(6).font = {bold: true};
-            worksheet.getRow(1).getCell(6).value = 'Комментарий'
+            worksheet.getRow(1).getCell(5).value = 'Комментарий'
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
                 worksheet.getRow(i+2).getCell(2).value = res[i].name
-                worksheet.getRow(i+2).getCell(3).value = res[i].percent
-                worksheet.getRow(i+2).getCell(4).value = (res[i].phones.map(phone=>`+996${phone}`)).toString()
-                worksheet.getRow(i+2).getCell(5).value = res[i].emails.toString()
-                worksheet.getRow(i+2).getCell(6).value = res[i].info
+                worksheet.getRow(i+2).getCell(3).value = (res[i].phones.map(phone=>`+996${phone}`)).toString()
+                worksheet.getRow(i+2).getCell(4).value = res[i].emails.toString()
+                worksheet.getRow(i+2).getCell(5).value = res[i].info
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -195,7 +191,7 @@ const resolvers = {
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
                 .sort('name')
-                .select('_id name createdAt percent')
+                .select('_id name createdAt')
                 .lean()
         }
     },
@@ -250,43 +246,35 @@ const resolversMutation = {
                                 object.name = row.getCell(2).value
                             }
                             if (row.getCell(3).value) {
-                                row.getCell(3).value = checkFloat(row.getCell(3).value)
-                                if (object.percent!==row.getCell(3).value) {
-                                    history.what = `${history.what}Процент:${object.percent}→${row.getCell(3)};\n`
-                                    object.percent = row.getCell(3).value
+                                row.getCell(3).value = row.getCell(3).value.toString().split(', ')
+                                if(row.getCell(3).value.toString()!==object.phones.toString()) {
+                                    history.what = `${history.what}Телефоны:${object.phones.toString()}→${row.getCell(3).value.toString()};\n`
+                                    object.phones = row.getCell(3).value
                                 }
                             }
                             if (row.getCell(4).value) {
                                 row.getCell(4).value = row.getCell(4).value.toString().split(', ')
-                                if(row.getCell(4).value.toString()!==object.phones.toString()) {
-                                    history.what = `${history.what}Телефоны:${object.phones.toString()}→${row.getCell(4).value.toString()};\n`
-                                    object.phones = row.getCell(4).value
+                                if (object.emails.toString() !== row.getCell(4).value.toString()) {
+                                    history.what = `${history.what}Emails:${object.emails.toString()}→${row.getCell(4).value.toString()};\n`
+                                    object.emails = row.getCell(4).value
                                 }
                             }
-                            if (row.getCell(5).value) {
-                                row.getCell(5).value = row.getCell(5).value.toString().split(', ')
-                                if (object.emails.toString() !== row.getCell(5).value.toString()) {
-                                    history.what = `${history.what}Emails:${object.emails.toString()}→${row.getCell(5).value.toString()};\n`
-                                    object.emails = row.getCell(5).value
-                                }
-                            }
-                            if (row.getCell(6).value&&object.info!==row.getCell(6).value) {
-                                history.what = `${history.what}Комментарий:${object.info}→${row.getCell(6).value};\n`
-                                object.info = row.getCell(6).value
+                            if (row.getCell(5).value&&object.info!==row.getCell(5).value) {
+                                history.what = `${history.what}Комментарий:${object.info}→${row.getCell(5).value};\n`
+                                object.info = row.getCell(5).value
                             }
                             await object.save();
                             await History.create(history)
                         }
                     }
-                    else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cpa')&&row.getCell(3).value) {
+                    else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cpa')) {
+                        row.getCell(3).value = row.getCell(3).value?row.getCell(3).value.toString().split(', '):[]
                         row.getCell(4).value = row.getCell(4).value?row.getCell(4).value.toString().split(', '):[]
-                        row.getCell(5).value = row.getCell(5).value?row.getCell(5).value.toString().split(', '):[]
                         object = new Cpa({
                             name: row.getCell(2).value,
-                            emails: row.getCell(5).value,
-                            phones: row.getCell(4).value,
-                            percent: checkFloat(row.getCell(3).value),
-                            info: row.getCell(6).value?row.getCell(6).value:'',
+                            phones: row.getCell(3).value,
+                            emails: row.getCell(4).value,
+                            info: row.getCell(5).value?row.getCell(5).value:'',
                         });
                         object = await Cpa.create(object)
                         let history = new History({
@@ -305,13 +293,12 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    addCpa: async(parent, {name, emails, phones, percent, info}, {user}) => {
+    addCpa: async(parent, {name, emails, phones, info}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'cpa')) {
             let object = new Cpa({
                 name,
                 emails,
                 phones,
-                percent,
                 info
             });
             object = await Cpa.create(object)
@@ -325,7 +312,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setCpa: async(parent, {_id, name, emails, phones, percent, info}, {user}) => {
+    setCpa: async(parent, {_id, name, emails, phones, info}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'cpa')) {
             let object = await Cpa.findOne({
                 _id,
@@ -347,10 +334,6 @@ const resolversMutation = {
                 if (phones) {
                     history.what = `${history.what}Телефоны:${object.phones.toString()}→${phones.toString()};\n`
                     object.phones = phones
-                }
-                if (percent!=undefined) {
-                    history.what = `${history.what}Процент:${object.percent}→${percent};\n`
-                    object.percent = percent
                 }
                 if (info) {
                     history.what = `${history.what}Комментарий:${object.info}→${info};`
