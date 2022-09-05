@@ -5,6 +5,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
+const { sendWebPush } = require('../module/webPush');
 
 const type = `
   type Task {
@@ -73,10 +74,8 @@ const resolvers = {
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(i+2).getCell(1).value = res[i].status
                 worksheet.getRow(i+2).getCell(2).value = pdDDMMYYYY(res[i].date)
-                worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(3).value = `${res[i].who.name}\n${res[i].who._id}`
-                worksheet.getRow(i+2).getCell(4).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(4).value = `${res[i].whom.name}\n${res[i].whom._id}`
+                worksheet.getRow(i+2).getCell(3).value = res[i].who.name
+                worksheet.getRow(i+2).getCell(4).value = res[i].whom.name
                 worksheet.getRow(i+2).getCell(5).value = res[i].info
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
@@ -167,6 +166,12 @@ const resolversMutation = {
                 info
             });
             await Task.create(object)
+            await sendWebPush({
+                title: 'Задача',
+                message: info,
+                url: `https://inhouse-app.kg/task/${object._id}`,
+                user: whom
+            })
             let history = new History({
                 who: user._id,
                 where: object._id,
@@ -192,14 +197,32 @@ const resolversMutation = {
                 date = new Date(date)
                 date.setHours(0, 0, 0, 0)
                 object.date = date
+                await sendWebPush({
+                    title: `Задача: ${object.info.slice(0, 20)}`,
+                    message: 'Срок задачи изменен',
+                    url: `https://inhouse-app.kg/task/${object._id}`,
+                    user: object.who.toString()!==user._id.toString()?object.who:object.whom
+                })
             }
             if (info&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())&&object.status==='обработка') {
                 history.what = `${history.what}Комментарий:${object.info}→${info};\n`
                 object.info = info
+                await sendWebPush({
+                    title: `Задача: ${object.info.slice(0, 20)}`,
+                    message: 'Коментарий задачи изменен',
+                    url: `https://inhouse-app.kg/task/${object._id}`,
+                    user: object.who.toString()!==user._id.toString()?object.who:object.whom
+                })
             }
-            if (object.status!=='проверен') {
+            if (status&&object.status!=='проверен') {
                 history.what = `${history.what}Статус:${object.status}→${status};`
                 object.status = status
+                await sendWebPush({
+                    title: `Задача: ${object.info.slice(0, 20)}`,
+                    message: `Статус задачи изменен на ${status}`,
+                    url: `https://inhouse-app.kg/task/${object._id}`,
+                    user: object.who.toString()!==user._id.toString()?object.who:object.whom
+                })
             }
             await object.save();
             await History.create(history)
@@ -210,6 +233,11 @@ const resolversMutation = {
     deleteTask: async(parent, { _id }, {user}) => {
         let object = await Task.findOne({_id})
         if(object&&object.status==='обработка'&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())) {
+            await sendWebPush({
+                title: `Задача: ${object.info.slice(0, 20)}`,
+                message: 'Задача отменена',
+                user: object.whom
+            })
             await Task.deleteOne({_id})
             await History.deleteMany({where: _id})
             return 'OK'

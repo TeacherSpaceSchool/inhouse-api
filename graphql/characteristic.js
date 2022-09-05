@@ -6,6 +6,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type Characteristic {
@@ -87,6 +88,8 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'characteristic')) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Characteristic.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Characteristic.findById(_id)

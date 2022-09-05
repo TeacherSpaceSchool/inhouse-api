@@ -9,6 +9,7 @@ const path = require('path');
 const randomstring = require('randomstring');
 const Store = require('../models/store');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type User {
@@ -114,7 +115,7 @@ const resolvers = {
                 worksheet.getRow(i+2).getCell(8).alignment = {wrapText: true}
                 worksheet.getRow(i+2).getCell(8).value = phones
                 worksheet.getRow(i+2).getCell(9).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(9).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
+                worksheet.getRow(i+2).getCell(9).value = res[i].store.name
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -234,10 +235,13 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value) {
-                    if(row.getCell(10).value&&row.getCell(10).value.split('|')[1]) {
-                        row.getCell(10).value = row.getCell(10).value.split('|')[1]
-                    }
+                    if(row.getCell(10).value)
+                        row.getCell(10).value = (await Store.findOne({name: row.getCell(10).value}).select('_id').lean())._id
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await User.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
+                    if(row.getCell(3).value)
+                        row.getCell(3).value = row.getCell(3).value.toString()
                     if(_id) {
                         object = await User.findById(_id)
                         if(object) {
@@ -250,9 +254,9 @@ const resolversMutation = {
                                 history.what = `Логин:${object.login}→${row.getCell(2).value};\n`
                                 object.login = row.getCell(2).value
                             }
-                            if (row.getCell(3).value) {
+                            if (row.getCell(3).value&&row.getCell(3).value.length>7) {
                                 history.what = `${history.what}Пароль;\n`
-                                object.password = row.getCell(3).value.toString()
+                                object.password = row.getCell(3).value
                             }
                             if (row.getCell(4).value&&row.getCell(4).value!=='admin'&&object.name!==row.getCell(4).value&&await checkUniqueName(row.getCell(4).value, 'user')) {
                                 history.what = `${history.what}ФИО:${object.name}→${row.getCell(4).value};\n`
@@ -273,13 +277,13 @@ const resolversMutation = {
                                 object.startWork.setHours(0, 0, 0, 0)
                             }
                             if (row.getCell(9).value) {
-                                row.getCell(9).value = row.getCell(9).value.split(', ')
+                                row.getCell(9).value = row.getCell(9).value.toString().split(', ')
                                 if(JSON.stringify(row.getCell(9).value)!==JSON.stringify(object.phones)) {
                                     history.what = `${history.what}Телефоны:${object.phones.toString()}→${row.getCell(9).value.toString()};\n`
                                     object.phones = row.getCell(9).value
                                 }
                             }
-                            if(row.getCell(10).value&&(await Store.findById(row.getCell(10).value).select('_id').lean())&&object.store.toString()!==row.getCell(10).value.toString()) {
+                            if(row.getCell(10).value&&object.store.toString()!==row.getCell(10).value.toString()) {
                                 history.what = `${history.what}Магазин:${object.store}→${row.getCell(10)};\n`
                                 object.store = row.getCell(10)
                             }
@@ -287,8 +291,8 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(row.getCell(2).value&&row.getCell(2).value!=='admin'&&row.getCell(3).value&&row.getCell(4).value&&row.getCell(4).value!=='admin'&&await checkUniqueName(row.getCell(4).value, 'user')&&row.getCell(5).value&&['менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист', 'сотрудник'].includes(row.getCell(5).value)&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(10).value&&(await Store.findById(row.getCell(10).value).select('_id').lean())) {
-                        row.getCell(9).value = row.getCell(9).value?row.getCell(9).value.split(', '):[]
+                    else if(row.getCell(2).value&&row.getCell(2).value!=='admin'&&row.getCell(3).value&&row.getCell(3).value.length>7&&row.getCell(4).value&&row.getCell(4).value!=='admin'&&await checkUniqueName(row.getCell(4).value, 'user')&&row.getCell(5).value&&['менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист', 'сотрудник'].includes(row.getCell(5).value)&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(8).value&&row.getCell(10).value) {
+                        row.getCell(9).value = row.getCell(9).value?row.getCell(9).value.toString().split(', '):[]
                         row.getCell(8).value = row.getCell(8).value.split('.')
                         row.getCell(8).value = new Date(`${row.getCell(8).value[1]}.${row.getCell(8).value[0]}.${row.getCell(8).value[2]}`)
                         row.getCell(8).value.setHours(0, 0, 0, 0)
@@ -455,6 +459,7 @@ const resolversMutation = {
             let object = await User.findOne({_id: _id})
             if(object&&object.name!=='admin'&&object.login!=='admin') {
                 object.del = true
+                object.name += '(удален)'
                 object.login = randomstring.generate({length: 10, charset: 'numeric'});
                 object.save()
                 let history = new History({

@@ -11,6 +11,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type Store {
@@ -99,6 +100,8 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'store')) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Store.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Store.findById(_id)
@@ -118,6 +121,16 @@ const resolversMutation = {
                             name: row.getCell(2).value
                         });
                         object = await Store.create(object)
+                        let warehouse = new Warehouse({
+                            name: 'Брак',
+                            store: object._id
+                        });
+                        await Warehouse.create(warehouse)
+                        warehouse = new Warehouse({
+                            name: 'Реставрация',
+                            store: object._id
+                        });
+                        await Warehouse.create(warehouse)
                         let history = new History({
                             who: user._id,
                             where: object._id,
@@ -140,6 +153,18 @@ const resolversMutation = {
                 name
             });
             object = await Store.create(object)
+
+            let warehouse = new Warehouse({
+                name: 'Брак',
+                store: object._id
+            });
+            await Warehouse.create(warehouse)
+            warehouse = new Warehouse({
+                name: 'Реставрация',
+                store: object._id
+            });
+            await Warehouse.create(warehouse)
+
             let history = new History({
                 who: user._id,
                 where: object._id,
@@ -189,6 +214,7 @@ const resolversMutation = {
             let object = await Store.findById(_id)
             if(object) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 let history = new History({
                     who: user._id,

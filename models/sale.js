@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 
 const SaleSchema = mongoose.Schema({
     number: String,
+    deliverymans: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'UserINHOUSE'
+    }],
     manager: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'UserINHOUSE'
@@ -21,6 +25,10 @@ const SaleSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'CpaINHOUSE'
     },
+    promotion:  {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'PromotionINHOUSE'
+    },
     bonusManager: Number,
     prepaid: Number,
     bonusCpa: Number,
@@ -35,6 +43,7 @@ const SaleSchema = mongoose.Schema({
     address: String,
     addressInfo: String,
     delivery: Date,
+    deliveryFact: Date,
     status: String,
     comment: String,
     currency: String,

@@ -1,3 +1,4 @@
+const Sale = require('../models/sale');
 const Cpa = require('../models/cpa');
 const History = require('../models/history');
 const { saveFile, deleteFile, urlMain, checkFloat } = require('../module/const');
@@ -6,6 +7,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type Cpa {
@@ -20,7 +22,9 @@ const type = `
 `;
 
 const query = `
+    unloadStatisticCpa(cpa: ID, dateStart: Date!, dateEnd: Date, store: ID): String
     unloadCpas(search: String): String
+    statisticCpa(cpa: ID, dateStart: Date!, dateEnd: Date, store: ID, skip: Int): [[String]]
     cpas(search: String, skip: Int, limit: Int): [Cpa]
     cpasCount(search: String): Int
     cpa(_id: ID!): Cpa
@@ -34,6 +38,118 @@ const mutation = `
 `;
 
 const resolvers = {
+    statisticCpa: async(parent, {cpa, dateStart, dateEnd, store, skip}, {user}) => {
+        if(['admin', 'управляющий'].includes(user.role)) {
+            if(user.store) store = user.store
+            if (dateStart) {
+                dateStart = new Date(dateStart)
+                dateStart.setHours(0, 0, 0, 0)
+                if(dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
+            }
+            let statistic = {}, allCount = 0, allBonusCpa = 0
+            let data = await Sale.find({
+                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...store?{store}:{},
+                ...cpa?{cpa}:{cpa: {$ne: null}},
+            })
+                .skip(skip != undefined ? skip : 0)
+                .limit(skip != undefined ? 30 : 10000000000)
+                .sort('-createdAt')
+                .select('cpa bonusCpa')
+                .populate({
+                    path: 'cpa',
+                    select: '_id name'
+                })
+                .lean()
+            for(let i=0; i<data.length; i++) {
+                if(!statistic[data[i].cpa._id]) {
+                    allCount += 1
+                    statistic[data[i].cpa._id] = [
+                        data[i].cpa.name,
+                        0
+                    ]
+                }
+                statistic[data[i].cpa._id][1] += data[i].bonusCpa
+                allBonusCpa += data[i].bonusCpa
+            }
+            data = Object.values(statistic)
+            data = data.sort(function(a, b) {
+                return b[1] - a[1]
+            });
+            if(!skip)
+                data = [
+                    [
+                        allCount,
+                        checkFloat(allBonusCpa)
+                    ],
+                    ...data
+                ]
+            return data
+        }
+    },
+    unloadStatisticCpa: async(parent, {cpa, dateStart, dateEnd, store}, {user}) => {
+        if(['admin', 'управляющий'].includes(user.role)) {
+            if(user.store) store = user.store
+            if (dateStart) {
+                dateStart = new Date(dateStart)
+                dateStart.setHours(0, 0, 0, 0)
+                if(dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
+            }
+            let statistic = {}
+            let data = await Sale.find({
+                ...dateStart?{$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}]}:{},
+                ...store?{store}:{},
+                ...cpa?{cpa}:{cpa: {$ne: null}},
+            })
+                .sort('-createdAt')
+                .select('cpa bonusCpa')
+                .populate({
+                    path: 'cpa',
+                    select: '_id name'
+                })
+                .lean()
+            for(let i=0; i<data.length; i++) {
+                if(!statistic[data[i].cpa._id]) {
+                    statistic[data[i].cpa._id] = [
+                        data[i].cpa.name,
+                        0
+                    ]
+                }
+                statistic[data[i].cpa._id][1] += data[i].bonusCpa
+            }
+            data = Object.values(statistic)
+            data = data.sort(function(a, b) {
+                return b[1] - a[1]
+            });
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            worksheet.getColumn(1).width = 40
+            worksheet.getRow(1).getCell(1).font = {bold: true};
+            worksheet.getRow(1).getCell(1).value = 'Партнер'
+            worksheet.getRow(1).getCell(2).font = {bold: true};
+            worksheet.getRow(1).getCell(2).value = 'Бонус'
+            for(let i = 0; i < data.length; i++) {
+                worksheet.getRow(i+2).getCell(1).value = data[i][0]
+                worksheet.getRow(i+2).getCell(2).value = data[i][1]
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
     unloadCpas: async(parent, {search}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
             let res =  await Cpa.find({
@@ -118,6 +234,8 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Cpa.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Cpa.findById(_id)
@@ -139,14 +257,14 @@ const resolversMutation = {
                                 }
                             }
                             if (row.getCell(4).value) {
-                                row.getCell(4).value = row.getCell(4).value.split(', ')
+                                row.getCell(4).value = row.getCell(4).value.toString().split(', ')
                                 if(row.getCell(4).value.toString()!==object.phones.toString()) {
                                     history.what = `${history.what}Телефоны:${object.phones.toString()}→${row.getCell(4).value.toString()};\n`
                                     object.phones = row.getCell(4).value
                                 }
                             }
                             if (row.getCell(5).value) {
-                                row.getCell(5).value = row.getCell(5).value.split(', ')
+                                row.getCell(5).value = row.getCell(5).value.toString().split(', ')
                                 if (object.emails.toString() !== row.getCell(5).value.toString()) {
                                     history.what = `${history.what}Emails:${object.emails.toString()}→${row.getCell(5).value.toString()};\n`
                                     object.emails = row.getCell(5).value
@@ -161,8 +279,8 @@ const resolversMutation = {
                         }
                     }
                     else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cpa')&&row.getCell(3).value) {
-                        row.getCell(4).value = row.getCell(4).value?row.getCell(4).value.split(', '):[]
-                        row.getCell(5).value = row.getCell(5).value?row.getCell(5).value.split(', '):[]
+                        row.getCell(4).value = row.getCell(4).value?row.getCell(4).value.toString().split(', '):[]
+                        row.getCell(5).value = row.getCell(5).value?row.getCell(5).value.toString().split(', '):[]
                         object = new Cpa({
                             name: row.getCell(2).value,
                             emails: row.getCell(5).value,
@@ -250,6 +368,7 @@ const resolversMutation = {
             let object = await Cpa.findOne({_id})
             if(object) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 let history = new History({
                     who: user._id,

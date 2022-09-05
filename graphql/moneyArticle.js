@@ -6,6 +6,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type MoneyArticle {
@@ -98,6 +99,8 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value&&!['Не указано', 'Зарплата'].includes(row.getCell(2).value)&&await checkUniqueName(row.getCell(2).value, 'moneyArticle')) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Item.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await MoneyArticle.findById(_id)
@@ -171,6 +174,7 @@ const resolversMutation = {
             let object = await MoneyArticle.findOne({_id})
             if(object&&!['Не указано', 'Зарплата'].includes(object.name)) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 let history = new History({
                     who: user._id,

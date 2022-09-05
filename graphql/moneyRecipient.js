@@ -5,7 +5,7 @@ const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
-
+const mongoose = require('mongoose');
 
 const type = `
   type MoneyRecipient {
@@ -90,6 +90,8 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'moneyRecipient')) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await MoneyRecipient.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await MoneyRecipient.findById(_id)
@@ -165,6 +167,7 @@ const resolversMutation = {
             let object = await MoneyRecipient.findOne({_id})
             if(object) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 let history = new History({
                     who: user._id,

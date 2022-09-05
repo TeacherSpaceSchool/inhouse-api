@@ -7,9 +7,9 @@ let sendWebPush = async({title, message, tag, url, icon, user, users}) => {
     const payload = {
         title: title?title:title,
         message: message?message:message,
-        url: url?url:'https://salyk.store',
-        icon: icon?icon:'https://salyk.store/192x192.png',
-        tag: tag?tag:'salyk.store'
+        url: url?url:'https://inhouse-app.kg',
+        icon: icon?icon:'https://inhouse-app.kg/192x192.png',
+        tag: tag?tag:'inhouse-app.kg'
     };
     if(user==='all'){
         Subscriber.find({}, (err, subscriptions) => {
@@ -29,7 +29,7 @@ let sendWebPush = async({title, message, tag, url, icon, user, users}) => {
                         const pushPayload = JSON.stringify(payload);
                         const pushOptions = {
                             vapidDetails: {
-                                subject: 'https://salyk.store',
+                                subject: 'https://inhouse-app.kg',
                                 privateKey: keys.privateKey,
                                 publicKey: keys.publicKey
                             },
@@ -97,7 +97,7 @@ let sendWebPush = async({title, message, tag, url, icon, user, users}) => {
                         const pushPayload = JSON.stringify(payload);
                         const pushOptions = {
                             vapidDetails: {
-                                subject: 'https://salyk.store',
+                                subject: 'https://inhouse-app.kg',
                                 privateKey: keys.privateKey,
                                 publicKey: keys.publicKey
                             },
@@ -146,7 +146,7 @@ let sendWebPush = async({title, message, tag, url, icon, user, users}) => {
                         const pushPayload = JSON.stringify(payload);
                         const pushOptions = {
                             vapidDetails: {
-                                subject: 'https://salyk.store',
+                                subject: 'https://inhouse-app.kg',
                                 privateKey: keys.privateKey,
                                 publicKey: keys.publicKey
                             },

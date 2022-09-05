@@ -12,22 +12,26 @@ const type = `
       manager: User
       store: Store
       end: Date
+      info: String
+      client: Client
+      statusClient: String
   }
 `;
 
 const query = `
-    unloadConsultations(manager: ID, date: Date, store: ID): String
-    consultations(skip: Int, manager: ID, store: ID, date: Date, active: Boolean): [Consultation]
-    consultationsCount(manager: ID, date: Date, store: ID): Int
+    unloadConsultations(manager: ID, date: Date, store: ID, statusClient: String): String
+    consultations(skip: Int, manager: ID, store: ID, date: Date, active: Boolean, statusClient: String): [Consultation]
+    consultationsCount(manager: ID, date: Date, store: ID, statusClient: String): Int
 `;
 
 const mutation = `
     startConsultation: Consultation
+    setConsultation(info: String, client: ID, statusClient: String): String
     endConsultation(_id: ID): String
 `;
 
 const resolvers = {
-    unloadConsultations: async(parent, {manager, date, store, active}, {user}) => {
+    unloadConsultations: async(parent, {manager, date, store, active, statusClient}, {user}) => {
         if(['admin', 'управляющий'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
@@ -43,11 +47,16 @@ const resolvers = {
                 ...manager?{manager}:{},
                 ...store?{store}:{},
                 ...active?{end: null}:{},
+                ...statusClient?{statusClient}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
             })
                 .sort('-createdAt')
                 .populate({
                     path: 'manager',
+                    select: 'name _id'
+                })
+                .populate({
+                    path: 'client',
                     select: 'name _id'
                 })
                 .populate({
@@ -83,7 +92,7 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    consultations: async(parent, {skip, manager, date, store, active}, {user}) => {
+    consultations: async(parent, {skip, manager, date, store, active, statusClient}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
             if(user.store) store = user.store
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
@@ -100,6 +109,7 @@ const resolvers = {
                 ...store?{store}:{},
                 ...active?{end: null}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...statusClient?{statusClient}:{},
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? 30 : 10000000000)
@@ -109,13 +119,17 @@ const resolvers = {
                     select: 'name _id'
                 })
                 .populate({
+                    path: 'client',
+                    select: 'name _id'
+                })
+                .populate({
                     path: 'store',
                     select: 'name _id'
                 })
                 .lean()
         }
     },
-    consultationsCount: async(parent, {manager, date, store, active}, {user}) => {
+    consultationsCount: async(parent, {manager, date, store, active, statusClient}, {user}) => {
         if(['admin', 'управляющий'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
@@ -131,6 +145,7 @@ const resolvers = {
                 ...manager?{manager}:{},
                 ...active?{end: null}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...statusClient?{statusClient}:{},
             })
                 .lean()
         }
@@ -146,9 +161,38 @@ const resolversMutation = {
                 end: null
             });
             object = await Consultation.create(object)
-            return object
+            return await Consultation.findById(object._id)
+                .populate({
+                    path: 'manager',
+                    select: 'name _id'
+                })
+                .populate({
+                    path: 'client',
+                    select: 'name _id'
+                })
+                .populate({
+                    path: 'store',
+                    select: 'name _id'
+                })
+                .lean()
         }
         return {_id: 'ERROR'}
+    },
+    setConsultation: async(parent, {info, client, statusClient}, {user}) => {
+        if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
+            let object = await Consultation.findOne({
+                manager: user._id,
+                end: null
+            })
+            if(object) {
+                object.info = info
+                object.client = client
+                object.statusClient = statusClient
+                await object.save()
+                return 'OK'
+            }
+        }
+        return 'ERROR'
     },
     endConsultation: async(parent, {_id}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {

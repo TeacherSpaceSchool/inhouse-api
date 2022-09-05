@@ -5,7 +5,7 @@ const BalanceClientSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ClientINHOUSE'
     },
-    balance: mongoose.Schema.Types.Mixed
+    balance: Number
 }, {
     timestamps: true
 });

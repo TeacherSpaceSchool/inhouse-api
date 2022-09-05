@@ -71,7 +71,7 @@ const resolvers = {
         }
         return []
     },
-    unloadItems: async(parent, {search, category, factory}, {user}) => {
+    unloadItems: async(parent, {search, category, factory, type}, {user}) => {
         if(user.role) {
             let res =  await Item.find({
                 del: {$ne: true},
@@ -92,66 +92,102 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getColumn(5).width = 40
-            worksheet.getColumn(6).width = 40
-            worksheet.getColumn(15).width = 40
-            worksheet.getRow(1).getCell(1).font = {bold: true};
-            worksheet.getRow(1).getCell(1).value = '_id'
-            worksheet.getRow(1).getCell(2).font = {bold: true};
-            worksheet.getRow(1).getCell(2).value = 'Название'
-            worksheet.getRow(1).getCell(3).font = {bold: true};
-            worksheet.getRow(1).getCell(3).value = 'Артикул'
-            worksheet.getRow(1).getCell(4).font = {bold: true};
-            worksheet.getRow(1).getCell(4).value = 'ID'
-            worksheet.getRow(1).getCell(5).font = {bold: true};
-            worksheet.getRow(1).getCell(5).value = 'Категория'
-            worksheet.getRow(1).getCell(6).font = {bold: true};
-            worksheet.getRow(1).getCell(6).value = 'Фабрика'
-            worksheet.getRow(1).getCell(7).font = {bold: true};
-            worksheet.getRow(1).getCell(7).value = 'Цена в долларах'
-            worksheet.getRow(1).getCell(8).font = {bold: true};
-            worksheet.getRow(1).getCell(8).value = 'Цена в сомах'
-            worksheet.getRow(1).getCell(9).font = {bold: true};
-            worksheet.getRow(1).getCell(9).value = 'Себестоимость в долларах'
-            worksheet.getRow(1).getCell(10).font = {bold: true};
-            worksheet.getRow(1).getCell(10).value = 'Себестоимость в сомах'
-            worksheet.getRow(1).getCell(11).font = {bold: true};
-            worksheet.getRow(1).getCell(11).value = 'Скидка в сомах'
-            worksheet.getRow(1).getCell(12).font = {bold: true};
-            worksheet.getRow(1).getCell(12).value = 'Цена после скидки в сомах'
-            worksheet.getRow(1).getCell(13).font = {bold: true};
-            worksheet.getRow(1).getCell(13).value = 'Единица измерения'
-            worksheet.getRow(1).getCell(14).font = {bold: true};
-            worksheet.getRow(1).getCell(14).value = 'Размер'
-            worksheet.getColumn(15).width = 30
-            worksheet.getRow(1).getCell(15).font = {bold: true};
-            worksheet.getRow(1).getCell(15).value = 'Характеристики'
-            worksheet.getRow(1).getCell(16).font = {bold: true};
-            worksheet.getRow(1).getCell(16).value = 'Комментарий'
+            let cell = 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = '_id'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Название'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Артикул'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'ID'
+            cell += 1
+            worksheet.getColumn(cell).width = 40
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Тип товара'
+            cell += 1
+            worksheet.getColumn(cell).width = 40
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Категория'
+            cell += 1
+            worksheet.getColumn(cell).width = 40
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Фабрика'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Цена в долларах'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Цена в сомах'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Себестоимость в долларах'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Себестоимость в сомах'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Скидка в сомах'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Цена после скидки в сомах'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Единица измерения'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Размер'
+            cell += 1
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Характеристики'
+            cell += 1
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Комментарий'
             for(let i = 0; i < res.length; i++) {
                 let characteristics = ''
                 for(let i1 = 0; i1 < res[i].characteristics.length; i1++) {
                     characteristics = `${characteristics?`${characteristics}\n`:''}${res[i].characteristics[i1][0]}: ${res[i].characteristics[i1][1]}`
                 }
-                worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
-                worksheet.getRow(i+2).getCell(2).value = res[i].name
-                worksheet.getRow(i+2).getCell(3).value = res[i].art
-                worksheet.getRow(i+2).getCell(4).value = res[i].ID
-                worksheet.getRow(i+2).getCell(5).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(5).value = `${res[i].category.name}\n${res[i].category._id.toString()}`
-                worksheet.getRow(i+2).getCell(6).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(6).value = `${res[i].factory.name}\n${res[i].factory._id.toString()}`
-                worksheet.getRow(i+2).getCell(7).value = res[i].priceUSD
-                worksheet.getRow(i+2).getCell(8).value = res[i].priceKGS
-                worksheet.getRow(i+2).getCell(9).value = res[i].priceUSD
-                worksheet.getRow(i+2).getCell(10).value = res[i].primeCostUSD
-                worksheet.getRow(i+2).getCell(11).value = res[i].discount
-                worksheet.getRow(i+2).getCell(12).value = res[i].priceAfterDiscountKGS
-                worksheet.getRow(i+2).getCell(13).value = res[i].unit
-                worksheet.getRow(i+2).getCell(14).value = res[i].size
-                worksheet.getRow(i+2).getCell(15).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(15).value = characteristics
-                worksheet.getRow(i+2).getCell(16).value = res[i].comment
+                cell = 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i]._id.toString()
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].name
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].art
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].ID
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].type
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].category.name
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].factory.name
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].priceUSD
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].priceKGS
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].priceUSD
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].primeCostUSD
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].discount
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].priceAfterDiscountKGS
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].unit
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].size
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).alignment = {wrapText: true}
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = characteristics
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].comment
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -242,12 +278,12 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value) {
-                    if(row.getCell(5).value&&row.getCell(5).value.split('|')[1]) {
-                        row.getCell(5).value = row.getCell(5).value.split('|')[1]
-                    }
-                    if(row.getCell(6).value&&row.getCell(6).value.split('|')[1]) {
-                        row.getCell(6).value = row.getCell(6).value.split('|')[1]
-                    }
+                    if(row.getCell(6).value)
+                        row.getCell(6).value = (await Category.findOne({name: row.getCell(6).value}).select('_id').lean())._id
+                    if(row.getCell(7).value)
+                        row.getCell(7).value = (await Factory.findOne({name: row.getCell(7).value}).select('_id').lean())._id
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Item.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Item.findById(_id)
@@ -269,47 +305,51 @@ const resolversMutation = {
                                 history.what = `${history.what}ID:${object.ID}→${row.getCell(4)};\n`
                                 object.ID = row.getCell(4).value
                             }
-                            if (row.getCell(5).value&&object.category.toString()!==row.getCell(5).value.toString()&&(await Category.findById(row.getCell(5).value).select('_id').lean())) {
-                                history.what = `${history.what}Категория:${object.category}→${row.getCell(5)};\n`
-                                object.category = row.getCell(5).value
+                            if (row.getCell(5).value&&object.type!==row.getCell(5).value.toString()) {
+                                history.what = `${history.what}Тип товара:${object.type}→${row.getCell(5)};\n`
+                                object.type = row.getCell(5).value
                             }
-                            if (row.getCell(6).value&&object.factory.toString()!==row.getCell(6).value.toString()&&(await Factory.findById(row.getCell(6).value).select('_id').lean())) {
-                                history.what = `${history.what}Фабрика:${object.factory}→${row.getCell(6)};\n`
-                                object.factory = row.getCell(6).value
+                            if (row.getCell(6).value&&object.category.toString()!==row.getCell(6).value.toString()) {
+                                history.what = `${history.what}Категория:${object.category}→${row.getCell(6)};\n`
+                                object.category = row.getCell(6).value
                             }
-                            if (row.getCell(7).value) {
-                                row.getCell(7).value = checkFloat(row.getCell(7).value)
-                                if (object.priceUSD!==row.getCell(7).value) {
-                                    history.what = `${history.what}Цена в долларах:${object.priceUSD}→${row.getCell(7)};\n`
-                                    object.priceUSD = row.getCell(7).value
-                                }
+                            if (row.getCell(7).value&&object.factory.toString()!==row.getCell(7).value.toString()) {
+                                history.what = `${history.what}Фабрика:${object.factory}→${row.getCell(7)};\n`
+                                object.factory = row.getCell(7).value
                             }
                             if (row.getCell(8).value) {
                                 row.getCell(8).value = checkFloat(row.getCell(8).value)
-                                if (object.priceKGS!==row.getCell(8).value) {
-                                    history.what = `${history.what}Цена в сомах:${object.priceKGS}→${row.getCell(8)};\n`
-                                    object.priceKGS = row.getCell(8).value
+                                if (object.priceUSD!==row.getCell(8).value) {
+                                    history.what = `${history.what}Цена в долларах:${object.priceUSD}→${row.getCell(8)};\n`
+                                    object.priceUSD = row.getCell(8).value
                                 }
                             }
                             if (row.getCell(9).value) {
                                 row.getCell(9).value = checkFloat(row.getCell(9).value)
-                                if (object.primeCostUSD!==row.getCell(9).value) {
-                                    history.what = `${history.what}Себестоимость в долларах:${object.primeCostUSD}→${row.getCell(9)};\n`
-                                    object.primeCostUSD = row.getCell(11).value
+                                if (object.priceKGS!==row.getCell(9).value) {
+                                    history.what = `${history.what}Цена в сомах:${object.priceKGS}→${row.getCell(9)};\n`
+                                    object.priceKGS = row.getCell(9).value
                                 }
                             }
                             if (row.getCell(10).value) {
                                 row.getCell(10).value = checkFloat(row.getCell(10).value)
-                                if (object.primeCostKGS!==row.getCell(10).value) {
-                                    history.what = `${history.what}Себестоимость в сомах:${object.primeCostKGS}→${row.getCell(10)};\n`
-                                    object.primeCostKGS = row.getCell(11).value
+                                if (object.primeCostUSD!==row.getCell(10).value) {
+                                    history.what = `${history.what}Себестоимость в долларах:${object.primeCostUSD}→${row.getCell(10)};\n`
+                                    object.primeCostUSD = row.getCell(10).value
                                 }
                             }
                             if (row.getCell(11).value) {
                                 row.getCell(11).value = checkFloat(row.getCell(11).value)
-                                if (object.discount!==row.getCell(11).value) {
-                                    history.what = `${history.what}Скидка:${object.discount}→${row.getCell(11)};\n`
-                                    object.discount = row.getCell(11).value
+                                if (object.primeCostKGS!==row.getCell(11).value) {
+                                    history.what = `${history.what}Себестоимость в сомах:${object.primeCostKGS}→${row.getCell(11)};\n`
+                                    object.primeCostKGS = row.getCell(11).value
+                                }
+                            }
+                            if (row.getCell(12).value) {
+                                row.getCell(12).value = checkFloat(row.getCell(12).value)
+                                if (object.discount!==row.getCell(12).value) {
+                                    history.what = `${history.what}Скидка:${object.discount}→${row.getCell(12)};\n`
+                                    object.discount = row.getCell(12).value
                                     object.typeDiscount = 'сом'
                                 }
                             }
@@ -318,57 +358,58 @@ const resolversMutation = {
                                 history.what = `${history.what}Цена после скидки в сомах:${object.priceKGS}→${priceAfterDiscountKGS};\n`
                                 object.priceAfterDiscountKGS = priceAfterDiscountKGS
                             }
-                            if (row.getCell(12).value&&object.unit!==row.getCell(12).value) {
-                                history.what = `${history.what}Единица измерения:${object.unit}→${row.getCell(12).value};\n`
-                                object.unit = row.getCell(12).value
+                            if (row.getCell(13).value&&object.unit!==row.getCell(13).value) {
+                                history.what = `${history.what}Единица измерения:${object.unit}→${row.getCell(13).value};\n`
+                                object.unit = row.getCell(13).value
                             }
-                            if (row.getCell(13).value&&object.size!==row.getCell(13).value) {
-                                history.what = `${history.what}Размер:${object.size}→${row.getCell(13).value};\n`
-                                object.size = row.getCell(13).value
+                            if (row.getCell(14).value&&object.size!==row.getCell(14).value) {
+                                history.what = `${history.what}Размер:${object.size}→${row.getCell(14).value};\n`
+                                object.size = row.getCell(14).value
                             }
-                            if (row.getCell(14).value) {
-                                row.getCell(14).value = row.getCell(14).value.split(', ')
-                                for(let i=0; i<row.getCell(14).value.length; i++) {
-                                    row.getCell(14).value[i] = row.getCell(14).value[i].split(': ')
+                            if (row.getCell(15).value) {
+                                row.getCell(15).value = row.getCell(15).value.toString().split(', ')
+                                for(let i=0; i<row.getCell(15).value.length; i++) {
+                                    row.getCell(15).value[i] = row.getCell(15).value[i].split(': ')
                                 }
-                                if (object.characteristics.toString()!==row.getCell(14).value.toString()) {
-                                    history.what = `${history.what}Характеристики:${object.characteristics}→${row.getCell(14).value};\n`
-                                    object.characteristics = row.getCell(14).value
+                                if (object.characteristics.toString()!==row.getCell(15).value.toString()) {
+                                    history.what = `${history.what}Характеристики:${object.characteristics}→${row.getCell(15).value};\n`
+                                    object.characteristics = row.getCell(15).value
                                 }
                             }
-                            if (row.getCell(15).value&&object.info!==row.getCell(15).value) {
-                                history.what = `${history.what}Комментарий:${object.info}→${row.getCell(15).value};\n`
-                                object.info = row.getCell(15).value
+                            if (row.getCell(16).value&&object.info!==row.getCell(16).value) {
+                                history.what = `${history.what}Комментарий:${object.info}→${row.getCell(16).value};\n`
+                                object.info = row.getCell(16).value
                             }
                             await object.save();
                             await History.create(history)
                         }
                     }
-                    else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'item')&&row.getCell(5).value&&(await Category.findById(row.getCell(5).value).select('_id').lean())&&row.getCell(6).value&&(await Factory.findById(row.getCell(6).value).select('_id').lean())&&row.getCell(7).value&&row.getCell(8).value) {
-                        if(row.getCell(14).value) {
-                            row.getCell(14).value = row.getCell(14).value.split(', ')
-                            for(let i=0; i<row.getCell(14).value.length; i++) {
-                                row.getCell(14).value[i] = row.getCell(14).value[i].split(': ')
+                    else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'item')&&row.getCell(5).value&&row.getCell(6).value&&row.getCell(7).value&&row.getCell(9).value) {
+                        if(row.getCell(15).value) {
+                            row.getCell(15).value = row.getCell(15).value.toString().split(', ')
+                            for(let i=0; i<row.getCell(15).value.length; i++) {
+                                row.getCell(15).value[i] = row.getCell(15).value[i].split(': ')
                             }
                         }
-                        else row.getCell(14).value = []
+                        else row.getCell(15).value = []
                         object = new Item({
                             name: row.getCell(2).value,
+                            art: row.getCell(3).value?row.getCell(3).value:'',
                             ID: row.getCell(4).value?row.getCell(4).value:'',
+                            type: row.getCell(5).value,
+                            category: row.getCell(6).value,
+                            factory: row.getCell(7).value,
+                            priceUSD: checkFloat(row.getCell(8).value),
+                            priceKGS: checkFloat(row.getCell(9).value),
+                            primeCostUSD: checkFloat(row.getCell(10).value),
+                            primeCostKGS: checkFloat(row.getCell(11).value),
+                            discount: checkFloat(row.getCell(12).value),
+                            unit: row.getCell(13).value?row.getCell(13).value:'шт',
+                            size: row.getCell(14).value?row.getCell(14).value:'',
+                            characteristics: row.getCell(15).value,
+                            info: row.getCell(16).value?row.getCell(16).value:'',
                             images: [],
-                            priceUSD: checkFloat(row.getCell(7).value),
-                            primeCostUSD: checkFloat(row.getCell(9).value),
-                            priceKGS: checkFloat(row.getCell(8).value),
-                            primeCostKGS: checkFloat(row.getCell(10).value),
-                            discount: checkFloat(row.getCell(11).value),
-                            info: row.getCell(15).value?row.getCell(15).value:'',
-                            unit: row.getCell(12).value?row.getCell(12).value:'шт',
-                            size: row.getCell(13).value?row.getCell(13).value:'',
-                            characteristics: row.getCell(14).value,
-                            category: row.getCell(5).value,
-                            typeDiscount: 'сом',
-                            factory: row.getCell(6).value,
-                            art: row.getCell(3).value?row.getCell(3).value:''
+                            typeDiscount: 'сом'
                         });
                         object.priceAfterDiscountKGS = checkFloat(object.priceKGS - object.discount)
                         object = await Item.create(object)
@@ -555,6 +596,7 @@ const resolversMutation = {
 
             if (object) {
                 object.del = true
+                object.name += '(удален)'
                 for (let i = 0; i < object.images.length; i++)
                     await deleteFile(object.images[i])
                 object.images = []

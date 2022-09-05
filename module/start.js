@@ -1,34 +1,20 @@
 const { createAdmin } = require('./user');
 const { createMoneyArticle } = require('./moneyArticle');
+const { createTestBalanceCashboxDay } = require('./balanceCashboxDay');
 const { Worker, isMainThread } = require('worker_threads');
 
-let startCloseConsultation = async () => {
+let startMidnight = async () => {
     if(isMainThread) {
-        let w = new Worker('./thread/closeConsultation.js', {workerData: 0});
+        let w = new Worker('./thread/midnight.js', {workerData: 0});
         w.on('message', (msg) => {
-            console.log('CloseConsultation: '+msg);
+            console.log('Midnight: '+msg);
         })
         w.on('error', console.error);
         w.on('exit', (code) => {
             if(code !== 0)
-                console.error(new Error(`CloseConsultation stopped with exit code ${code}`))
+                console.error(new Error(`Midnight stopped with exit code ${code}`))
         });
-        console.log('CloseConsultation '+w.threadId+ ' run')
-    }
-}
-
-let startResetUnloading = async () => {
-    if(isMainThread) {
-        let w = new Worker('./thread/resetUnloading.js', {workerData: 0});
-        w.on('message', (msg) => {
-            console.log('ResetUnloading: '+msg);
-        })
-        w.on('error', console.error);
-        w.on('exit', (code) => {
-            if(code !== 0)
-                console.error(new Error(`ResetUnloading stopped with exit code ${code}`))
-        });
-        console.log('ResetUnloading '+w.threadId+ ' run')
+        console.log('Midnight '+w.threadId+ ' run')
     }
 }
 
@@ -50,9 +36,10 @@ let startWebPush = async () => {
 let start = async () => {
     await createAdmin();
     await createMoneyArticle();
-    await startResetUnloading()
+    if((process.env.URL).trim()==='http://localhost')
+        await createTestBalanceCashboxDay()
     await startWebPush()
-    await startCloseConsultation()
+    await startMidnight()
 }
 
 module.exports.start = start;

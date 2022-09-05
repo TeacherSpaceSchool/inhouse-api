@@ -7,6 +7,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type Factory {
@@ -91,6 +92,8 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'factory')) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Factory.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Factory.findById(_id)
@@ -170,6 +173,7 @@ const resolversMutation = {
             let object = await Factory.findOne({_id})
             if(object) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 let history = new History({
                     who: user._id,

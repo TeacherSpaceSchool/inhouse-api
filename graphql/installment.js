@@ -165,6 +165,7 @@ const resolvers = {
             worksheet.getColumn(28).width = 12
             worksheet.getColumn(29).width = 12
             worksheet.getColumn(30).width = 12
+            worksheet.getColumn(1).width = 5
             worksheet.getRow(1).getCell(1).font = {bold: true};
             worksheet.getRow(1).getCell(1).value = '№'
             worksheet.getRow(1).getCell(2).font = {bold: true};
@@ -330,29 +331,14 @@ const resolversMutation = {
             if(sale)
                 await Sale.updateOne({_id: sale}, {installment: object._id})
 
-            let balanceClient = await BalanceClient.findOne({client}).lean(), index
-            for(let i=0; i<balanceClient.balance.length; i++) {
-                if (balanceClient.balance[i].currency === currency) {
-                    index = i
-                    break
-                }
-            }
-            if(index===undefined)
-                balanceClient.balance = [
-                    {
-                        currency,
-                        amount: sale?-debt:-amount
-                    },
-                    ...balanceClient.balance
-                ]
-            else
-                balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount - (sale?debt:amount))
+            let balanceClient = await BalanceClient.findOne({client})
+            balanceClient.balance = checkFloat(balanceClient.balance - (sale?debt:amount))
 
             if(renew) {
                 let installments = await Installment.find({client, store, status: {$in: ['активна', 'безнадежна']}, _id: {$ne: object._id}})
                 for(let i=0; i<installments.length; i++) {
 
-                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + installments[i].debt)
+                    balanceClient.balance = checkFloat(balanceClient.balance + installments[i].debt)
 
                     installments[i].status = 'перерасчет'
                     await installments[i].save()
@@ -366,7 +352,7 @@ const resolversMutation = {
                 }
             }
 
-            await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+            await balanceClient.save()
             let history = new History({
                 who: user._id,
                 where: object._id,
@@ -410,15 +396,9 @@ const resolversMutation = {
                     object.status = status
                     if(status==='отмена') {
 
-                        let balanceClient = await BalanceClient.findOne({client: object.client}).lean(), index
-                        for(let i=0; i<balanceClient.balance.length; i++) {
-                            if (balanceClient.balance[i].currency === 'сом') {
-                                index = i
-                                break
-                            }
-                        }
-                        balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + object.debt)
-                        await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+                        let balanceClient = await BalanceClient.findOne({client: object.client})
+                        balanceClient.balance = checkFloat(balanceClient.balance + object.debt)
+                        await balanceClient.save()
 
                     }
                 }

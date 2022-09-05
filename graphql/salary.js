@@ -104,7 +104,7 @@ const resolvers = {
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(i+2).getCell(1).value = pdMonthYYYY(res[i].date)
                 worksheet.getRow(i+2).getCell(2).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(2).value = `${res[i].employment.name}\n${res[i].employment._id}\n${res[i].employment.position}`
+                worksheet.getRow(i+2).getCell(2).value = `${res[i].employment.name}\n${res[i].employment.position}`
                 worksheet.getRow(i+2).getCell(3).value = res[i].salary
                 worksheet.getRow(i+2).getCell(4).value = res[i].bid
                 worksheet.getRow(i+2).getCell(5).value = res[i].actualDays
@@ -208,16 +208,13 @@ const resolversMutation = {
             let rowNumber = 1, row, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value&&row.getCell(2).value.split('|')[1]) {
-                    row.getCell(2).value = row.getCell(2).value.split('|')[1]
-                }
-                if(row.getCell(1).value&&row.getCell(2).value&&(await User.findById(row.getCell(2).value).select('_id').lean())) {
-                    let employment = await User.findById(row.getCell(2).value).select('_id store').lean()
+                let employment = await User.findOne({name: row.getCell(2).value}).select('_id store').lean()
+                if(row.getCell(1).value&&row.getCell(1).value.length===7&&employment) {
                     let date = row.getCell(1).value.split('.')
-                    date = checkDate(`${date[0]}.01.${date[1]}`)
+                    date = new Date(`${date[0]}.01.${date[1]}`)
                     date.setHours(0, 0, 0, 0)
                     object = await Salary.findOne({
-                        employment,
+                        employment: employment._id,
                         date
                     })
 

@@ -8,6 +8,7 @@ const path = require('path');
 const randomstring = require('randomstring');
 const Store = require('../models/store');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type Warehouse {
@@ -61,8 +62,7 @@ const resolvers = {
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
                 worksheet.getRow(i+2).getCell(2).value = res[i].name
-                worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(3).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
+                worksheet.getRow(i+2).getCell(3).value = res[i].store.name
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -117,13 +117,14 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value) {
-                    if(row.getCell(3).value&&row.getCell(3).value.split('|')[1]) {
-                        row.getCell(3).value = row.getCell(3).value.split('|')[1]
-                    }
+                    if(row.getCell(3).value)
+                        row.getCell(3).value = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Warehouse.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
-                    if(_id&&await checkUniqueName(row.getCell(2).value, 'warehouse')) {
+                    if(_id) {
                         object = await Warehouse.findById(_id)
-                        if(object) {
+                        if(object&&await checkUniqueName(row.getCell(2).value, 'warehouse', object.store)) {
                             let history = new History({
                                 who: user._id,
                                 where: object._id,
@@ -134,10 +135,7 @@ const resolversMutation = {
                             await History.create(history)
                         }
                     }
-                    else if(
-                        (user.store||row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean()))
-                        &&await checkUniqueName(row.getCell(2).value, 'warehouse')
-                    ) {
+                    else if((user.store||row.getCell(3).value)&&await checkUniqueName(row.getCell(2).value, 'warehouse', user.store?user.store:row.getCell(3).value)) {
                         object = new Warehouse({
                             name: row.getCell(2).value,
                             store: user.store?user.store:row.getCell(3).value
@@ -160,7 +158,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addWarehouse: async(parent, {name, store}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'warehouse')) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'warehouse', store)) {
             let object = new Warehouse({
                 name,
                 store
@@ -182,11 +180,11 @@ const resolversMutation = {
         return {_id: 'ERROR'}
     },
     setWarehouse: async(parent, {_id, name}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'warehouse')) {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await Warehouse.findOne({
                 _id,
             })
-            if(object) {
+            if(object&&await checkUniqueName(name, 'warehouse', object.store)&&!['Брак', 'Реставрация'].includes(object.name)) {
                 let history = new History({
                     who: user._id,
                     where: object._id,
@@ -205,8 +203,9 @@ const resolversMutation = {
             if(await BalanceItem.countDocuments({warehouse: _id, amount: {$ne: 0}}).lean())
                 return 'USED'
             let object = await Warehouse.findOne({_id})
-            if(object) {
+            if(object&&!['Брак', 'Реставрация'].includes(object.name)) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 await BalanceItem.deleteMany({warehouse: _id})
                 let history = new History({

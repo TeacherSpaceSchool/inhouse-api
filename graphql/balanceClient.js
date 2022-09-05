@@ -15,7 +15,7 @@ const type = `
     _id: ID
     createdAt: Date
     client: Client
-    balance: [CurrencyBalance]
+    balance: Float
   }
 `;
 
@@ -46,10 +46,31 @@ const resolvers = {
             })
                 .distinct('_id')
                 .lean()
-            let installmentClients
-            if(!debtor||debtor!=='all') {
+            let installmentClients, orderClients, saleClients, reservationClients
+            if(debtor==='installment') {
                 installmentClients = await Installment.find({
                     status: {$in: ['активна', 'безнадежна']}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='sale') {
+                saleClients = await Sale.find({
+                    paymentConfirmation: {$ne: true}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='order') {
+                orderClients = await Order.find({
+                    paymentConfirmation: {$ne: true}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='reservation') {
+                reservationClients = await Reservation.find({
+                    paymentConfirmation: {$ne: true}
                 })
                     .distinct('client')
                     .lean()
@@ -64,17 +85,22 @@ const resolvers = {
                         $and: [
                             {client: {$in: searchClients}},
                             ...['менеджер', 'менеджер/завсклад'].includes(user.role)?[{client: {$in: managerClients}}]:[],
-                            {'balance.currency': {$exists: true}},
                             ...debtor==='all'?
-                                [{balance: {$elemMatch: {amount: {$lt: 0}}}}]
+                                [{balance: {$lt: 0}}]
                                 :
                                 debtor==='installment'?
-                                    [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$in: installmentClients}}]
+                                    [{balance: {$lt: 0}}, {client: {$in: installmentClients}}]
                                     :
-                                    debtor==='payment'?
-                                        [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$nin: installmentClients}}]
+                                    debtor==='sale'?
+                                        [{balance: {$lt: 0}}, {client: {$in: saleClients}}]
                                         :
-                                        []
+                                        debtor==='reservation'?
+                                            [{balance: {$lt: 0}}, {client: {$in: reservationClients}}]
+                                            :
+                                            debtor==='order'?
+                                                [{balance: {$lt: 0}}, {client: {$in: orderClients}}]
+                                                :
+                                                [{balance: {$ne: 0}}]
                         ]
                     }
             })
@@ -93,14 +119,8 @@ const resolvers = {
             worksheet.getRow(1).getCell(2).font = {bold: true};
             worksheet.getRow(1).getCell(2).value = 'Баланс'
             for(let i = 0; i < res.length; i++) {
-                let balance = ''
-                for(let i1 = 0; i1 < res[i].balance.length; i1++) {
-                    balance = `${balance?`${balance}\n`:''}${res[i].balance[i1].currency}: ${res[i].balance[i1].amount}`
-                }
-                worksheet.getRow(i+2).getCell(1).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(1).value = `${res[i].client.name}\n${res[i].client._id.toString()}`
-                worksheet.getRow(i+2).getCell(2).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(2).value = balance
+                worksheet.getRow(i+2).getCell(1).value = res[i].client.name
+                worksheet.getRow(i+2).getCell(2).value = res[i].balance
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -128,10 +148,31 @@ const resolvers = {
             })
                 .distinct('_id')
                 .lean()
-            let installmentClients
-            if(!debtor||debtor!=='all') {
+            let installmentClients, orderClients, saleClients, reservationClients
+            if(debtor==='installment') {
                 installmentClients = await Installment.find({
                     status: {$in: ['активна', 'безнадежна']}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='sale') {
+                saleClients = await Sale.find({
+                    paymentConfirmation: {$ne: true}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='order') {
+                orderClients = await Order.find({
+                    paymentConfirmation: {$ne: true}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='reservation') {
+                reservationClients = await Reservation.find({
+                    paymentConfirmation: {$ne: true}
                 })
                     .distinct('client')
                     .lean()
@@ -146,17 +187,22 @@ const resolvers = {
                         $and: [
                             {client: {$in: searchClients}},
                             ...['менеджер', 'менеджер/завсклад'].includes(user.role)?[{client: {$in: managerClients}}]:[],
-                            {'balance.currency': {$exists: true}},
                             ...debtor==='all'?
-                                [{balance: {$elemMatch: {amount: {$lt: 0}}}}]
+                                [{balance: {$lt: 0}}]
                                 :
-                            debtor==='installment'?
-                                [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$in: installmentClients}}]
-                                :
-                            debtor==='payment'?
-                                [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$nin: installmentClients}}]
-                                :
-                                []
+                                debtor==='installment'?
+                                    [{balance: {$lt: 0}}, {client: {$in: installmentClients}}]
+                                    :
+                                    debtor==='sale'?
+                                        [{balance: {$lt: 0}}, {client: {$in: saleClients}}]
+                                        :
+                                        debtor==='reservation'?
+                                            [{balance: {$lt: 0}}, {client: {$in: reservationClients}}]
+                                            :
+                                            debtor==='order'?
+                                                [{balance: {$lt: 0}}, {client: {$in: orderClients}}]
+                                                :
+                                                [{balance: {$ne: 0}}]
                         ]
                     }
             })
@@ -191,10 +237,31 @@ const resolvers = {
             })
                 .distinct('_id')
                 .lean()
-            let installmentClients
-            if(!debtor||debtor!=='all') {
+            let installmentClients, orderClients, saleClients, reservationClients
+            if(debtor==='installment') {
                 installmentClients = await Installment.find({
                     status: {$in: ['активна', 'безнадежна']}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='sale') {
+                saleClients = await Sale.find({
+                    paymentConfirmation: {$ne: true}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='order') {
+                orderClients = await Order.find({
+                    paymentConfirmation: {$ne: true}
+                })
+                    .distinct('client')
+                    .lean()
+            }
+            else if(debtor==='reservation') {
+                reservationClients = await Reservation.find({
+                    paymentConfirmation: {$ne: true}
                 })
                     .distinct('client')
                     .lean()
@@ -209,17 +276,22 @@ const resolvers = {
                         $and: [
                             {client: {$in: searchClients}},
                             ...['менеджер', 'менеджер/завсклад'].includes(user.role)?[{client: {$in: managerClients}}]:[],
-                            {'balance.currency': {$exists: true}},
                             ...debtor==='all'?
-                                [{balance: {$elemMatch: {amount: {$lt: 0}}}}]
+                                [{balance: {$lt: 0}}]
                                 :
                                 debtor==='installment'?
-                                    [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$in: installmentClients}}]
+                                    [{balance: {$lt: 0}}, {client: {$in: installmentClients}}]
                                     :
-                                    debtor==='payment'?
-                                        [{balance: {$elemMatch: {amount: {$lt: 0}}}}, {client: {$nin: installmentClients}}]
+                                    debtor==='sale'?
+                                        [{balance: {$lt: 0}}, {client: {$in: saleClients}}]
                                         :
-                                        []
+                                        debtor==='reservation'?
+                                            [{balance: {$lt: 0}}, {client: {$in: reservationClients}}]
+                                            :
+                                            debtor==='order'?
+                                                [{balance: {$lt: 0}}, {client: {$in: orderClients}}]
+                                                :
+                                                [{balance: {$ne: 0}}]
                         ]
                     }
             })

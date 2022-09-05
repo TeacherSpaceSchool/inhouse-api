@@ -135,10 +135,8 @@ const resolvers = {
                 const free = checkFloat(res[i].amount - used)
                 worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
                 worksheet.getRow(i+2).getCell(2).value = res[i].status
-                worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(3).value = `${res[i].item.name}\n${res[i].item._id.toString()}`
-                worksheet.getRow(i+2).getCell(4).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(4).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
+                worksheet.getRow(i+2).getCell(3).value = res[i].item.name
+                worksheet.getRow(i+2).getCell(4).value = res[i].store.name
                 worksheet.getRow(i+2).getCell(5).value = res[i].amount
                 worksheet.getRow(i+2).getCell(6).value = free
                 worksheet.getRow(i+2).getCell(7).value = res[i].dispatchDate?pdDDMMYYYY(res[i].dispatchDate):''
@@ -296,17 +294,20 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value&&(await Item.findById(row.getCell(2).value).select('_id').lean())&&row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean())) {
+                if(row.getCell(2).value)
+                    row.getCell(2).value = (await Item.findOne({name: row.getCell(2).value}).select('_id').lean())._id
+                if(row.getCell(3).value)
+                    row.getCell(3).value = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
+                console.log(1)
+                if(row.getCell(1).value||row.getCell(2).value&&row.getCell(3).value) {
                     _id = row.getCell(1).value
                     let bookings = []
                     let amountBookings = 0
                     if(row.getCell(7).value) {
-                        row.getCell(7).value = row.getCell(7).value.split(', ')
+                        row.getCell(7).value = row.getCell(7).value.toString().split(', ')
                         for (let i = 0; i < row.getCell(7).value.length; i++) {
                             row.getCell(7).value[i] = row.getCell(7).value[i].split(': ')
-                            if (row.getCell(7).value[i][0].split('|')[1])
-                                row.getCell(7).value[i][0] = row.getCell(7).value[i][0].split('|')[1]
-                            row.getCell(7).value[i][0] = await User.findById(row.getCell(7).value[i][0]).select('_id name').lean()
+                            row.getCell(7).value[i][0] = await User.findOne({name: row.getCell(7).value[i][0]}).select('_id name').lean()
                             if (!row.getCell(7).value[i][0])
                                 return 'ERROR'
                             row.getCell(7).value[i][1] = checkFloat(row.getCell(7).value[i][1])
@@ -351,7 +352,7 @@ const resolversMutation = {
                                 row.getCell(6).value.setHours(0, 0, 0, 0)
                                 object.arrivalDate = row.getCell(6).value
                             }
-                            if(amountBookings>checkFloat(object.amount))
+                            if(amountBookings>object.amount)
                                 return 'ERROR'
                             await object.save();
                             await History.create(history)
@@ -377,7 +378,7 @@ const resolversMutation = {
                             dispatchDate: row.getCell(5).value,
                             arrivalDate: row.getCell(6).value
                         });
-                        if(amountBookings>checkFloat(object.amount))
+                        if(amountBookings>object.amount)
                             return 'ERROR'
                         object = await WayItem.create(object)
                         let history = new History({

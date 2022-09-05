@@ -7,6 +7,7 @@ const BonusManager = require('./bonusManager');
 const Cashbox = require('./cashbox');
 const Characteristic = require('./characteristic');
 const Category = require('./category');
+const Promotion = require('./promotion');
 const Client = require('./client');
 const Cpa = require('./cpa');
 const Doc = require('./doc');
@@ -92,6 +93,14 @@ const typeDefs = gql`
         roles: [String]
         message: String
     }
+    type Statistic {
+        columns: [String]
+        row: [StatisticData]
+    }
+    type StatisticData {
+        _id: ID
+        data: [String]
+    }
     ${BalanceClient.type}
     ${StoreBalanceItem.type}
     ${BalanceItem.type}
@@ -113,6 +122,7 @@ const typeDefs = gql`
     ${WayItem.type}
     ${Category.type}
     ${Client.type}
+    ${Promotion.type}
     ${History.type}
     ${Error.type}
     ${Faq.type}
@@ -128,6 +138,7 @@ const typeDefs = gql`
         ${Cashbox.mutation}
         ${Category.mutation}
         ${Client.mutation}
+        ${Promotion.mutation}
         ${Error.mutation}
         ${Faq.mutation}
         ${Item.mutation}
@@ -159,6 +170,7 @@ const typeDefs = gql`
         ${Cashbox.query}
         ${Category.query}
         ${Client.query}
+        ${Promotion.query}
         ${History.query}
         ${Passport.query}
         ${Order.query}
@@ -218,6 +230,7 @@ const resolvers = {
         ...Cashbox.resolvers,
         ...Category.resolvers,
         ...Client.resolvers,
+        ...Promotion.resolvers,
         ...History.resolvers,
         ...Passport.resolvers,
         ...Order.resolvers,
@@ -250,6 +263,7 @@ const resolvers = {
         ...Cashbox.resolversMutation,
         ...Category.resolversMutation,
         ...Client.resolversMutation,
+        ...Promotion.resolversMutation,
         ...Passport.resolversMutation,
         ...Order.resolversMutation,
         ...Refund.resolversMutation,

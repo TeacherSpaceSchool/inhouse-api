@@ -9,7 +9,13 @@ const ConsultationSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StoreINHOUSE'
     },
-    end: Date
+    end: Date,
+    info: String,
+    statusClient: String,
+    client: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ClientINHOUSE'
+    }
 }, {
     timestamps: true
 });

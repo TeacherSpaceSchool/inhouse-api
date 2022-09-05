@@ -153,7 +153,7 @@ const resolversMutation = {
                     let manager = (await User.findById(row.getCell(1).value).select('_id'))._id
                     object = await BonusManager.findOne({manager})
                     let bonus = []
-                    row.getCell(2).value = row.getCell(2).value.split(', ')
+                    row.getCell(2).value = row.getCell(2).value.toString().split(', ')
                     for(let i=0; i<row.getCell(2).value.length; i++) {
                         row.getCell(2).value[i] = row.getCell(2).value[i].split(': ')
                         bonus.push([checkFloat(row.getCell(2).value[i][0]), checkFloat(row.getCell(2).value[i][1])])

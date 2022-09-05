@@ -8,6 +8,7 @@ const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type Client {
@@ -149,6 +150,8 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value) {
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Client.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Client.findById(_id)
@@ -193,14 +196,14 @@ const resolversMutation = {
                                 object.startWork.setHours(0, 0, 0, 0)
                             }
                             if (row.getCell(10).value) {
-                                row.getCell(10).value = row.getCell(10).value.split(', ')
+                                row.getCell(10).value = row.getCell(10).value.toString().split(', ')
                                 if(row.getCell(10).value.toString()!==object.phones.toString()) {
                                     history.what = `${history.what}Телефоны:${object.phones.toString()}→${row.getCell(10).value.toString()};\n`
                                     object.phones = row.getCell(10).value
                                 }
                             }
                             if (row.getCell(11).value) {
-                                row.getCell(11).value = row.getCell(11).value.split(', ')
+                                row.getCell(11).value = row.getCell(11).value.toString().split(', ')
                                 if (object.emails.toString() !== row.getCell(11).value.toString()) {
                                     history.what = `${history.what}Emails:${object.emails.toString()}→${row.getCell(11).value.toString()};\n`
                                     object.emails = row.getCell(11).value
@@ -218,8 +221,8 @@ const resolversMutation = {
                         row.getCell(9).value = row.getCell(9).value.split('.')
                         row.getCell(9).value = new Date(`${row.getCell(9).value[1]}.${row.getCell(9).value[0]}.${row.getCell(9).value[2]}`)
                         row.getCell(9).value.setHours(0, 0, 0, 0)
-                        row.getCell(10).value = row.getCell(10).value?row.getCell(10).value.split(', '):[]
-                        row.getCell(11).value = row.getCell(11).value?row.getCell(11).value.split(', '):[]
+                        row.getCell(10).value = row.getCell(10).value?row.getCell(10).value.toString().split(', '):[]
+                        row.getCell(11).value = row.getCell(11).value?row.getCell(11).value.toString().split(', '):[]
                         object = new Client({
                             name: row.getCell(3).value,
                             emails: row.getCell(11).value,
@@ -236,7 +239,7 @@ const resolversMutation = {
                         object = await Client.create(object)
                         let balanceClient = new BalanceClient({
                             client: object._id,
-                            balance: []
+                            balance: 0
                         });
                         await BalanceClient.create(balanceClient)
                         let history = new History({
@@ -274,7 +277,7 @@ const resolversMutation = {
             object = await Client.create(object)
             let balanceClient = new BalanceClient({
                 client: object._id,
-                balance: []
+                balance: 0
             });
             await BalanceClient.create(balanceClient)
             let history = new History({
@@ -357,11 +360,12 @@ const resolversMutation = {
         if(['admin'].includes(user.role)) {
             if(await Installment.countDocuments({client: _id, status: {$in: ['активна', 'безнадежна']}}).lean())
                 return 'USED'
-            if(await BalanceClient.countDocuments({client: _id, balance: {$elemMatch: {amount: {$gte: 0}}}}).lean())
+            if(await BalanceClient.countDocuments({client: _id, balance: {$ne: 0}}).lean())
                 return 'USED'
             let object = await Client.findOne({_id})
             if(object) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 let history = new History({
                     who: user._id,

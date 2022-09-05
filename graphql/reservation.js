@@ -71,7 +71,7 @@ const resolvers = {
                     :
                     {
                         ...search?{number: search}:{},
-                        ...manager?{manager}:{},
+                        ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
                         ...store?{store}:{},
                         ...late?
@@ -114,10 +114,6 @@ const resolvers = {
             worksheet.getColumn(1).width = 20
             let row = 1
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = '_id'
-                worksheet.getRow(row).getCell(2).value = res[i]._id.toString()
-                row +=1
                 worksheet.getRow(row).getCell(1).font = {bold: true};
                 worksheet.getRow(row).getCell(1).value = 'Бронь №'
                 worksheet.getRow(row).getCell(2).value = res[i].number
@@ -173,16 +169,14 @@ const resolvers = {
                     worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
                     worksheet.getRow(row).getCell(1).value = res[i].itemsReservation[i1].name
                     worksheet.getRow(row).getCell(2).value = `${res[i].itemsReservation[i1].price} сом * ${res[i].itemsReservation[i1].count} ${res[i].itemsReservation[i1].unit} = ${res[i].itemsReservation[i1].amount} сом`
-                    row +=1
                     if(res[i].itemsReservation[i1].characteristics.length) {
                         let characteristics = ''
                         for(let i2=0; i2<res[i].itemsReservation[i1].characteristics.length; i2++) {
-                            characteristics = `${characteristics?`${characteristics}\n`:''}${res[i].itemsReservation[i1].characteristics[i2][0]}: ${res[i].itemsReservation[i1].characteristics[i2][1]}`
+                            characteristics = `${characteristics?`${characteristics}`:''}${res[i].itemsReservation[i1].characteristics[i2][0]}: ${res[i].itemsReservation[i1].characteristics[i2][1]}`
                         }
-                        worksheet.getRow(row).getCell(2).alignment = {wrapText: true}
-                        worksheet.getRow(row).getCell(2).value = characteristics
-                        row +=1
+                        worksheet.getRow(row).getCell(3).value = characteristics
                     }
+                    row +=1
                 }
                 row +=1
             }
@@ -214,7 +208,7 @@ const resolvers = {
             }
             let res = await Reservation.find({
                 ...search?{number: search}:{},
-                ...manager?{manager}:{},
+                ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
                 ...late?
@@ -282,7 +276,7 @@ const resolvers = {
             }
             return await Reservation.countDocuments({
                 ...search?{number: search}:{},
-                ...manager?{manager}:{},
+                ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
                 ...late?
@@ -366,24 +360,9 @@ const resolversMutation = {
             await History.create(history)
 
             if(paid) {
-                let balanceClient = await BalanceClient.findOne({client}).lean(), index
-                for(let i=0; i<balanceClient.balance.length; i++) {
-                    if (balanceClient.balance[i].currency === currency) {
-                        index = i
-                        break
-                    }
-                }
-                if(index===undefined)
-                    balanceClient.balance = [
-                        {
-                            currency,
-                            amount: -paid
-                        },
-                        ...balanceClient.balance
-                    ]
-                else
-                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount - paid)
-                await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+                let balanceClient = await BalanceClient.findOne({client})
+                balanceClient.balance = checkFloat(balanceClient.balance - paid)
+                await balanceClient.save()
             }
             return object._id
         }
@@ -437,15 +416,9 @@ const resolversMutation = {
                 if (paid!=undefined) {
                     history.what = `${history.what}Оплачено:${object.paid}→${paid};\n`
 
-                    let balanceClient = await BalanceClient.findOne({client: object.client}).lean(), index
-                    for(let i=0; i<balanceClient.balance.length; i++) {
-                        if (balanceClient.balance[i].currency === object.currency) {
-                            index = i
-                            break
-                        }
-                    }
-                    balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + object.paid - paid)
-                    await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+                    let balanceClient = await BalanceClient.findOne({client: object.client})
+                    balanceClient.balance = checkFloat(balanceClient.balance + object.paid - paid)
+                    await balanceClient.save()
 
                     object.paid = paid
                 }
@@ -468,15 +441,9 @@ const resolversMutation = {
                     object.status = status
                     await ItemReservation.updateMany({_id: {$in: object.itemsReservation}}, {status})
                     if(status==='отмена') {
-                        let balanceClient = await BalanceClient.findOne({client: object.client}).lean(), index
-                        for(let i=0; i<balanceClient.balance.length; i++) {
-                            if (balanceClient.balance[i].currency === object.currency) {
-                                index = i
-                                break
-                            }
-                        }
-                        balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + object.paid)
-                        await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+                        let balanceClient = await BalanceClient.findOne({client: object.client})
+                        balanceClient.balance = checkFloat(balanceClient.balance + object.paid)
+                        await balanceClient.save()
 
                         itemsReservation = await ItemReservation.find({_id: {$in: object.itemsReservation}}).lean()
                         for(let i=0; i<itemsReservation.length; i++) {

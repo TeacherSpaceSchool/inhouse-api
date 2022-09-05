@@ -2,6 +2,7 @@ const BalanceItem = require('../models/balanceItem');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const Item = require('../models/item');
 const Warehouse = require('../models/warehouse');
+const Store = require('../models/store');
 const History = require('../models/history');
 const { saveFile, deleteFile, urlMain, checkFloat } = require('../module/const');
 const ExcelJS = require('exceljs');
@@ -70,12 +71,9 @@ const resolvers = {
             worksheet.getRow(1).getCell(4).font = {bold: true};
             worksheet.getRow(1).getCell(4).value = 'Остаток'
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(i+2).getCell(1).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(1).value = `${res[i].item.name}\n${res[i].item._id.toString()}`
-                worksheet.getRow(i+2).getCell(2).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(2).value = `${res[i].warehouse.name}\n${res[i].warehouse._id.toString()}`
-                worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(3).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
+                worksheet.getRow(i+2).getCell(1).value = res[i].item.name
+                worksheet.getRow(i+2).getCell(2).value = res[i].warehouse.name
+                worksheet.getRow(i+2).getCell(3).value = res[i].store.name
                 worksheet.getRow(i+2).getCell(4).value = res[i].amount
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
@@ -149,19 +147,21 @@ const resolversMutation = {
             let workbook = new ExcelJS.Workbook();
             workbook = await workbook.xlsx.readFile(xlsxpath);
             let worksheet = workbook.worksheets[0];
-            let rowNumber = 1, row, object, item, warehouse, amount
+            let rowNumber = 1, row, object, item, warehouse, amount, store, nameWarehouse
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(1).value&&(await Item.findById(row.getCell(1).value).select('_id').lean())&&row.getCell(2).value&&(await Warehouse.findById(row.getCell(2).value).select('_id').lean())) {
-                    item = row.getCell(1).value
-                    warehouse = row.getCell(2).value
-                    amount = checkFloat(row.getCell(3).value)
+                if(row.getCell(1).value&&row.getCell(2).value&&row.getCell(3).value) {
+                    item = (await Item.findOne({name: row.getCell(1).value}).select('_id').lean())._id
+                    store = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
+                    warehouse = await Warehouse.findOne({name: row.getCell(2).value, store}).select('_id name').lean()
+                    nameWarehouse = warehouse.name
+                    warehouse = warehouse._id
+                    amount = checkFloat(row.getCell(4).value)
                     object = await BalanceItem.findOne({item, warehouse});
-                    let store = (await Warehouse.findOne({_id: warehouse}).select('store').lean()).store
                     let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
                     let check = true
-                    if(!storeBalanceItem) {
-                        if(type!=='-') {
+                    if(!['Брак', 'Реставрация'].includes(nameWarehouse)) {
+                        if (!storeBalanceItem) {
                             storeBalanceItem = new StoreBalanceItem({
                                 store,
                                 item,
@@ -172,53 +172,34 @@ const resolversMutation = {
                             });
                             await StoreBalanceItem.create(storeBalanceItem)
                         }
-                        else
-                            return 'ERROR'
-                    }
-                    else {
-                        if(type==='+') {
-                            storeBalanceItem.amount = checkFloat(storeBalanceItem.amount + amount)
-                            storeBalanceItem.free = checkFloat(storeBalanceItem.free + amount)
-                        }
-                        else if(type==='-') {
-                            if(object&&storeBalanceItem.free>=amount&&storeBalanceItem.amount>=amount) {
-                                storeBalanceItem.amount = checkFloat(storeBalanceItem.amount - amount)
-                                storeBalanceItem.free = checkFloat(storeBalanceItem.free - amount)
-                            }
-                            else
-                                check = false
-                        }
                         else {
                             storeBalanceItem.amount = checkFloat(storeBalanceItem.amount - object.amount + amount)
                             if (storeBalanceItem.amount < 0)
                                 storeBalanceItem.amount = 0
-                            if(storeBalanceItem.amount<(storeBalanceItem.reservation+storeBalanceItem.sale))
+                            if (storeBalanceItem.amount < (storeBalanceItem.reservation + storeBalanceItem.sale))
                                 check = false
                             else
-                                storeBalanceItem.free = checkFloat(storeBalanceItem.amount - (storeBalanceItem.reservation+storeBalanceItem.sale))
+                                storeBalanceItem.free = checkFloat(storeBalanceItem.amount - (storeBalanceItem.reservation + storeBalanceItem.sale))
+                            if (check)
+                                await storeBalanceItem.save()
+                            else
+                                return 'ERROR'
                         }
-                        if(check)
-                            await storeBalanceItem.save()
-                        else
-                            return 'ERROR'
                     }
-
                     if(!object){
-                        if(type!=='-') {
-                            object = new BalanceItem({
-                                warehouse,
-                                item,
-                                amount,
-                                store
-                            });
-                            object = await BalanceItem.create(object)
-                            let history = new History({
-                                who: user._id,
-                                where: object._id,
-                                what: 'Создание'
-                            });
-                            await History.create(history)
-                        }
+                        object = new BalanceItem({
+                            warehouse,
+                            item,
+                            amount,
+                            store
+                        });
+                        object = await BalanceItem.create(object)
+                        let history = new History({
+                            who: user._id,
+                            where: object._id,
+                            what: 'Создание'
+                        });
+                        await History.create(history)
                     }
                     else {
                         let history = new History({
@@ -226,21 +207,11 @@ const resolversMutation = {
                             where: object._id,
                             what: `Остаток:${object.amount}→`
                         });
-                        if(type==='+')
-                            object.amount = checkFloat(object.amount + amount)
-                        else if(type==='-') {
-                            object.amount = checkFloat(object.amount - amount)
-                            if(object.amount<0)
-                                object.amount = 0
-                        }
-                        else
-                            object.amount = amount
+                        object.amount = amount
                         history.what += `${object.amount};`
                         await object.save();
                         await History.create(history)
                     }
-
-
                     rowNumber++
                 }
                 else break
@@ -253,6 +224,7 @@ const resolversMutation = {
     addBalanceItem: async (parent, {item, warehouse, amount}, {user}) => {
         if (['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)&&!(await BalanceItem.countDocuments({warehouse, item}).lean())) {
             let store = (await Warehouse.findById(warehouse).select('store').lean()).store
+            let nameWarehouse = (await Warehouse.findById(warehouse).select('name').lean()).name
             let object = new BalanceItem({
                 warehouse,
                 item,
@@ -260,22 +232,24 @@ const resolversMutation = {
                 store
             });
             object = await BalanceItem.create(object)
-            let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
-            if(!storeBalanceItem) {
-                storeBalanceItem = new StoreBalanceItem({
-                    store,
-                    item,
-                    amount,
-                    reservation: 0,
-                    sale: 0,
-                    free: amount
-                });
-                await StoreBalanceItem.create(storeBalanceItem)
-            }
-            else {
-                storeBalanceItem.amount += amount
-                storeBalanceItem.free += amount
-                await storeBalanceItem.save()
+            if(!['Брак', 'Реставрация'].includes(nameWarehouse)) {
+                let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
+                if (!storeBalanceItem) {
+                    storeBalanceItem = new StoreBalanceItem({
+                        store,
+                        item,
+                        amount,
+                        reservation: 0,
+                        sale: 0,
+                        free: amount
+                    });
+                    await StoreBalanceItem.create(storeBalanceItem)
+                }
+                else {
+                    storeBalanceItem.amount += amount
+                    storeBalanceItem.free += amount
+                    await storeBalanceItem.save()
+                }
             }
             let history = new History({
                 who: user._id,
@@ -303,50 +277,53 @@ const resolversMutation = {
     setBalanceItem: async (parent, {item, warehouse, amount, type, warehouse2}, {user}) => {
         if (['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await BalanceItem.findOne({item, warehouse});
+            let nameWarehouse = (await Warehouse.findById(warehouse).select('name').lean()).name
             let store = (await Warehouse.findOne({_id: warehouse}).select('store').lean()).store
             let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
             let check = true
-            if(!storeBalanceItem) {
-                if(type!=='-') {
-                    storeBalanceItem = new StoreBalanceItem({
-                        store,
-                        item,
-                        amount,
-                        reservation: 0,
-                        sale: 0,
-                        free: amount
-                    });
-                    await StoreBalanceItem.create(storeBalanceItem)
-                }
-                else
-                    return 'ERROR'
-            }
-            else {
-                if(type==='+') {
-                    storeBalanceItem.amount = checkFloat(storeBalanceItem.amount + amount)
-                    storeBalanceItem.free = checkFloat(storeBalanceItem.free + amount)
-                }
-                else if(type==='-') {
-                    if(object&&storeBalanceItem.free>=amount&&storeBalanceItem.amount>=amount) {
-                        storeBalanceItem.amount = checkFloat(storeBalanceItem.amount - amount)
-                        storeBalanceItem.free = checkFloat(storeBalanceItem.free - amount)
+            if(!['Брак', 'Реставрация'].includes(nameWarehouse)) {
+                if (!storeBalanceItem) {
+                    if (type !== '-') {
+                        storeBalanceItem = new StoreBalanceItem({
+                            store,
+                            item,
+                            amount,
+                            reservation: 0,
+                            sale: 0,
+                            free: amount
+                        });
+                        await StoreBalanceItem.create(storeBalanceItem)
                     }
                     else
-                        check = false
+                        return 'ERROR'
                 }
                 else {
-                    storeBalanceItem.amount = checkFloat(storeBalanceItem.amount - object.amount + amount)
-                    if (storeBalanceItem.amount < 0)
-                        storeBalanceItem.amount = 0
-                    if(storeBalanceItem.amount<(storeBalanceItem.reservation+storeBalanceItem.sale))
-                        check = false
+                    if (type === '+') {
+                        storeBalanceItem.amount = checkFloat(storeBalanceItem.amount + amount)
+                        storeBalanceItem.free = checkFloat(storeBalanceItem.free + amount)
+                    }
+                    else if (type === '-') {
+                        if (object && storeBalanceItem.free >= amount && storeBalanceItem.amount >= amount) {
+                            storeBalanceItem.amount = checkFloat(storeBalanceItem.amount - amount)
+                            storeBalanceItem.free = checkFloat(storeBalanceItem.free - amount)
+                        }
+                        else
+                            check = false
+                    }
+                    else {
+                        storeBalanceItem.amount = checkFloat(storeBalanceItem.amount - object.amount + amount)
+                        if (storeBalanceItem.amount < 0)
+                            storeBalanceItem.amount = 0
+                        if (storeBalanceItem.amount < (storeBalanceItem.reservation + storeBalanceItem.sale))
+                            check = false
+                        else
+                            storeBalanceItem.free = checkFloat(storeBalanceItem.amount - (storeBalanceItem.reservation + storeBalanceItem.sale))
+                    }
+                    if (check)
+                        await storeBalanceItem.save()
                     else
-                        storeBalanceItem.free = checkFloat(storeBalanceItem.amount - (storeBalanceItem.reservation+storeBalanceItem.sale))
+                        return 'ERROR'
                 }
-                if(check)
-                    await storeBalanceItem.save()
-                else
-                    return 'ERROR'
             }
 
             if(!object){

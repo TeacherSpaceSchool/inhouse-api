@@ -5,7 +5,7 @@ const History = require('../models/history');
 const ItemRefund = require('../models/itemRefund');
 const BalanceClient = require('../models/balanceClient');
 const Salary = require('../models/salary');
-const {checkFloat, pdDDMMYYYY, urlMain, pdDDMMYYHHMM } = require('../module/const');
+const {checkFloat, urlMain, pdDDMMYYHHMM } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -62,7 +62,7 @@ const resolvers = {
                     :
                     {
                         ...search?{number: search}:{},
-                        ...manager?{manager}:{},
+                        ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
                         ...store?{store}:{},
                         ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
@@ -93,10 +93,6 @@ const resolvers = {
             worksheet.getColumn(1).width = 20
             let row = 1
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = '_id'
-                worksheet.getRow(row).getCell(2).value = res[i]._id.toString()
-                row +=1
                 worksheet.getRow(row).getCell(1).font = {bold: true};
                 worksheet.getRow(row).getCell(1).value = 'Возврат №'
                 worksheet.getRow(row).getCell(2).value = res[i].number
@@ -150,16 +146,14 @@ const resolvers = {
                     worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
                     worksheet.getRow(row).getCell(1).value = res[i].itemsRefund[i1].name
                     worksheet.getRow(row).getCell(2).value = `${res[i].itemsRefund[i1].price} сом * ${res[i].itemsRefund[i1].count} ${res[i].itemsRefund[i1].unit} = ${res[i].itemsRefund[i1].amount} сом`
-                    row +=1
                     if(res[i].itemsRefund[i1].characteristics.length) {
                         let characteristics = ''
                         for(let i2=0; i2<res[i].itemsRefund[i1].characteristics.length; i2++) {
-                            characteristics = `${characteristics?`${characteristics}\n`:''}${res[i].itemsRefund[i1].characteristics[i2][0]}: ${res[i].itemsRefund[i1].characteristics[i2][1]}`
+                            characteristics = `${characteristics?`${characteristics}`:''}${res[i].itemsRefund[i1].characteristics[i2][0]}: ${res[i].itemsRefund[i1].characteristics[i2][1]}`
                         }
-                        worksheet.getRow(row).getCell(2).alignment = {wrapText: true}
-                        worksheet.getRow(row).getCell(2).value = characteristics
-                        row +=1
+                        worksheet.getRow(row).getCell(3).value = characteristics
                     }
+                    row +=1
                 }
                 row +=1
             }
@@ -182,7 +176,7 @@ const resolvers = {
             }
             let res = await Refund.find({
                 ...search?{number: search}:{},
-                ...manager?{manager}:{},
+                ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
@@ -224,7 +218,7 @@ const resolvers = {
             }
             return await Refund.countDocuments({
                 ...search?{number: search}:{},
-                ...manager?{manager}:{},
+                ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
                 ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
@@ -292,15 +286,10 @@ const resolversMutation = {
             });
             await History.create(history)
 
-            let balanceClient = await BalanceClient.findOne({client}).lean(), index
-            for(let i=0; i<balanceClient.balance.length; i++) {
-                if (balanceClient.balance[i].currency === currency) {
-                    index = i
-                    break
-                }
-            }
-            balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount + amount)
-            await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+            let balanceClient = await BalanceClient.findOne({client})
+            balanceClient.balance = checkFloat(balanceClient.balance + amount)
+            await balanceClient.save()
+
             if(sale.installment) {
                 let installment = await Installment.findOne({_id: sale.installment, status: {$nin: ['перерасчет', 'отмена']}}).lean()
                 if(installment) {
@@ -439,15 +428,9 @@ const resolversMutation = {
                         refunds.splice(index, 1)
                         await Sale.updateOne({_id: sale._id}, {refunds, status: 'доставлен'})
 
-                        let balanceClient = await BalanceClient.findOne({client: object.client}).lean()
-                        for(let i=0; i<balanceClient.balance.length; i++) {
-                            if (balanceClient.balance[i].currency === object.currency) {
-                                index = i
-                                break
-                            }
-                        }
-                        balanceClient.balance[index].amount = checkFloat(balanceClient.balance[index].amount - object.amount)
-                        await BalanceClient.updateOne({_id: balanceClient._id}, {balance: balanceClient.balance})
+                        let balanceClient = await BalanceClient.findOne({client: object.client})
+                        balanceClient.balance = checkFloat(balanceClient.balance - object.amount)
+                        await balanceClient.save()
 
                         if(sale.installment) {
                             let installment = await Installment.findOne({_id: sale.installment, status: {$nin: ['перерасчет', 'отмена']}}).lean()

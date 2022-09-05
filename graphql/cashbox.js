@@ -7,6 +7,7 @@ const path = require('path');
 const randomstring = require('randomstring');
 const Store = require('../models/store');
 const { checkUniqueName } = require('../module/const');
+const mongoose = require('mongoose');
 
 const type = `
   type Cashbox {
@@ -67,8 +68,7 @@ const resolvers = {
                 worksheet.getRow(i+2).getCell(2).value = res[i].name
                 worksheet.getRow(i+2).getCell(3).alignment = {wrapText: true}
                 worksheet.getRow(i+2).getCell(3).value = balance
-                worksheet.getRow(i+2).getCell(4).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(4).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
+                worksheet.getRow(i+2).getCell(4).value = res[i].store.name
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -123,9 +123,10 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value) {
-                    if(row.getCell(3).value&&row.getCell(3).value.split('|')[1]) {
-                        row.getCell(3).value = row.getCell(3).value.split('|')[1]
-                    }
+                    if(row.getCell(3).value)
+                        row.getCell(3).value = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
+                    if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
+                        row.getCell(1).value = (await Cashbox.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
                         object = await Cashbox.findById(_id)
@@ -135,21 +136,21 @@ const resolversMutation = {
                                 where: object._id,
                                 what: ''
                             });
-                            if (row.getCell(2).value&&object.name!==row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cashbox')) {
-                                history.what = `Название:${object.name}→${row.getCell(2).value};\n`
-                                object.name = row.getCell(2).value
-                            }
-                            if (row.getCell(3).value&&object.store.toString()!==row.getCell(3).value.toString()) {
+                            if (!user.store&&row.getCell(3).value&&object.store.toString()!==row.getCell(3).value.toString()) {
                                 history.what = `${history.what}Магазин:${object.store}→${row.getCell(3).value};`
                                 object.store = row.getCell(3).value
+                            }
+                            if (row.getCell(2).value&&object.name!==row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'cashbox', object.store)) {
+                                history.what = `Название:${object.name}→${row.getCell(2).value};\n`
+                                object.name = row.getCell(2).value
                             }
                             await object.save();
                             await History.create(history)
                         }
                     }
                     else if(
-                        (user.store||row.getCell(3).value&&(await Store.findById(row.getCell(3).value).select('_id').lean()))
-                        &&await checkUniqueName(row.getCell(2).value, 'cashbox')
+                        (user.store||row.getCell(3).value)
+                        &&await checkUniqueName(row.getCell(2).value, 'cashbox', user.store?user.store:row.getCell(3).value)
                     ){
                         object = new Cashbox({
                             name: row.getCell(2).value,
@@ -174,7 +175,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     addCashbox: async(parent, {name, store}, {user}) => {
-        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'cashbox')) {
+        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'cashbox', store)) {
             let object = new Cashbox({
                 name,
                 store,
@@ -205,7 +206,7 @@ const resolversMutation = {
                     where: object._id,
                     what: ''
                 });
-                if (name&&object.name!==name&&await checkUniqueName(name, 'cashbox')) {
+                if (name&&object.name!==name&&await checkUniqueName(name, 'cashbox', object.store)) {
                     history.what = `Название:${object.name}→${name};\n`
                     object.name = name
                 }
@@ -225,6 +226,7 @@ const resolversMutation = {
             let object = await Cashbox.findOne({_id})
             if(object) {
                 object.del = true
+                object.name += '(удален)'
                 await object.save()
                 let history = new History({
                     who: user._id,

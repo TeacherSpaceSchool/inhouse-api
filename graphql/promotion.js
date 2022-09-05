@@ -1,39 +1,41 @@
-const TypeCharacteristic = require('../models/typeCharacteristic');
-const History = require('../models/history');
+const Promotion = require('../models/promotion');
 const { saveFile, deleteFile, urlMain } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
 const { checkUniqueName } = require('../module/const');
+const History = require('../models/history');
 const mongoose = require('mongoose');
 
 const type = `
-  type TypeCharacteristic {
-      _id: ID
-      createdAt: Date
-      name: String
+  type Promotion {
+    _id: ID
+    createdAt: Date
+    name: String
+    store: Store
   }
 `;
 
 const query = `
-    unloadTypeCharacteristics(search: String): String
-    typeCharacteristics(skip: Int, search: String): [TypeCharacteristic]
-    typeCharacteristicsCount(search: String): Int
+    unloadPromotions(search: String): String
+    promotions(search: String, skip: Int, limit: Int): [Promotion]
+    promotionsCount(search: String): Int
 `;
 
 const mutation = `
-    uploadTypeCharacteristic(document: Upload!): String
-    addTypeCharacteristic(name: String!): TypeCharacteristic
-    setTypeCharacteristic(_id: ID!, name: String!): String
-    deleteTypeCharacteristic(_id: ID!): String
+    uploadPromotion(document: Upload!): String
+    addPromotion(name: String!): Promotion
+    setPromotion(_id: ID!, name: String): String
+    deletePromotion(_id: ID!): String
 `;
 
 const resolvers = {
-    unloadTypeCharacteristics: async(parent, {search}, {user}) => {
-        if(user.role) {
-            let res = await TypeCharacteristic.find({
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+    unloadPromotions: async(parent, {search}, {user}) => {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
+            let res =  await Promotion.find({
+                del: {$ne: true},
+                ...search?{name: {'$regex': search, '$options': 'i'}}:{}
             })
                 .sort('name')
                 .lean()
@@ -41,8 +43,8 @@ const resolvers = {
             const worksheet = workbook.addWorksheet('Выгрузка');
             worksheet.getRow(1).getCell(1).font = {bold: true};
             worksheet.getRow(1).getCell(1).value = '_id'
-            worksheet.getRow(1).getCell(2).font = {bold: true};
-            worksheet.getRow(1).getCell(2).value = 'Название'
+            worksheet.getRow(1).getCell(3).font = {bold: true};
+            worksheet.getRow(1).getCell(3).value = 'Название'
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
                 worksheet.getRow(i+2).getCell(2).value = res[i].name
@@ -53,31 +55,35 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    typeCharacteristics: async(parent, {skip, search}, {user}) => {
-        if(user.role) {
-            return await TypeCharacteristic.find({
+    promotions: async(parent, {search, skip, limit}, {user}) => {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
+            let res = await Promotion.find({
                 del: {$ne: true},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{}
             })
                 .skip(skip != undefined ? skip : 0)
-                .limit(skip != undefined ? 30 : 10000000000)
+                .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
                 .sort('name')
+                .select('_id created name geo inn level address')
                 .lean()
+            return res
         }
     },
-    typeCharacteristicsCount: async(parent, {search}, {user}) => {
-        if(user.role) {
-            return await TypeCharacteristic.countDocuments({
+    promotionsCount: async(parent, {search}, {user}) => {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
+            return await Promotion.countDocuments({
+                del: {$ne: true},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{}
             })
                 .lean()
         }
-    }
+        return 0
+    },
 };
 
 const resolversMutation = {
-    uploadTypeCharacteristic: async(parent, { document }, {user}) => {
-        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
+    uploadPromotion: async(parent, { document }, {user}) => {
+        if(['admin'].includes(user.role)) {
             let {createReadStream, filename} = await document;
             let stream = createReadStream()
             filename = await saveFile(stream, filename);
@@ -88,28 +94,31 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'typeCharacteristic')) {
+                if(row.getCell(2).value) {
                     if(row.getCell(1).value&&!mongoose.Types.ObjectId.isValid(row.getCell(1).value))
-                        row.getCell(1).value = (await TypeCharacteristic.findOne({name: row.getCell(1).value}).select('_id').lean())._id
+                        row.getCell(1).value = (await Promotion.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     _id = row.getCell(1).value
                     if(_id) {
-                        object = await TypeCharacteristic.findById(_id)
+                        object = await Promotion.findById(_id)
                         if(object) {
                             let history = new History({
                                 who: user._id,
                                 where: object._id,
-                                what: `Название:${object.name}→${row.getCell(2).value};`
+                                what: ''
                             });
-                            object.name = row.getCell(2).value
+                            if (row.getCell(2).value&&object.name!==row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'promotion')) {
+                                history.what = `${history.what}Название:${object.name}→${row.getCell(2).value};\n`
+                                object.name = row.getCell(2).value
+                            }
                             await object.save();
                             await History.create(history)
                         }
                     }
-                    else {
-                        object = new TypeCharacteristic({
-                            name: row.getCell(2).value
+                    else if(row.getCell(2).value&&await checkUniqueName(row.getCell(2).value, 'promotion')){
+                        object = new Promotion({
+                            name: row.getCell(2).value,
                         });
-                        object = await TypeCharacteristic.create(object)
+                        object = await Promotion.create(object)
                         let history = new History({
                             who: user._id,
                             where: object._id,
@@ -126,12 +135,12 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    addTypeCharacteristic: async(parent, {name}, {user}) => {
-        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'typeCharacteristic')) {
-            let object = new TypeCharacteristic({
+    addPromotion: async(parent, {name}, {user}) => {
+        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'promotion')) {
+            let object = new Promotion({
                 name
             });
-            object = await TypeCharacteristic.create(object)
+            object = await Promotion.create(object)
             let history = new History({
                 who: user._id,
                 where: object._id,
@@ -142,16 +151,21 @@ const resolversMutation = {
         }
         return {_id: 'ERROR'}
     },
-    setTypeCharacteristic: async(parent, {_id, name}, {user}) => {
-        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)&&await checkUniqueName(name, 'typeCharacteristic')) {
-            let object = await TypeCharacteristic.findById(_id)
+    setPromotion: async(parent, {_id, name}, {user}) => {
+        if(['admin'].includes(user.role)&&await checkUniqueName(name, 'promotion')) {
+            let object = await Promotion.findOne({
+                _id,
+            })
             if(object) {
                 let history = new History({
                     who: user._id,
                     where: object._id,
-                    what: `Название:${object.name}→${name};`
+                    what: ''
                 });
-                object.name = name
+                if (name) {
+                    history.what = `Название:${object.name}→${name};\n`
+                    object.name = name
+                }
                 await object.save();
                 await History.create(history)
                 return 'OK'
@@ -159,12 +173,19 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    deleteTypeCharacteristic: async(parent, { _id }, {user}) => {
-        if(['admin',  'завсклад',  'менеджер/завсклад'].includes(user.role)) {
-            let object = await TypeCharacteristic.findOne({_id})
+    deletePromotion: async(parent, { _id }, {user}) => {
+        if(['admin'].includes(user.role)) {
+            let object = await Promotion.findOne({_id})
             if(object) {
-                await TypeCharacteristic.deleteOne({_id})
-                await History.deleteMany({where: _id})
+                object.del = true
+                object.name += '(удален)'
+                await object.save()
+                let history = new History({
+                    who: user._id,
+                    where: _id,
+                    what: 'Удаление'
+                });
+                await History.create(history)
                 return 'OK'
             }
         }
