@@ -8,6 +8,7 @@ const randomstring = require('randomstring');
 const Store = require('../models/store');
 const { checkUniqueName } = require('../module/const');
 const mongoose = require('mongoose');
+const BalanceCashboxDay = require('../models/balanceCashboxDay');
 
 const type = `
   type Cashbox {
@@ -120,6 +121,8 @@ const resolversMutation = {
             workbook = await workbook.xlsx.readFile(xlsxpath);
             let worksheet = workbook.worksheets[0];
             let rowNumber = 1, row, _id, object
+            let today = new Date()
+            today.setHours(0, 0, 0, 0)
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(2).value) {
@@ -158,6 +161,14 @@ const resolversMutation = {
                             balance: []
                         });
                         object = await Cashbox.create(object)
+                        let balanceCashboxDay = new BalanceCashboxDay({
+                            cashbox: object._id,
+                            startBalance: object.balance,
+                            endBalance: object.balance,
+                            store: object.store,
+                            date: today
+                        });
+                        await BalanceCashboxDay.create(balanceCashboxDay);
                         let history = new History({
                             who: user._id,
                             where: object._id,
@@ -182,6 +193,16 @@ const resolversMutation = {
                 balance: []
             });
             object = await Cashbox.create(object)
+            let today = new Date()
+            today.setHours(0, 0, 0, 0)
+            let balanceCashboxDay = new BalanceCashboxDay({
+                cashbox: object._id,
+                startBalance: object.balance,
+                endBalance: object.balance,
+                store,
+                date: today
+            });
+            await BalanceCashboxDay.create(balanceCashboxDay);
             let history = new History({
                 who: user._id,
                 where: object._id,

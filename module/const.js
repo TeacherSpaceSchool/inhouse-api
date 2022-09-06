@@ -8,6 +8,8 @@ const limit = 15;
 const adminLogin = '000000000';
 const adminPass = 'cE59eDeaA82d';
 
+module.exports.cloneObject = object => object?JSON.parse(JSON.stringify(object)):null
+
 module.exports.checkUniqueName = async (name, db, store) => {
     return !await (require(`../models/${db}`)).countDocuments({name, ...store?{store}:{}}).lean()
 }

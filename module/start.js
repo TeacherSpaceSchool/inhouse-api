@@ -1,7 +1,8 @@
 const { createAdmin } = require('./user');
 const { createMoneyArticle } = require('./moneyArticle');
-const { createTestBalanceCashboxDay } = require('./balanceCashboxDay');
 const { Worker, isMainThread } = require('worker_threads');
+const BalanceCashboxDay = require('../models/balanceCashboxDay');
+
 
 let startMidnight = async () => {
     if(isMainThread) {
@@ -36,8 +37,7 @@ let startWebPush = async () => {
 let start = async () => {
     await createAdmin();
     await createMoneyArticle();
-    if((process.env.URL).trim()==='http://localhost')
-        await createTestBalanceCashboxDay()
+    await BalanceCashboxDay.deleteMany()
     await startWebPush()
     await startMidnight()
 }

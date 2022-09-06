@@ -1,6 +1,6 @@
 const BalanceCashboxDay = require('../models/balanceCashboxDay');
 const Cashbox = require('../models/cashbox');
-const {checkFloat} = require('./const');
+const {checkFloat, cloneObject} = require('./const');
 
 module.exports.createTestBalanceCashboxDay = async () => {
     await BalanceCashboxDay.deleteMany()
@@ -32,79 +32,95 @@ module.exports.createTestBalanceCashboxDay = async () => {
 }
 
 module.exports.setBalanceCashboxDay = async ({cashbox, newAmount, oldAmount, currency, operation, date}) => {
-    let balanceCashboxDays = await BalanceCashboxDay.find({
-        cashbox: cashbox,
-        date: {$gte: date}
-    })
-        .select('_id startBalance endBalance')
-        .sort('createdAt')
-        .lean()
-    let index
-    for(let i = 0; i < balanceCashboxDays.length; i++) {
-        if(i) {
+    let store = (await Cashbox.findById(cashbox).select('store').lean()).store
+    let today = new Date()
+    today.setHours(0,0,0,0)
+    let balanceCashboxDay, lastBalanceCashboxDay, index
+    while(date<=today) {
+        balanceCashboxDay = await BalanceCashboxDay.findOne({
+            cashbox,
+            date
+        })
+            .select('_id startBalance endBalance')
+            .sort('createdAt')
+            .lean()
+        if(!balanceCashboxDay) {
+            balanceCashboxDay = new BalanceCashboxDay({
+                cashbox,
+                startBalance: [],
+                endBalance: [],
+                store,
+                date
+            });
+            balanceCashboxDay = await BalanceCashboxDay.create(balanceCashboxDay);
+        }
+        if(lastBalanceCashboxDay) {
             index = undefined
-            for (let i1 = 0; i1 < balanceCashboxDays[i].startBalance.length; i1++) {
-                if (balanceCashboxDays[i].startBalance[i1].currency === currency) {
+            for (let i1 = 0; i1 < balanceCashboxDay.startBalance.length; i1++) {
+                if (balanceCashboxDay.startBalance[i1].currency === currency) {
                     index = i1
                     break
                 }
             }
             if(index===undefined) {
                 if (operation === 'приход')
-                    balanceCashboxDays[i].startBalance = [
+                    balanceCashboxDay.startBalance = [
                         {
                             currency,
                             amount: newAmount
                         },
-                        ...balanceCashboxDays[i].startBalance
+                        ...balanceCashboxDay.startBalance
                     ]
                 else
-                    balanceCashboxDays[i].startBalance = [
+                    balanceCashboxDay.startBalance = [
                         {
                             currency,
                             amount: -newAmount
                         },
-                        ...balanceCashboxDays[i].startBalance
+                        ...balanceCashboxDay.startBalance
                     ]
             }
             else {
                 if (operation === 'приход')
-                    balanceCashboxDays[i].startBalance[index].amount = checkFloat(balanceCashboxDays[i].startBalance[index].amount + newAmount - oldAmount)
+                    balanceCashboxDay.startBalance[index].amount = checkFloat(balanceCashboxDay.startBalance[index].amount + newAmount - oldAmount)
                 else
-                    balanceCashboxDays[i].startBalance[index].amount = checkFloat(balanceCashboxDays[i].startBalance[index].amount - newAmount + oldAmount)
+                    balanceCashboxDay.startBalance[index].amount = checkFloat(balanceCashboxDay.startBalance[index].amount - newAmount + oldAmount)
             }
         }
         index = undefined
-        for(let i1=0; i1<balanceCashboxDays[i].endBalance.length; i1++) {
-            if (balanceCashboxDays[i].endBalance[i1].currency === currency) {
+        for(let i1=0; i1<balanceCashboxDay.endBalance.length; i1++) {
+            if (balanceCashboxDay.endBalance[i1].currency === currency) {
                 index = i1
                 break
             }
         }
         if(index===undefined) {
             if (operation === 'приход')
-                balanceCashboxDays[i].endBalance = [
+                balanceCashboxDay.endBalance = [
                     {
                         currency,
                         amount: newAmount
                     },
-                    ...balanceCashboxDays[i].endBalance
+                    ...balanceCashboxDay.endBalance
                 ]
             else
-                balanceCashboxDays[i].endBalance = [
+                balanceCashboxDay.endBalance = [
                     {
                         currency,
                         amount: -newAmount
                     },
-                    ...balanceCashboxDays[i].endBalance
+                    ...balanceCashboxDay.endBalance
                 ]
         }
         else {
             if (operation === 'приход')
-                balanceCashboxDays[i].endBalance[index].amount = checkFloat(balanceCashboxDays[i].endBalance[index].amount + newAmount - oldAmount)
+                balanceCashboxDay.endBalance[index].amount = checkFloat(balanceCashboxDay.endBalance[index].amount + newAmount - oldAmount)
             else
-                balanceCashboxDays[i].endBalance[index].amount = checkFloat(balanceCashboxDays[i].endBalance[index].amount - newAmount + oldAmount)
+                balanceCashboxDay.endBalance[index].amount = checkFloat(balanceCashboxDay.endBalance[index].amount - newAmount + oldAmount)
         }
-        await BalanceCashboxDay.updateOne({_id: balanceCashboxDays[i]._id}, {startBalance: balanceCashboxDays[i].startBalance, endBalance: balanceCashboxDays[i].endBalance})
+        console.log(JSON.stringify({startBalance: balanceCashboxDay.startBalance, endBalance: balanceCashboxDay.endBalance}))
+        await BalanceCashboxDay.updateOne({_id: balanceCashboxDay._id}, {startBalance: balanceCashboxDay.startBalance, endBalance: balanceCashboxDay.endBalance})
+        lastBalanceCashboxDay = cloneObject(balanceCashboxDay)
+        date.setDate(date.getDate()+1)
     }
 }
