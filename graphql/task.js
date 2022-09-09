@@ -20,9 +20,9 @@ const type = `
 `;
 
 const query = `
-    unloadTasks(status: String, search: String, employment: ID): String
-    tasks(status: String, search: String, skip: Int, employment: ID, limit: Int): [Task]
-    tasksCount(status: String, search: String, employment: ID): Int
+    unloadTasks(status: String, search: String, employment: ID, soon: Boolean, late: Boolean, today: Boolean): String
+    tasks(status: String, search: String, skip: Int, employment: ID, limit: Int, soon: Boolean, late: Boolean, today: Boolean): [Task]
+    tasksCount(status: String, search: String, employment: ID, soon: Boolean, late: Boolean, today: Boolean): [Int]
     task(_id: ID!): Task
 `;
 
@@ -33,8 +33,19 @@ const mutation = `
 `;
 
 const resolvers = {
-    unloadTasks: async(parent, {status, search, employment}, {user}) => {
+    unloadTasks: async(parent, {status, search, employment, soon, late, today}, {user}) => {
         if(user.role) {
+            let date, dateStart, dateEnd
+            if(late||today) {
+                date = new Date()
+                date.setHours(0, 0, 0, 0)
+            }
+            else if (soon) {
+                dateStart = new Date()
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 3)
+            }
             let res = await Task.find({
                 ...user.role!=='admin'||employment?{
                     $and: [
@@ -54,7 +65,15 @@ const resolvers = {
                 }:{},
                 del: {$ne: true},
                 ...search?{info: {'$regex': search, '$options': 'i'}}:{},
-                ...status?{status}:{},
+                ...late? {date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}
+                    :
+                    today?
+                        {date: date, status: {$nin: ['выполнен', 'проверен']}}
+                        :
+                        soon?
+                            {$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}
+                            :
+                            {...status?{status}:{}}
             })
                 .sort('-createdAt')
                 .populate({
@@ -94,8 +113,19 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    tasks: async(parent, {status, search, skip, limit, employment}, {user}) => {
+    tasks: async(parent, {status, search, skip, limit, employment, soon, late, today}, {user}) => {
         if(user.role) {
+            let date, dateStart, dateEnd
+            if(late||today) {
+                date = new Date()
+                date.setHours(0, 0, 0, 0)
+            }
+            else if (soon) {
+                dateStart = new Date()
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 3)
+            }
             return await Task.find({
                 ...user.role!=='admin'||employment?{
                     $and: [
@@ -115,7 +145,15 @@ const resolvers = {
                 }:{},
                 del: {$ne: true},
                 ...search?{info: {'$regex': search, '$options': 'i'}}:{},
-                ...status?{status}:{},
+                ...late? {date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}
+                    :
+                    today?
+                        {date: date, status: {$nin: ['выполнен', 'проверен']}}
+                        :
+                        soon?
+                            {$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}
+                            :
+                            {...status?{status}:{}}
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
@@ -154,30 +192,212 @@ const resolvers = {
             return res
         }
     },
-    tasksCount: async(parent, {status, search, employment}, {user}) => {
+    tasksCount: async(parent, {status, search, employment, soon, late, today}, {user}) => {
         if(user.role) {
-            return await Task.countDocuments({
-                ...user.role!=='admin'||employment?{
+            let date, dateStart, dateEnd
+            if(late||today) {
+                date = new Date()
+                date.setHours(0, 0, 0, 0)
+            }
+            else if (soon) {
+                dateStart = new Date()
+                dateStart.setHours(0, 0, 0, 0)
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 3)
+            }
+            let res =  [
+                await Task.countDocuments({
+                    ...user.role!=='admin'||employment?{
+                        $and: [
+                            ...user.role!=='admin'?[{
+                                $or: [
+                                    {who: user._id},
+                                    {whom: user._id}
+                                ]
+                            }]:[],
+                            ...employment?[{
+                                $or: [
+                                    {who: employment},
+                                    {whom: employment}
+                                ]
+                            }]:[],
+                        ]
+                    }:{},
+                    del: {$ne: true},
+                    ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                    ...late? {date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}
+                        :
+                        today?
+                            {date: date, status: {$nin: ['выполнен', 'проверен']}}
+                            :
+                            soon?
+                                {$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}
+                                :
+                                {...status?{status}:{}}
+                })
+                    .lean(),
+                await Task.countDocuments({
+                    del: {$ne: true},
+                    ...search?{name: {'$regex': search, '$options': 'i'}}:{},
                     $and: [
-                        ...user.role!=='admin'?[{
-                            $or: [
-                                {who: user._id},
-                                {whom: user._id}
-                            ]
-                        }]:[],
-                        ...employment?[{
-                            $or: [
-                                {who: employment},
-                                {whom: employment}
-                            ]
-                        }]:[],
+                        ...user.role!=='admin'||employment?[
+                            ...user.role!=='admin'?[{
+                                $or: [
+                                    {who: user._id},
+                                    {whom: user._id}
+                                ]
+                            }]:[],
+                            ...employment?[{
+                                $or: [
+                                    {who: employment},
+                                    {whom: employment}
+                                ]
+                            }]:[],
+                        ]:[],
+                        ...late? [{date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}]
+                            :
+                            today?
+                                [{date: date, status: {$nin: ['выполнен', 'проверен']}}]
+                                :
+                                soon?
+                                    [{$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}]
+                                    :
+                                    [],
+                        {status: 'обработка'},
+                        ...status?[{status}]:[]
                     ]
-                }:{},
-                del: {$ne: true},
-                ...status?{status}:{},
-                ...search?{name: {'$regex': search, '$options': 'i'}}:{},
-            })
-                .lean()
+                })
+                    .lean(),
+                await Task.countDocuments({
+                    del: {$ne: true},
+                    ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                    $and: [
+                        ...user.role!=='admin'||employment?[
+                            ...user.role!=='admin'?[{
+                                $or: [
+                                    {who: user._id},
+                                    {whom: user._id}
+                                ]
+                            }]:[],
+                            ...employment?[{
+                                $or: [
+                                    {who: employment},
+                                    {whom: employment}
+                                ]
+                            }]:[],
+                        ]:[],
+                        ...late? [{date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}]
+                            :
+                            today?
+                                [{date: date, status: {$nin: ['выполнен', 'проверен']}}]
+                                :
+                                soon?
+                                    [{$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}]
+                                    :
+                                    [],
+                        {status: 'отложен'},
+                        ...status?[{status}]:[]
+                    ]
+                })
+                    .lean(),
+                await Task.countDocuments({
+                    del: {$ne: true},
+                    ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                    $and: [
+                        ...user.role!=='admin'||employment?[
+                            ...user.role!=='admin'?[{
+                                $or: [
+                                    {who: user._id},
+                                    {whom: user._id}
+                                ]
+                            }]:[],
+                            ...employment?[{
+                                $or: [
+                                    {who: employment},
+                                    {whom: employment}
+                                ]
+                            }]:[],
+                        ]:[],
+                        ...late? [{date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}]
+                            :
+                            today?
+                                [{date: date, status: {$nin: ['выполнен', 'проверен']}}]
+                                :
+                                soon?
+                                    [{$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}]
+                                    :
+                                    [],
+                        {status: 'в процессе'},
+                        ...status?[{status}]:[]
+                    ]
+                })
+                    .lean(),
+                await Task.countDocuments({
+                    del: {$ne: true},
+                    ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                    $and: [
+                        ...user.role!=='admin'||employment?[
+                            ...user.role!=='admin'?[{
+                                $or: [
+                                    {who: user._id},
+                                    {whom: user._id}
+                                ]
+                            }]:[],
+                            ...employment?[{
+                                $or: [
+                                    {who: employment},
+                                    {whom: employment}
+                                ]
+                            }]:[],
+                        ]:[],
+                        ...late? [{date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}]
+                            :
+                            today?
+                                [{date: date, status: {$nin: ['выполнен', 'проверен']}}]
+                                :
+                                soon?
+                                    [{$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}]
+                                    :
+                                    [],
+                        {status: 'выполнен'},
+                        ...status?[{status}]:[]
+                    ]
+                })
+                    .lean(),
+                await Task.countDocuments({
+                    del: {$ne: true},
+                    ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                    $and: [
+                        ...user.role!=='admin'||employment?[
+                            ...user.role!=='admin'?[{
+                                $or: [
+                                    {who: user._id},
+                                    {whom: user._id}
+                                ]
+                            }]:[],
+                            ...employment?[{
+                                $or: [
+                                    {who: employment},
+                                    {whom: employment}
+                                ]
+                            }]:[],
+                        ]:[],
+                        ...late? [{date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}]
+                            :
+                            today?
+                                [{date: date, status: {$nin: ['выполнен', 'проверен']}}]
+                                :
+                                soon?
+                                    [{$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}], status: {$nin: ['выполнен', 'проверен']}}]
+                                    :
+                                    [],
+                        {status: 'проверен'},
+                        ...status?[{status}]:[]
+                    ]
+                })
+                    .lean()
+            ]
+            return res
         }
         return 0
     },
@@ -197,6 +417,7 @@ const resolversMutation = {
             });
             await Task.create(object)
             await sendWebPush({
+                tag: object._id,
                 title: 'Задача',
                 message: info,
                 url: `https://inhouse-app.kg/task/${object._id}`,
@@ -222,38 +443,31 @@ const resolversMutation = {
                 where: object._id,
                 what: ''
             });
-            if (date&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())&&object.status==='обработка') {
+            let webPush = {
+                tag: object._id,
+                title: `Задача: ${object.info.slice(0, 20)}`,
+                message: '',
+                url: `https://inhouse-app.kg/task/${object._id}`,
+                user: object.who.toString()!==user._id.toString()?object.who:object.whom
+            }
+            if (date&&['отложен', 'обработка'].includes(object.status)) {
                 history.what = `Срок:${object.date}→${date};\n`
                 date = new Date(date)
                 date.setHours(0, 0, 0, 0)
                 object.date = date
-                await sendWebPush({
-                    title: `Задача: ${object.info.slice(0, 20)}`,
-                    message: 'Срок задачи изменен',
-                    url: `https://inhouse-app.kg/task/${object._id}`,
-                    user: object.who.toString()!==user._id.toString()?object.who:object.whom
-                })
+                webPush.message = `${webPush.message}\nСрок задачи изменен`
             }
-            if (info&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())&&object.status==='обработка') {
+            if (info&&object.who.toString()===user._id.toString()&&['отложен', 'обработка'].includes(object.status)) {
                 history.what = `${history.what}Комментарий:${object.info}→${info};\n`
                 object.info = info
-                await sendWebPush({
-                    title: `Задача: ${object.info.slice(0, 20)}`,
-                    message: 'Коментарий задачи изменен',
-                    url: `https://inhouse-app.kg/task/${object._id}`,
-                    user: object.who.toString()!==user._id.toString()?object.who:object.whom
-                })
+                webPush.message = `${webPush.message}\nКоментарий задачи изменен`
             }
             if (status&&object.status!=='проверен') {
                 history.what = `${history.what}Статус:${object.status}→${status};`
                 object.status = status
-                await sendWebPush({
-                    title: `Задача: ${object.info.slice(0, 20)}`,
-                    message: `Статус задачи изменен на ${status}`,
-                    url: `https://inhouse-app.kg/task/${object._id}`,
-                    user: object.who.toString()!==user._id.toString()?object.who:object.whom
-                })
+                webPush.message = `${webPush.message}\nСтатус задачи изменен на ${status}`
             }
+            await sendWebPush(webPush)
             await object.save();
             await History.create(history)
             return 'OK'
@@ -262,7 +476,7 @@ const resolversMutation = {
     },
     deleteTask: async(parent, { _id }, {user}) => {
         let object = await Task.findOne({_id})
-        if(object&&object.status==='обработка'&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())) {
+        if(object&&object.status!=='выполнен'&&(['admin'].includes(user.role)||object.who.toString()===user._id.toString())) {
             await sendWebPush({
                 title: `Задача: ${object.info.slice(0, 20)}`,
                 message: 'Задача отменена',

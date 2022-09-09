@@ -5,6 +5,7 @@ const StoreBalanceItem = require('./storeBalanceItem');
 const BalanceItem = require('./balanceItem');
 const BonusManager = require('./bonusManager');
 const BonusCpa = require('./bonusCpa');
+const BalanceItemDay = require('./balanceItemDay');
 const Cashbox = require('./cashbox');
 const Characteristic = require('./characteristic');
 const Category = require('./category');
@@ -104,6 +105,7 @@ const typeDefs = gql`
     }
     ${BalanceClient.type}
     ${StoreBalanceItem.type}
+    ${BalanceItemDay.type}
     ${BalanceItem.type}
     ${Cashbox.type}
     ${BonusManager.type}
@@ -187,6 +189,7 @@ const typeDefs = gql`
         ${Item.query}
         ${BalanceClient.query}
         ${StoreBalanceItem.query}
+        ${BalanceItemDay.query}
         ${BalanceItem.query}
         ${BonusManager.query}
         ${BonusCpa.query}
@@ -231,6 +234,7 @@ const resolvers = {
     Query: {
         ...BalanceClient.resolvers,
         ...StoreBalanceItem.resolvers,
+        ...BalanceItemDay.resolvers,
         ...Cashbox.resolvers,
         ...Category.resolvers,
         ...Client.resolvers,

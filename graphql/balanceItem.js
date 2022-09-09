@@ -5,6 +5,7 @@ const Warehouse = require('../models/warehouse');
 const Store = require('../models/store');
 const History = require('../models/history');
 const { saveFile, deleteFile, urlMain, checkFloat } = require('../module/const');
+const { setBalanceItemDay } = require('../module/balanceItemDay');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -31,7 +32,7 @@ const query = `
 const mutation = `
     uploadBalanceItem(document: Upload!): String
     addBalanceItem(item: ID!, warehouse: ID!, amount: Float!): BalanceItem
-    setBalanceItem(item: ID!, warehouse: ID!, amount: Float!, type: String, warehouse2: String): String
+    setBalanceItem(item: ID!, warehouse: ID!, amount: Float!, type: String, warehouse2: String, info: String): String
 `;
 
 const resolvers = {
@@ -46,7 +47,17 @@ const resolvers = {
                 .sort('-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory category',
+                    populate: [
+                        {
+                            path: 'factory',
+                            select: 'name'
+                        },
+                        {
+                            path: 'category',
+                            select: 'name'
+                        }
+                    ]
                 })
                 .populate({
                     path: 'warehouse',
@@ -59,22 +70,42 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getColumn(1).width = 40
-            worksheet.getColumn(2).width = 40
-            worksheet.getColumn(3).width = 40
-            worksheet.getRow(1).getCell(1).font = {bold: true};
-            worksheet.getRow(1).getCell(1).value = 'Модель'
-            worksheet.getRow(1).getCell(2).font = {bold: true};
-            worksheet.getRow(1).getCell(2).value = 'Склад'
-            worksheet.getRow(1).getCell(3).font = {bold: true};
-            worksheet.getRow(1).getCell(3).value = 'Магазин'
-            worksheet.getRow(1).getCell(4).font = {bold: true};
-            worksheet.getRow(1).getCell(4).value = 'Остаток'
+            let cell = 1
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Магазин'
+            cell++
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Склад'
+            cell++
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Модель'
+            cell++
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Категория'
+            cell++
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Фабрика'
+            cell++
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Остаток'
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(i+2).getCell(1).value = res[i].item.name
-                worksheet.getRow(i+2).getCell(2).value = res[i].warehouse.name
-                worksheet.getRow(i+2).getCell(3).value = res[i].store.name
-                worksheet.getRow(i+2).getCell(4).value = res[i].amount
+                cell = 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].store.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].warehouse.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.category.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.factory.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].amount
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -109,7 +140,17 @@ const resolvers = {
                 .sort(sort? sort : '-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory category',
+                    populate: [
+                        {
+                            path: 'factory',
+                            select: 'name'
+                        },
+                        {
+                            path: 'category',
+                            select: 'name'
+                        }
+                    ]
                 })
                 .populate({
                     path: 'warehouse',
@@ -151,6 +192,7 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 if(row.getCell(1).value&&row.getCell(2).value&&row.getCell(3).value) {
+                    let diff = 0
                     item = (await Item.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     store = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
                     warehouse = await Warehouse.findOne({name: row.getCell(2).value, store}).select('_id name').lean()
@@ -207,11 +249,14 @@ const resolversMutation = {
                             where: object._id,
                             what: `Остаток:${object.amount}→`
                         });
+                        diff = object.amount
                         object.amount = amount
+                        diff = checkFloat(object.amount - diff)
                         history.what += `${object.amount};`
                         await object.save();
                         await History.create(history)
                     }
+                    await setBalanceItemDay({store, item, warehouse, amount: object.amount, diff})
                     rowNumber++
                 }
                 else break
@@ -257,6 +302,7 @@ const resolversMutation = {
                 what: 'Создание'
             });
             await History.create(history)
+            await setBalanceItemDay({store, item, warehouse, amount: object.amount, diff: 0})
             return await BalanceItem.findById(object._id)
                 .populate({
                     path: 'item',
@@ -274,13 +320,15 @@ const resolversMutation = {
         }
         return {_id: 'ERROR'}
     },
-    setBalanceItem: async (parent, {item, warehouse, amount, type, warehouse2}, {user}) => {
+    setBalanceItem: async (parent, {item, warehouse, amount, type, warehouse2, info}, {user}) => {
         if (['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await BalanceItem.findOne({item, warehouse});
             let nameWarehouse = (await Warehouse.findById(warehouse).select('name').lean()).name
             let store = (await Warehouse.findOne({_id: warehouse}).select('store').lean()).store
+            let unit = (await Item.findOne({_id: item}).select('unit').lean()).unit
             let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
             let check = true
+            let diff = 0
             if(!['Брак', 'Реставрация'].includes(nameWarehouse)) {
                 if (!storeBalanceItem) {
                     if (type !== '-') {
@@ -325,7 +373,6 @@ const resolversMutation = {
                         return 'ERROR'
                 }
             }
-
             if(!object){
                 if(type!=='-') {
                     object = new BalanceItem({
@@ -338,7 +385,7 @@ const resolversMutation = {
                     let history = new History({
                         who: user._id,
                         where: object._id,
-                        what: warehouse2?`Перемещение со склада ${warehouse2}`:'Создание'
+                        what: `Остаток:0→${object.amount}\n${warehouse2?`Перемещено со склада ${warehouse2} ${object.amount} ${unit}\n${info?`Комментарий: ${info}`:''}`:'Создание'}`
                     });
                     await History.create(history)
                 }
@@ -351,6 +398,7 @@ const resolversMutation = {
                     where: object._id,
                     what: `Остаток:${object.amount}→`
                 });
+                diff = object.amount
                 if(type==='+')
                     object.amount = checkFloat(object.amount + amount)
                 else if(type==='-') {
@@ -361,11 +409,13 @@ const resolversMutation = {
                 else
                     object.amount = amount
                 history.what += `${object.amount};`
+                diff = checkFloat(object.amount - diff)
                 if(warehouse2)
-                    history.what = `${history.what}\nПеремещение ${type==='-'?'на склад':'со склада'} ${warehouse2}`
+                    history.what = `${history.what}\nПеремещено ${type==='-'?'на склад':'со склада'} ${warehouse2} ${diff<0?(diff*-1):diff} ${unit}\n${info?`Комментарий: ${info}`:''}`
                 await object.save();
                 await History.create(history)
             }
+            await setBalanceItemDay({store, item, warehouse, amount: object.amount, diff})
             return 'OK'
         }
         return 'ERROR'

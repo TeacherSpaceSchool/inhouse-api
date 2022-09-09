@@ -3,6 +3,8 @@ const connectDB = require('../models/index');
 const cron = require('node-cron');
 const Consultation = require('../models/consultation');
 const BalanceCashboxDay = require('../models/balanceCashboxDay');
+const BalanceItemDay = require('../models/balanceItemDay');
+const BalanceItem = require('../models/balanceItem');
 const Cashbox = require('../models/cashbox');
 const app = require('../app');
 const fs = require('fs');
@@ -14,6 +16,21 @@ if(!isMainThread) {
         let object
         let today = new Date()
         today.setHours(0, 0, 0, 0)
+        //создание истории баланса моделей
+        let balanceItems = await BalanceItem.find({}).select('store warehouse item amount').lean()
+        for(let i1 = 0; i1 < balanceItems.length; i1++) {
+            object = new BalanceItemDay({
+                item: balanceItems[i1]._id,
+                startAmount: balanceItems[i1].amount,
+                endAmount: balanceItems[i1].amount,
+                store: balanceItems[i1].store,
+                date: today,
+                warehouse: balanceItems[i1].warehouse,
+                plus: 0,
+                minus: 0
+            });
+            await BalanceItemDay.create(object);
+        }
         //создание истории кассы
         let cashboxes = await Cashbox.find({del: {$ne: true}}).select('_id balance store').lean()
         for(let i1 = 0; i1 < cashboxes.length; i1++) {

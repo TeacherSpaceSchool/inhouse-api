@@ -5,6 +5,7 @@ const WayItem = require('../models/wayItem');
 const User = require('../models/user');
 const Store = require('../models/store');
 const Installment = require('../models/installment');
+const Task = require('../models/task');
 const Reservation = require('../models/reservation');
 const { sendWebPush } = require('../module/webPush');
 
@@ -14,6 +15,16 @@ if(!isMainThread) {
         let date = new Date()
         date.setHours(0, 0, 0, 0)
         let stores = await Store.find({del: {$ne: true}}).distinct('_id').lean()
+        //задачи
+        await sendWebPush({
+            tag: 'Задача просрочена',
+            title: 'Задача просрочена',
+            message: 'Задача просрочена',
+            users: [
+                ...await Task.find({date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}).distinct('who').lean(),
+                ...await Task.find({date: {$lt: date}, status: {$nin: ['выполнен', 'проверен']}}).distinct('whom').lean()
+            ]
+        })
         for(let i=0; i<stores.length; i++) {
             //в пути
             if(await WayItem.countDocuments({store: stores[i], arrivalDate: {$lt: date}, status: 'в пути'}).lean())

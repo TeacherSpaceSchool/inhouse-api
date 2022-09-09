@@ -562,7 +562,7 @@ const resolversMutation = {
                     let discountPercent = discount*100/amountStart
                     bonusCpa.bonus = bonusCpa.bonus.sort((a, b)=>a[0] - b[0]);
                     for(let i = 0; i < bonusCpa.bonus.length; i++) {
-                        if(bonusCpa.bonus[i][0]>=discountPercent) {
+                        if(discountPercent<bonusCpa.bonus[i][0]) {
                             object.percentCpa = bonusCpa.bonus[i][1]
                             object.bonusCpa = checkFloat(amountEnd/100*bonusCpa.bonus[i][1])
                             break
@@ -633,7 +633,7 @@ const resolversMutation = {
                     let discountPercent = discount*100/amountStart
                     bonusManager.bonus = bonusManager.bonus.sort((a, b)=>a[0] - b[0]);
                     for(let i = 0; i < bonusManager.bonus.length; i++) {
-                        if(bonusManager.bonus[i][0]>=discountPercent) {
+                        if(discountPercent<bonusManager.bonus[i][0]) {
                             bonus = checkFloat(amountEnd/100*bonusManager.bonus[i][1])
                             break
                         }

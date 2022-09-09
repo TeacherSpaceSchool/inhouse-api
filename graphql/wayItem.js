@@ -4,7 +4,7 @@ const Store = require('../models/store');
 const User = require('../models/user');
 const History = require('../models/history');
 const { sendWebPush } = require('../module/webPush');
-const { checkFloat, pdDDMMYYYY, saveFile, deleteFile, urlMain, checkDate } = require('../module/const');
+const { checkFloat, pdDDMMYYYY, saveFile, deleteFile, urlMain } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -38,10 +38,10 @@ const type = `
 `;
 
 const query = `
-    unloadWayItems(item: ID, store: ID, date: Date, status: String, soon: Boolean, late: Boolean, today: Boolean): String
+    unloadWayItems(item: ID, store: ID, date: Date, status: String, my: Boolean, soon: Boolean, late: Boolean, today: Boolean): String
     wayItem(_id: ID!): WayItem
-    wayItems(skip: Int, item: ID, store: ID, date: Date, status: String, soon: Boolean, late: Boolean, today: Boolean): [WayItem]
-    wayItemsCount(item: ID, store: ID, date: Date, status: String, soon: Boolean, late: Boolean, today: Boolean): Int
+    wayItems(skip: Int, item: ID, store: ID, date: Date, status: String, my: Boolean, soon: Boolean, late: Boolean, today: Boolean): [WayItem]
+    wayItemsCount(item: ID, store: ID, date: Date, status: String, my: Boolean, soon: Boolean, late: Boolean, today: Boolean): Int
 `;
 
 const mutation = `
@@ -51,7 +51,7 @@ const mutation = `
 `;
 
 const resolvers = {
-    unloadWayItems: async(parent, {item, store, date, status, late, today, soon}, {user}) => {
+    unloadWayItems: async(parent, {item, store, date, status, late, today, soon, my}, {user}) => {
         if(['admin', 'управляющий', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
@@ -72,6 +72,7 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             let res = await WayItem.find({
+                ...my ? {bookings: {$elemMatch: {$or: [{manager: user._id.toString()}, {manager: user._id}]}}} : {},
                 ...item ? {item} : {},
                 ...store ? {store} : {},
                 ...late? {arrivalDate: {$lt: date}, status: 'в пути'}
@@ -87,7 +88,11 @@ const resolvers = {
                 .sort('-createdAt')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory',
+                    populate: {
+                        path: 'factory',
+                        select: 'name'
+                    }
                 })
                 .populate({
                     path: 'store',
@@ -100,49 +105,73 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getRow(1).getCell(1).font = {bold: true};
-            worksheet.getRow(1).getCell(1).value = '_id'
-            worksheet.getRow(1).getCell(2).font = {bold: true};
-            worksheet.getRow(1).getCell(2).value = 'Статус'
-            worksheet.getColumn(3).width = 40
-            worksheet.getRow(1).getCell(3).font = {bold: true};
-            worksheet.getRow(1).getCell(3).value = 'Модель'
-            worksheet.getColumn(4).width = 40
-            worksheet.getRow(1).getCell(4).font = {bold: true};
-            worksheet.getRow(1).getCell(4).value = 'Магазин'
-            worksheet.getColumn(5).width = 11
-            worksheet.getRow(1).getCell(5).font = {bold: true};
-            worksheet.getRow(1).getCell(5).value = 'Количество'
-            worksheet.getColumn(6).width = 10
-            worksheet.getRow(1).getCell(6).font = {bold: true};
-            worksheet.getRow(1).getCell(6).value = 'Свободно'
-            worksheet.getColumn(7).width = 15
-            worksheet.getRow(1).getCell(7).font = {bold: true};
-            worksheet.getRow(1).getCell(7).value = 'Отправлен'
+            let cel = 1
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = '_id'
+            cel++
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Статус'
+            cel++
+            worksheet.getColumn(cel).width = 30
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Модель'
+            cel++
+            worksheet.getColumn(cel).width = 30
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Фабрика'
+            cel++
+            worksheet.getColumn(cel).width = 30
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Магазин'
+            cel++
+            worksheet.getColumn(cel).width = 15
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Отправлен'
+            cel++
             worksheet.getColumn(8).width = 15
-            worksheet.getRow(1).getCell(8).font = {bold: true};
-            worksheet.getRow(1).getCell(8).value = 'Прибытие'
-            worksheet.getColumn(9).width = 40
-            worksheet.getRow(1).getCell(9).font = {bold: true};
-            worksheet.getRow(1).getCell(9).value = 'Бронь'
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Прибытие'
+            cel++
+            worksheet.getColumn(cel).width = 11
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Количество'
+            cel++
+            worksheet.getColumn(cel).width = 10
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Свободно'
+            cel++
+            worksheet.getColumn(cel).width = 50
+            worksheet.getRow(1).getCell(cel).font = {bold: true};
+            worksheet.getRow(1).getCell(cel).value = 'Бронь'
             for(let i = 0; i < res.length; i++) {
                 let used = 0
                 let bookings = ''
                 for(let i1 = 0; i1 < res[i].bookings.length; i1++) {
                     used += res[i].bookings[i1].amount
-                    bookings = `${bookings?`${bookings}\n`:''}${res[i].bookings[i1].nameManager}|${res[i].bookings[i1].manager}: ${res[i].bookings[i1].amount}`
+                    bookings = `${bookings?`${bookings}\n`:''}${res[i].bookings[i1].nameManager}: ${res[i].bookings[i1].amount}`
                 }
                 const free = checkFloat(res[i].amount - used)
-                worksheet.getRow(i+2).getCell(1).value = res[i]._id.toString()
-                worksheet.getRow(i+2).getCell(2).value = res[i].status
-                worksheet.getRow(i+2).getCell(3).value = res[i].item.name
-                worksheet.getRow(i+2).getCell(4).value = res[i].store.name
-                worksheet.getRow(i+2).getCell(5).value = res[i].amount
-                worksheet.getRow(i+2).getCell(6).value = free
-                worksheet.getRow(i+2).getCell(7).value = res[i].dispatchDate?pdDDMMYYYY(res[i].dispatchDate):''
-                worksheet.getRow(i+2).getCell(8).value = res[i].arrivalDate?pdDDMMYYYY(res[i].arrivalDate):''
-                worksheet.getRow(i+2).getCell(9).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(9).value = bookings
+                cel = 1
+                worksheet.getRow(i+2).getCell(cel).value = res[i]._id.toString()
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = res[i].status
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = res[i].item.name
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = res[i].item.factory.name
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = res[i].store.name
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = res[i].dispatchDate?pdDDMMYYYY(res[i].dispatchDate):''
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = res[i].arrivalDate?pdDDMMYYYY(res[i].arrivalDate):''
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = res[i].amount
+                cel++
+                worksheet.getRow(i+2).getCell(cel).value = free
+                cel++
+                worksheet.getRow(i+2).getCell(cel).alignment = {wrapText: true}
+                worksheet.getRow(i+2).getCell(cel).value = bookings
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -157,7 +186,11 @@ const resolvers = {
             })
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory',
+                    populate: {
+                        path: 'factory',
+                        select: 'name'
+                    }
                 })
                 .populate({
                     path: 'store',
@@ -181,7 +214,7 @@ const resolvers = {
             return res
         }
     },
-    wayItems: async(parent, {skip, item, store, date, status, late, today, soon}, {user}) => {
+    wayItems: async(parent, {skip, item, store, date, status, late, today, soon, my}, {user}) => {
         if(['admin', 'управляющий', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
@@ -204,6 +237,7 @@ const resolvers = {
             let res = await WayItem.find({
                 ...item ? {item} : {},
                 ...store ? {store} : {},
+                ...my ? {bookings: {$elemMatch: {$or: [{manager: user._id.toString()}, {manager: user._id}]}}} : {},
                 ...late? {arrivalDate: {$lt: date}, status: 'в пути'}
                     :
                     today?
@@ -219,7 +253,11 @@ const resolvers = {
                 .sort('-createdAt')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory',
+                    populate: {
+                        path: 'factory',
+                        select: 'name'
+                    }
                 })
                 .populate({
                     path: 'store',
@@ -245,7 +283,7 @@ const resolvers = {
             return res
         }
     },
-    wayItemsCount: async(parent, {item, date, store, status, late, today, soon}, {user}) => {
+    wayItemsCount: async(parent, {item, date, store, status, late, today, soon, my}, {user}) => {
         if(['admin', 'управляющий', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let dateStart, dateEnd
@@ -266,6 +304,7 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             return await WayItem.countDocuments({
+                ...my ? {bookings: {$elemMatch: {$or: [{manager: user._id.toString()}, {manager: user._id}]}}} : {},
                 ...item ? {item} : {},
                 ...store ? {store} : {},
                 ...late? {arrivalDate: {$lt: date}, status: 'в пути'} : today? {arrivalDate: date, status: 'в пути'}
@@ -431,7 +470,11 @@ const resolversMutation = {
             let res = await WayItem.findById(object._id)
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory',
+                    populate: {
+                        path: 'factory',
+                        select: 'name'
+                    }
                 })
                 .populate({
                     path: 'store',

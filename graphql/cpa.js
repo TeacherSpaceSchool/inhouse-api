@@ -108,7 +108,7 @@ const resolvers = {
             }
             let statistic = {}
             let data = await Sale.find({
-                ...dateStart?{$and: [{date: {$gte: dateStart}}, {date: {$lt: dateEnd}}]}:{},
+                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
                 ...store?{store}:{},
                 ...cpa?{cpa}:{cpa: {$ne: null}},
             })

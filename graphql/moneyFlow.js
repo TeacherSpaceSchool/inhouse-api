@@ -263,66 +263,90 @@ const resolvers = {
                 }
             }
             row += 2
-            worksheet.getColumn(1).width = 15
-            worksheet.getRow(row).getCell(1).font = {bold: true};
-            worksheet.getRow(row).getCell(1).value = 'Дата/Номер'
-            worksheet.getColumn(2).width = 25
-            worksheet.getRow(row).getCell(2).font = {bold: true};
-            worksheet.getRow(row).getCell(2).value = 'Касса'
-            worksheet.getColumn(3).width = 25
-            worksheet.getRow(row).getCell(3).font = {bold: true};
-            worksheet.getRow(row).getCell(3).value = 'Получатель'
-            worksheet.getColumn(4).width = 25
-            worksheet.getRow(row).getCell(4).font = {bold: true};
-            worksheet.getRow(row).getCell(4).value = 'Статья'
-            worksheet.getColumn(5).width = 15
-            worksheet.getRow(row).getCell(5).font = {bold: true};
-            worksheet.getRow(row).getCell(5).value = 'Сумма'
-            worksheet.getRow(row).getCell(6).font = {bold: true};
-            worksheet.getRow(row).getCell(6).value = 'Валюта'
-            worksheet.getRow(row).getCell(7).font = {bold: true};
-            worksheet.getRow(row).getCell(7).value = 'Курс'
-            worksheet.getRow(row).getCell(8).font = {bold: true};
-            worksheet.getColumn(8).width = 15
-            worksheet.getRow(row).getCell(8).value = 'Итого'
-            worksheet.getRow(row).getCell(9).font = {bold: true};
-            worksheet.getRow(row).getCell(9).value = 'Коментарий'
+            let cell = 1
+            worksheet.getColumn(cell).width = 8
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Номер'
+            cell++
+            worksheet.getColumn(cell).width = 13
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Дата'
+            cell++
+            worksheet.getColumn(cell).width = 25
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Касса'
+            cell++
+            worksheet.getColumn(cell).width = 25
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Получатель'
+            cell++
+            worksheet.getColumn(cell).width = 25
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Статья'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Сумма'
+            cell++
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Валюта'
+            cell++
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Курс'
+            cell++
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(row).getCell(cell).value = 'Итого'
+            cell++
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Коментарий'
             for(let i = 0; i < res.length; i++) {
                 row += 1
-                worksheet.getRow(row).getCell(1).value = `${pdDDMMYYYY(res[i].date)}/${res[i].number}`
-                worksheet.getRow(row).getCell(2).alignment = {wrapText: true}
-                worksheet.getRow(row).getCell(2).value = res[i].cashbox.name
-                worksheet.getRow(row).getCell(3).alignment = {wrapText: true}
+                cell = 1
+                worksheet.getRow(row).getCell(cell).value = res[i].number
+                cell++
+                worksheet.getRow(row).getCell(cell).value = pdDDMMYYYY(res[i].date)
+                cell++
+                worksheet.getRow(row).getCell(cell).alignment = {wrapText: true}
+                worksheet.getRow(row).getCell(cell).value = res[i].cashbox.name
+                cell++
+                worksheet.getRow(row).getCell(cell).alignment = {wrapText: true}
                 if(res[i].client) {
-                    worksheet.getRow(row).getCell(3).value = res[i].client.name
+                    worksheet.getRow(row).getCell(cell).value = res[i].client.name
                     if(res[i].sale)
-                        worksheet.getRow(row).getCell(3).value += `\nПродажа №${res[i].sale.number}`
+                        worksheet.getRow(row).getCell(cell).value += `\nПродажа №${res[i].sale.number}`
                     else if(res[i].refund)
-                        worksheet.getRow(row).getCell(3).value += `\nВозврат №${res[i].refund.number}`
+                        worksheet.getRow(row).getCell(cell).value += `\nВозврат №${res[i].refund.number}`
                     else if(res[i].reservation)
-                        worksheet.getRow(row).getCell(3).value += `\nБронь №${res[i].reservation.number}`
+                        worksheet.getRow(row).getCell(cell).value += `\nБронь №${res[i].reservation.number}`
                     else if(res[i].order)
-                        worksheet.getRow(row).getCell(3).value += `\nНа заказ №${res[i].order.number}`
+                        worksheet.getRow(row).getCell(cell).value += `\nНа заказ №${res[i].order.number}`
                     if(res[i].installment) {
                         worksheet.getRow(row).height = 60
-                        worksheet.getRow(row).getCell(3).value += `\nРассрочка №${res[i].installment.number}`
-                        worksheet.getRow(row).getCell(3).value += `\n${pdDDMMYYYY(res[i].installmentMonth)}`
+                        worksheet.getRow(row).getCell(cell).value += `\nРассрочка №${res[i].installment.number}`
+                        worksheet.getRow(row).getCell(cell).value += `\n${pdDDMMYYYY(res[i].installmentMonth)}`
                     }
                 }
                 else if(res[i].moneyRecipient)
-                    worksheet.getRow(row).getCell(3).value = res[i].moneyRecipient.name
+                    worksheet.getRow(row).getCell(cell).value = res[i].moneyRecipient.name
                 else if(res[i].employment)
-                    worksheet.getRow(row).getCell(3).value = res[i].employment.name
+                    worksheet.getRow(row).getCell(cell).value = res[i].employment.name
                 else if(res[i].cashboxRecipient)
-                    worksheet.getRow(row).getCell(3).value = res[i].cashboxRecipient.name
+                    worksheet.getRow(row).getCell(cell).value = res[i].cashboxRecipient.name
                 else
-                    worksheet.getRow(row).getCell(3).value = 'не указан'
-                worksheet.getRow(row).getCell(4).value = res[i].moneyArticle.name
-                worksheet.getRow(row).getCell(5).value = checkFloat(`${res[i].operation==='расход'?'-':''}${res[i].amount}`)
-                worksheet.getRow(row).getCell(6).value = res[i].currency
-                worksheet.getRow(row).getCell(7).value = res[i].exchangeRate
-                worksheet.getRow(row).getCell(8).value = checkFloat(`${res[i].operation==='расход'?'-':''}${res[i].amountEnd}`)
-                worksheet.getRow(row).getCell(9).value = res[i].info
+                    worksheet.getRow(row).getCell(cell).value = 'не указан'
+                cell++
+                worksheet.getRow(row).getCell(cell).value = res[i].moneyArticle.name
+                cell++
+                worksheet.getRow(row).getCell(cell).value = checkFloat(`${res[i].operation==='расход'?'-':''}${res[i].amount}`)
+                cell++
+                worksheet.getRow(row).getCell(cell).value = res[i].currency
+                cell++
+                worksheet.getRow(row).getCell(cell).value = res[i].exchangeRate
+                cell++
+                worksheet.getRow(row).getCell(cell).value = checkFloat(`${res[i].operation==='расход'?'-':''}${res[i].amountEnd}`)
+                cell++
+                worksheet.getRow(row).getCell(cell).value = res[i].info
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);

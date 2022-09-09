@@ -12,6 +12,7 @@ const ConsultationSchema = mongoose.Schema({
     end: Date,
     info: String,
     statusClient: String,
+    operation: String,
     client: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ClientINHOUSE'

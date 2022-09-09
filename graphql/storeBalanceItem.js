@@ -35,7 +35,17 @@ const resolvers = {
                 .sort('-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory category',
+                    populate: [
+                        {
+                            path: 'factory',
+                            select: 'name'
+                        },
+                        {
+                            path: 'category',
+                            select: 'name'
+                        }
+                    ]
                 })
                 .populate({
                     path: 'store',
@@ -44,29 +54,51 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getColumn(1).width = 40
-            worksheet.getColumn(2).width = 40
-            worksheet.getRow(1).getCell(1).font = {bold: true};
-            worksheet.getRow(1).getCell(1).value = 'Модель'
-            worksheet.getRow(1).getCell(2).font = {bold: true};
-            worksheet.getRow(1).getCell(2).value = 'Магазин'
-            worksheet.getRow(1).getCell(3).font = {bold: true};
-            worksheet.getRow(1).getCell(3).value = 'Остаток'
-            worksheet.getRow(1).getCell(4).font = {bold: true};
-            worksheet.getRow(1).getCell(4).value = 'Доступно'
-            worksheet.getRow(1).getCell(5).font = {bold: true};
-            worksheet.getRow(1).getCell(5).value = 'Бронь'
-            worksheet.getRow(1).getCell(6).font = {bold: true};
-            worksheet.getRow(1).getCell(6).value = 'Продажа'
+            let cell = 1
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Магазин'
+            cell++
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Модель'
+            cell++
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Категория'
+            cell++
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Фабрика'
+            cell++
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Остаток'
+            cell++
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Доступно'
+            cell++
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Бронь'
+            cell++
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Продажа'
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(i+2).getCell(1).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(1).value = `${res[i].item.name}\n${res[i].item._id.toString()}`
-                worksheet.getRow(i+2).getCell(2).alignment = {wrapText: true}
-                worksheet.getRow(i+2).getCell(2).value = `${res[i].store.name}\n${res[i].store._id.toString()}`
-                worksheet.getRow(i+2).getCell(3).value = res[i].amount
-                worksheet.getRow(i+2).getCell(4).value = res[i].free
-                worksheet.getRow(i+2).getCell(5).value = res[i].reservation
-                worksheet.getRow(i+2).getCell(6).value = res[i].sale
+                cell = 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].store.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.category.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.factory.name
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].amount
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].free
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].reservation
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].sale
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -86,7 +118,17 @@ const resolvers = {
                 .sort(sort? sort : '-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit'
+                    select: 'name _id unit factory category',
+                    populate: [
+                        {
+                            path: 'factory',
+                            select: 'name'
+                        },
+                        {
+                            path: 'category',
+                            select: 'name'
+                        }
+                    ]
                 })
                 .populate({
                     path: 'store',

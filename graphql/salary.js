@@ -69,7 +69,7 @@ const resolvers = {
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getColumn(1).width = 15;
+            worksheet.getColumn(1).width = 13;
             worksheet.getColumn(2).width = 40;
             worksheet.getRow(1).getCell(1).font = {bold: true};
             worksheet.getRow(1).getCell(1).value = 'Дата'
