@@ -228,7 +228,6 @@ const resolversMutation = {
             if(object) {
                 object.info = info
                 object.operation = operation
-                console.log(operation)
                 object.client = client
                 object.statusClient = statusClient
                 await object.save()

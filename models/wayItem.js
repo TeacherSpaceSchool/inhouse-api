@@ -11,7 +11,7 @@ const WayItemSchema = mongoose.Schema({
     },
     order: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'OrderINHOUSE'
+        ref: 'SaleINHOUSE'
     },
     bookings: mongoose.Schema.Types.Mixed,
     amount: Number,

@@ -31,7 +31,7 @@ const MoneyFlowSchema = mongoose.Schema({
     },
     order: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'OrderINHOUSE'
+        ref: 'SaleINHOUSE'
     },
     sale: {
         type: mongoose.Schema.Types.ObjectId,

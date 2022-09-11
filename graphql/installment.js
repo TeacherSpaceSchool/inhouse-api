@@ -129,7 +129,7 @@ const resolvers = {
                 .sort('-createdAt')
                 .populate({
                     path: 'sale',
-                    select: 'number _id'
+                    select: 'number _id order'
                 })
                 .populate({
                     path: 'client',
@@ -256,7 +256,7 @@ const resolvers = {
                 .sort('-createdAt')
                 .populate({
                     path: 'sale',
-                    select: 'number _id'
+                    select: 'number _id order'
                 })
                 .populate({
                     path: 'client',
@@ -332,7 +332,7 @@ const resolversMutation = {
                 await Sale.updateOne({_id: sale}, {installment: object._id})
 
             let balanceClient = await BalanceClient.findOne({client})
-            balanceClient.balance = checkFloat(balanceClient.balance - (sale?debt:amount))
+            balanceClient.balance = checkFloat(balanceClient.balance - amount)
 
             if(renew) {
                 let installments = await Installment.find({client, store, status: {$in: ['активна', 'безнадежна']}, _id: {$ne: object._id}})
@@ -362,7 +362,7 @@ const resolversMutation = {
             return await Installment.findOne({_id: object._id})
                 .populate({
                     path: 'sale',
-                    select: 'number _id'
+                    select: 'number _id order'
                 })
                 .populate({
                     path: 'client',

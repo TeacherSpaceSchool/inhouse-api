@@ -31,9 +31,9 @@ const type = `
 `;
 
 const query = `
-    unloadReservations(search: String, manager: ID, client: ID, store: ID, soon: Boolean, date: Date, status: String, late: Boolean, today: Boolean, _id: ID): String
-    reservations(search: String, skip: Int, items: Boolean, limit: Int, manager: ID, soon: Boolean, client: ID, store: ID, date: Date, status: String, late: Boolean, today: Boolean): [Reservation]
-    reservationsCount(search: String, manager: ID, client: ID, store: ID, soon: Boolean, date: Date, status: String, late: Boolean, today: Boolean): Int
+    unloadReservations(search: String, manager: ID, client: ID, store: ID, soon: Boolean, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean, _id: ID): String
+    reservations(search: String, skip: Int, items: Boolean, limit: Int, manager: ID, soon: Boolean, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean): [Reservation]
+    reservationsCount(search: String, manager: ID, client: ID, store: ID, soon: Boolean, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean): Int
     reservation(_id: ID!): Reservation
 `;
 
@@ -43,10 +43,10 @@ const mutation = `
 `;
 
 const resolvers = {
-    unloadReservations: async(parent, {search, client, store, manager, date, soon, status, late, today, _id}, {user}) => {
+    unloadReservations: async(parent, {search, client, store, manager, dateStart, dateEnd, soon, status, late, today, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            let dateStart, dateEnd
+            let date
             if(late||today) {
                 date = new Date()
                 date.setHours(0, 0, 0, 0)
@@ -57,11 +57,16 @@ const resolvers = {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 3)
             }
-            else if (date) {
-                dateStart = new Date(date)
+            else {
+                dateStart = checkDate(dateStart)
                 dateStart.setHours(0, 0, 0, 0)
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
+                if(dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
             }
             let res = await Reservation.find(
                 _id?
@@ -85,7 +90,7 @@ const resolvers = {
                                     :
                                     {
                                         ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
-                                        ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{}
+                                        $and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]
                                     }
 
                     }
@@ -186,10 +191,10 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    reservations: async(parent, {search, skip, manager, items, client, store, soon, limit, date, status, late, today}, {user}) => {
+    reservations: async(parent, {search, skip, manager, items, client, store, soon, limit, dateStart, dateEnd, status, late, today}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            let dateStart, dateEnd
+            let date
             if(late||today) {
                 date = new Date()
                 date.setHours(0, 0, 0, 0)
@@ -200,11 +205,16 @@ const resolvers = {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 3)
             }
-            else if (date) {
-                dateStart = new Date(date)
+            else if (dateStart) {
+                dateStart = new Date(dateStart)
                 dateStart.setHours(0, 0, 0, 0)
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
+                if(dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
             }
             let res = await Reservation.find({
                 ...search?{number: search}:{},
@@ -254,10 +264,10 @@ const resolvers = {
             return res
         }
     },
-    reservationsCount: async(parent, {search, client, store, manager, date, soon, status, late, today}, {user}) => {
+    reservationsCount: async(parent, {search, client, store, manager, dateStart, dateEnd, soon, status, late, today}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            let dateStart, dateEnd
+            let date
             if(late||today) {
                 date = new Date()
                 date.setHours(0, 0, 0, 0)
@@ -269,10 +279,15 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 3)
             }
             else {
-                dateStart = checkDate(date)
+                dateStart = checkDate(dateStart)
                 dateStart.setHours(0, 0, 0, 0)
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
+                if(dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
             }
             return await Reservation.countDocuments({
                 ...search?{number: search}:{},
@@ -290,7 +305,7 @@ const resolvers = {
                             :
                             {
                                 ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
-                                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{}
+                                $and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]
                             }
             })
                 .lean()

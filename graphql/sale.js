@@ -5,10 +5,9 @@ const Reservation = require('../models/reservation');
 const Salary = require('../models/salary');
 const BonusManager = require('../models/bonusManager');
 const BonusCpa = require('../models/bonusCpa');
-const Order = require('../models/order');
 const Installment = require('../models/installment');
 const ItemReservation = require('../models/itemReservation');
-const ItemOrder = require('../models/itemOrder');
+const WayItem = require('../models/wayItem');
 const Item = require('../models/item');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const BalanceClient = require('../models/balanceClient');
@@ -26,7 +25,6 @@ const type = `
     paymentConfirmation: Boolean
     number: String
     manager: User
-    deliverymans: [User]
     client: Client
     promotion: Promotion
     itemsSale: [ItemFromList]
@@ -50,37 +48,41 @@ const type = `
     delivery: Date
     status: String
     store: Store
-    orders: [Order]
+    order: Boolean
     reservations: [Reservation]
     refunds: [Refund]
 }
 `;
 
 const query = `
-    unloadSales(search: String, manager: ID, promotion: ID, client: ID, cpa: ID, date: Date, delivery: Date, status: String, store: ID, _id: ID): String
+    unloadSales(search: String, manager: ID, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
     getAttachment(_id: ID!): String
     salesBonusManager: [Float]
-    sales(search: String, skip: Int, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, date: Date, delivery: Date, status: String, store: ID): [Sale]
-    salesCount(search: String, manager: ID, promotion: ID, client: ID, cpa: ID, date: Date, delivery: Date, status: String, store: ID): Int
+    sales(search: String, order: Boolean, skip: Int, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): [Sale]
+    salesCount(search: String, order: Boolean, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): Int
     sale(_id: ID!): Sale
+    prepareAcceptOrder(_id: ID!): [ID]
 `;
 
 const mutation = `
-    addSale(client: ID!, prepaid: Float, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, orders: [ID], reservations: [ID]!): String
-    setSale(_id: ID!, bonusManager: Float, deliverymans: [ID], itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
+    addSale(client: ID!, prepaid: Float, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
+    setSale(_id: ID!, bonusManager: Float, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
 `;
 
 const resolvers = {
-    unloadSales: async(parent, {search, manager, promotion, client, cpa, date, delivery, status, store, _id}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
+    unloadSales: async(parent, {search, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            let dateStart, dateEnd, deliveryStart, deliveryEnd
-            if (date) {
-                dateStart = new Date(date)
-                dateStart.setHours(0, 0, 0, 0)
+            let deliveryStart, deliveryEnd
+            dateStart = checkDate(dateStart)
+            dateStart.setHours(0, 0, 0, 0)
+            if(dateEnd)
+                dateEnd = new Date(dateEnd)
+            else {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
+            dateEnd.setHours(0, 0, 0, 0)
             if (delivery) {
                 deliveryStart = new Date(delivery)
                 deliveryStart.setHours(0, 0, 0, 0)
@@ -94,15 +96,18 @@ const resolvers = {
                     }
                     :
                     {
+                        order,
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
                         ...store?{store}:{},
                         ...promotion?{promotion}:{},
                         ...cpa?{cpa}:{},
-                        ...delivery?{$and: [{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]}:{},
-                        ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
-                        ...user.role==='доставщик'?{status: 'отгружен', deliverymans: user._id}:status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                        $and: [
+                            {createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}},
+                            ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[]
+                        ],
+                        ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
                     }
             )
                 .sort('-createdAt')
@@ -127,14 +132,6 @@ const resolvers = {
                     select: '_id status number'
                 })
                 .populate({
-                    path: 'orders',
-                    select: '_id number'
-                })
-                .populate({
-                    path: 'deliverymans',
-                    select: '_id name'
-                })
-                .populate({
                     path: 'reservations',
                     select: '_id number'
                 })
@@ -154,7 +151,7 @@ const resolvers = {
             let row = 1
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Продажа №'
+                worksheet.getRow(row).getCell(1).value = res[i].order?'На заказ №':'Продажа №'
                 worksheet.getRow(row).getCell(2).value = res[i].number
                 row +=1
                 worksheet.getRow(row).getCell(1).font = {bold: true};
@@ -350,15 +347,20 @@ const resolvers = {
             return [sales.length, allSalesAmount, bonusManager]
         }
     },
-    sales: async(parent, {search, skip, limit, items, manager, client, cpa, date, delivery, status, store, promotion}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
+    sales: async(parent, {search, skip, limit, order, items, manager, client, cpa, dateStart, dateEnd, delivery, status, store, promotion}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            let dateStart, dateEnd, deliveryStart, deliveryEnd
-            if (date) {
-                dateStart = new Date(date)
+            let deliveryStart, deliveryEnd
+            if (dateStart) {
+                dateStart = new Date(dateStart)
                 dateStart.setHours(0, 0, 0, 0)
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
+                if(dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
             }
             if (delivery) {
                 deliveryStart = new Date(delivery)
@@ -367,15 +369,18 @@ const resolvers = {
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
             let res = await Sale.find({
+                order,
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...promotion?{promotion}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
                 ...cpa?{cpa}:{},
-                ...delivery?{$and: [{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]}:{},
-                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
-                ...user.role==='доставщик'?{status: 'отгружен', deliverymans: user._id}:status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                ...delivery||dateStart?{$and: [
+                    ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[],
+                    ...dateStart?[{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]:[]
+                ]}:{},
+                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
@@ -399,14 +404,6 @@ const resolvers = {
                 .populate({
                     path: 'installment',
                     select: '_id status number'
-                })
-                .populate({
-                    path: 'orders',
-                    select: '_id number'
-                })
-                .populate({
-                    path: 'deliverymans',
-                    select: '_id name'
                 })
                 .populate({
                     path: 'reservations',
@@ -433,16 +430,19 @@ const resolvers = {
             return res
         }
     },
-    salesCount: async(parent, {search, promotion, manager, client, cpa, date, delivery, status, store}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
+    salesCount: async(parent, {order, search, promotion, manager, client, cpa, dateStart, dateEnd, delivery, status, store}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            let dateStart, dateEnd, deliveryStart, deliveryEnd
-            if (!delivery||date) {
-                dateStart = checkDate(date)
-                dateStart.setHours(0, 0, 0, 0)
+            let deliveryStart, deliveryEnd
+            dateStart = checkDate(dateStart)
+            dateStart.setHours(0, 0, 0, 0)
+            if(dateEnd)
+                dateEnd = new Date(dateEnd)
+            else {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
+            dateEnd.setHours(0, 0, 0, 0)
             if (delivery) {
                 deliveryStart = new Date(delivery)
                 deliveryStart.setHours(0, 0, 0, 0)
@@ -450,15 +450,18 @@ const resolvers = {
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
             return await Sale.countDocuments({
+                order,
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
                 ...promotion?{promotion}:{},
                 ...store?{store}:{},
                 ...cpa?{cpa}:{},
-                ...delivery?{$and: [{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]}:{},
-                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
-                ...user.role==='доставщик'?{status: 'отгружен', deliverymans: user._id}:status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                $and: [
+                    {createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}},
+                    ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[]
+                ],
+                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .lean()
         }
@@ -489,14 +492,6 @@ const resolvers = {
                     select: '_id status number'
                 })
                 .populate({
-                    path: 'orders',
-                    select: '_id number'
-                })
-                 .populate({
-                     path: 'deliverymans',
-                     select: '_id name'
-                 })
-                .populate({
                     path: 'reservations',
                     select: '_id number'
                 })
@@ -513,17 +508,44 @@ const resolvers = {
             return res
         }
     },
+    prepareAcceptOrder: async(parent, {_id}, {user}) => {
+        if(['admin', 'завсклад', 'менеджер/завсклад'].includes(user.role)) {
+            let res = []
+            let order = await Sale.findOne({
+                _id
+            })
+                .populate('itemsSale')
+                .lean()
+            let wayItems, usedAmount
+            for(let i=0; i<order.itemsSale.length; i++) {
+                res[i] = null
+                wayItems = await WayItem.find({item: order.itemsSale[i].item, status: 'в пути', store: order.store}).lean()
+                for(let i1=0; i1<wayItems.length; i1++) {
+                    usedAmount = 0
+                    for(let i2=0; i2<wayItems[i1].bookings.length; i2++) {
+                        usedAmount += wayItems[i1].bookings[i2].amount
+                    }
+                    if((wayItems[i1].amount-usedAmount)>=order.itemsSale[i].count) {
+                        res[i] = wayItems[i1]._id
+                        break
+                    }
+                }
+            }
+            return res
+        }
+    },
 };
 
 const resolversMutation = {
-    addSale: async(parent, {client, prepaid, promotion, itemsSale, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, orders, reservations}, {user}) => {
+    addSale: async(parent, {order, client, prepaid, promotion, itemsSale, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, reservations}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             if (delivery&&delivery.toString()!=='Invalid Date') 
                 delivery = new Date(delivery)
             else
                 delivery = null
             let object = new Sale({
-                number: (await Sale.countDocuments({}).lean())+1,
+                order,
+                number: (await Sale.countDocuments({order}).lean())+1,
                 manager: user._id,
                 client,
                 store: user.store,
@@ -542,8 +564,6 @@ const resolversMutation = {
                 comment,
                 currency,
                 paid,
-                orders,
-                deliverymans: [],
                 reservations
             });
             //процент дизайнера
@@ -553,7 +573,7 @@ const resolversMutation = {
                     if (paid < amountEnd) {
                         bonusCpa.bonus = bonusCpa.installment
                     }
-                    else if (orders && orders.length) {
+                    else if (order) {
                         bonusCpa.bonus = bonusCpa.order
                     }
                     else {
@@ -570,44 +590,43 @@ const resolversMutation = {
                     }
                 }
             }
-            //На заказ
-            orders = await Order.find({_id: {$in: orders}})
-            for(let i=0; i<orders.length; i++) {
-                orders[i].sale = object._id
-                orders[i].status = 'продан'
-                await ItemOrder.updateMany({_id: {$in: orders[i].itemsOrder}}, {status: 'продан'})
-                await orders[i].save()
-            }
             //Бронь
-            let itemsReservation
-            reservations = await Reservation.find({_id: {$in: reservations}})
-            for(let i=0; i<reservations.length; i++) {
-                reservations[i].sale = object._id
-                reservations[i].status = 'продан'
-                itemsReservation = await ItemReservation.find({_id: {$in: reservations[i].itemsReservation}}).lean()
-                for(let i1=0; i1<itemsReservation.length; i1++) {
-                    let storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsReservation[i1].item})
-                    storeBalanceItem.reservation = checkFloat(storeBalanceItem.reservation - itemsReservation[i1].count)
-                    storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsReservation[i1].count)
-                    await storeBalanceItem.save()
+            if(!order) {
+                let itemsReservation
+                reservations = await Reservation.find({_id: {$in: reservations}})
+                for (let i = 0; i < reservations.length; i++) {
+                    reservations[i].sale = object._id
+                    reservations[i].status = 'продан'
+                    itemsReservation = await ItemReservation.find({_id: {$in: reservations[i].itemsReservation}}).lean()
+                    for (let i1 = 0; i1 < itemsReservation.length; i1++) {
+                        let storeBalanceItem = await StoreBalanceItem.findOne({
+                            store: object.store,
+                            item: itemsReservation[i1].item
+                        })
+                        storeBalanceItem.reservation = checkFloat(storeBalanceItem.reservation - itemsReservation[i1].count)
+                        storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsReservation[i1].count)
+                        await storeBalanceItem.save()
+                    }
+                    await ItemReservation.updateMany({_id: {$in: reservations[i].itemsReservation}}, {status: 'продан'})
+                    await reservations[i].save()
                 }
-                await ItemReservation.updateMany({_id: {$in: reservations[i].itemsReservation}}, {status: 'продан'})
-                await reservations[i].save()
             }
             //Проданные товары
             for(let i=0; i<itemsSale.length; i++) {
                 itemsSale[i] = new ItemSale(itemsSale[i]);
-                let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsSale[i].item})
-                storeBalanceItem.sale = checkFloat(storeBalanceItem.sale + itemsSale[i].count)
-                storeBalanceItem.free = checkFloat(storeBalanceItem.free - itemsSale[i].count)
-                await storeBalanceItem.save()
+                if(!order) {
+                    let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsSale[i].item})
+                    storeBalanceItem.sale = checkFloat(storeBalanceItem.sale + itemsSale[i].count)
+                    storeBalanceItem.free = checkFloat(storeBalanceItem.free - itemsSale[i].count)
+                    await storeBalanceItem.save()
+                }
                 itemsSale[i] = (await ItemSale.create(itemsSale[i]))._id
             }
             object.itemsSale = itemsSale
             //Баланс клиента
-            if(paid) {
+            if(paid===amountEnd) {
                 let balanceClient = await BalanceClient.findOne({client})
-                balanceClient.balance = checkFloat(balanceClient.balance - paid)
+                balanceClient.balance = checkFloat(balanceClient.balance - amountEnd)
                 await balanceClient.save()
             }
             //Бонус менеджера
@@ -617,10 +636,10 @@ const resolversMutation = {
                 if (promotion) {
                     bonusManager.bonus = bonusManager.promotion
                 }
-                else if (paid < amountEnd && orders && orders.length) {
+                else if (paid < amountEnd && order) {
                     bonusManager.bonus = bonusManager.orderInstallment
                 }
-                else if (orders && orders.length) {
+                else if (order) {
                     bonusManager.bonus = bonusManager.order
                 }
                 else if (paid < amountEnd) {
@@ -718,8 +737,8 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setSale: async(parent, {_id, deliverymans, bonusManager, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
-        if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад', 'доставщик'].includes(user.role)) {
+    setSale: async(parent, {_id, bonusManager, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await Sale.findById(_id)
             if(object) {
                 let history = new History({
@@ -736,10 +755,15 @@ const resolversMutation = {
                     }
                     for(let i=0; i<object.itemsSale.length; i++) {
                         oldItemSale = await ItemSale.findOne({_id: object.itemsSale[i]}).lean()
-                        storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: oldItemSale.item})
-                        storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - oldItemSale.count)
-                        storeBalanceItem.free = checkFloat(storeBalanceItem.free + oldItemSale.count)
-                        await storeBalanceItem.save()
+                        if(!object.order) {
+                            storeBalanceItem = await StoreBalanceItem.findOne({
+                                store: object.store,
+                                item: oldItemSale.item
+                            })
+                            storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - oldItemSale.count)
+                            storeBalanceItem.free = checkFloat(storeBalanceItem.free + oldItemSale.count)
+                            await storeBalanceItem.save()
+                        }
                         if(!newIdsItemSale.includes(object.itemsSale[i].toString()))
                             await ItemSale.deleteOne({_id: object.itemsSale[i]})
                         else
@@ -753,16 +777,17 @@ const resolversMutation = {
                             newItemSale = new ItemSale(itemsSale[i]);
                             newItemsSale.push((await ItemSale.create(newItemSale))._id)
                         }
-                        storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsSale[i].item})
-                        storeBalanceItem.sale = checkFloat(storeBalanceItem.sale + itemsSale[i].count)
-                        storeBalanceItem.free = checkFloat(storeBalanceItem.free - itemsSale[i].count)
-                        await storeBalanceItem.save()
+                        if(!object.order) {
+                            storeBalanceItem = await StoreBalanceItem.findOne({
+                                store: object.store,
+                                item: itemsSale[i].item
+                            })
+                            storeBalanceItem.sale = checkFloat(storeBalanceItem.sale + itemsSale[i].count)
+                            storeBalanceItem.free = checkFloat(storeBalanceItem.free - itemsSale[i].count)
+                            await storeBalanceItem.save()
+                        }
                     }
                     await Sale.updateOne({_id}, {itemsSale: newItemsSale})
-                }
-                if (deliverymans) {
-                    history.what = `${history.what}Доставщики;\n`
-                    object.deliverymans = deliverymans
                 }
                 if (geo) {
                     history.what = `${history.what}Гео:${object.geo}→${geo};\n`
@@ -781,10 +806,10 @@ const resolversMutation = {
                     object.addressInfo = addressInfo
                 }
                 if (paid!=undefined) {
-                    history.what = `${history.what}paid:${object.paid}→${paid};\n`
+                    history.what = `${history.what}Оплачено:${object.paid}→${paid};\n`
 
-                    let balanceClient = await BalanceClient.findOne({client: object.client})
-                    balanceClient.balance = checkFloat(balanceClient.balance + object.paid - paid)
+                    //let balanceClient = await BalanceClient.findOne({client: object.client})
+                    //balanceClient.balance = checkFloat(balanceClient.balance + object.paid - paid)
                     if(object.installment) {
                         let installment = await Installment.findOne({_id: object.installment, status: {$nin: ['перерасчет', 'отмена']}}).lean()
                         if(installment) {
@@ -794,21 +819,31 @@ const resolversMutation = {
                                 what: 'Изменение оплаты продажи'
                             });
                             await History.create(history)
-                            installment.paid = installment.paid - object.paid + paid
+                            //installment.paid = installment.paid - object.paid + paid
                             let debt = installment.amount - installment.paid
+                            let gridDebt = installment.amount - paid
                             let grid = [...installment.grid]
                             grid[0].amount = paid
-                            grid[0].paid = paid
+                            //grid[0].paid = paid
                             let monthInstallment = grid.length - 1
-                            let paidInstallment = checkFloat(debt / monthInstallment)
+                            let paidInstallment = checkFloat(gridDebt / monthInstallment)
+
+                            let remainder = paidInstallment % (paidInstallment >= 100 ? 100 : 1)
+                            remainder = Math.round(remainder * monthInstallment)
+                            if (remainder)
+                                paidInstallment = checkFloat((gridDebt - remainder) / monthInstallment)
+
                             for (let i = 0; i < monthInstallment; i++)
                                 grid[i + 1].amount = paidInstallment
+
+                            grid[grid.length-1].amount += remainder
+
                             await Installment.updateOne({_id: object.installment}, {paid: installment.paid, debt, grid})
-                            balanceClient.balance = checkFloat(balanceClient.balance + installment.debt - debt)
+                            //balanceClient.balance = checkFloat(balanceClient.balance + installment.debt - debt)
                         }
                     }
 
-                    await balanceClient.save()
+                    //await balanceClient.save()
 
                     object.paid = paid
                 }
@@ -893,12 +928,6 @@ const resolversMutation = {
                 }
                 if (amountEnd!=undefined) {
                     history.what = `${history.what}Сумма после скидки:${object.amountEnd}→${amountEnd};\n`
-
-                    let balanceClient = await BalanceClient.findOne({client: object.client})
-                    balanceClient.balance = checkFloat(balanceClient.balance + object.amountEnd - amountEnd)
-                    await balanceClient.save()
-
-
                     let bonus = checkFloat(object.bonusManager*amountEnd/object.amountEnd)
                     let date = new Date(object.createdAt)
                     date.setHours(0, 0, 0, 0)
@@ -982,10 +1011,19 @@ const resolversMutation = {
                             let amount = amountEnd
                             let debt = amount - installment.paid
                             let grid = [...installment.grid]
+                            let gridDebt = amount - checkFloat(grid[0].amount)
                             let monthInstallment = grid.length - 1
-                            let paidInstallment = checkFloat(debt / monthInstallment)
+                            let paidInstallment = checkFloat(gridDebt / monthInstallment)
+
+                            let remainder = paidInstallment % (paidInstallment >= 100 ? 100 : 1)
+                            remainder = Math.round(remainder * monthInstallment)
+                            if (remainder)
+                                paidInstallment = checkFloat((gridDebt - remainder) / monthInstallment)
+
                             for (let i = 0; i < monthInstallment; i++)
                                 grid[i + 1].amount = paidInstallment
+
+                            grid[grid.length-1].amount += remainder
 
                             await Installment.updateOne({_id: object.installment}, {amount, debt, grid})
                         }
@@ -1024,16 +1062,6 @@ const resolversMutation = {
                             }
                         }
 
-                        if(object.orders&&object.orders.length) {
-                            let orders = await Order.find({_id: {$in: object.orders}})
-                            for(let i=0; i<orders.length; i++) {
-                                orders[i].sale = null
-                                orders[i].status = 'принят'
-                                await ItemOrder.updateMany({_id: {$in: orders[i].itemsOrder}}, {status: 'принят'})
-                                await orders[i].save()
-                            }
-                        }
-
                         if(object.reservations&&object.reservations.length) {
                             let reservations = await Reservation.find({_id: {$in: object.reservations}})
                             for(let i=0; i<reservations.length; i++) {
@@ -1047,12 +1075,17 @@ const resolversMutation = {
                         balanceClient.balance = checkFloat(balanceClient.balance + object.paid + debtInstallment)
                         await balanceClient.save()
 
-                        itemsSale = await ItemSale.find({_id: {$in: object.itemsSale}}).lean()
-                        for(let i=0; i<itemsSale.length; i++) {
-                            let storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsSale[i].item})
-                            storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
-                            storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
-                            await storeBalanceItem.save()
+                        if(!object.order) {
+                            itemsSale = await ItemSale.find({_id: {$in: object.itemsSale}}).lean()
+                            for (let i = 0; i < itemsSale.length; i++) {
+                                let storeBalanceItem = await StoreBalanceItem.findOne({
+                                    store: object.store,
+                                    item: itemsSale[i].item
+                                })
+                                storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
+                                storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
+                                await storeBalanceItem.save()
+                            }
                         }
 
                         if(object.bonusManager) {
@@ -1094,12 +1127,17 @@ const resolversMutation = {
                     }
                     else if(status==='отгружен') {
 
-                        itemsSale = await ItemSale.find({_id: {$in: object.itemsSale}}).lean()
-                        for(let i=0; i<itemsSale.length; i++) {
-                            let storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsSale[i].item})
-                            storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
-                            storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
-                            await storeBalanceItem.save()
+                        if(!object.order) {
+                            itemsSale = await ItemSale.find({_id: {$in: object.itemsSale}}).lean()
+                            for (let i = 0; i < itemsSale.length; i++) {
+                                let storeBalanceItem = await StoreBalanceItem.findOne({
+                                    store: object.store,
+                                    item: itemsSale[i].item
+                                })
+                                storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
+                                storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
+                                await storeBalanceItem.save()
+                            }
                         }
 
                         if(!object.delivery) {

@@ -118,7 +118,6 @@ module.exports.setBalanceCashboxDay = async ({cashbox, newAmount, oldAmount, cur
             else
                 balanceCashboxDay.endBalance[index].amount = checkFloat(balanceCashboxDay.endBalance[index].amount - newAmount + oldAmount)
         }
-        console.log(JSON.stringify({startBalance: balanceCashboxDay.startBalance, endBalance: balanceCashboxDay.endBalance}))
         await BalanceCashboxDay.updateOne({_id: balanceCashboxDay._id}, {startBalance: balanceCashboxDay.startBalance, endBalance: balanceCashboxDay.endBalance})
         lastBalanceCashboxDay = cloneObject(balanceCashboxDay)
         date.setDate(date.getDate()+1)

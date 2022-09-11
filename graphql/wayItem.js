@@ -20,7 +20,7 @@ const type = `
     amount: Float
     status: String
     arrivalDate: Date
-    order: Order
+    order: Sale
     dispatchDate: Date
   }
   type WayItemBooking {
@@ -337,7 +337,6 @@ const resolversMutation = {
                     row.getCell(2).value = (await Item.findOne({name: row.getCell(2).value}).select('_id').lean())._id
                 if(row.getCell(3).value)
                     row.getCell(3).value = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
-                console.log(1)
                 if(row.getCell(1).value||row.getCell(2).value&&row.getCell(3).value) {
                     _id = row.getCell(1).value
                     let bookings = []

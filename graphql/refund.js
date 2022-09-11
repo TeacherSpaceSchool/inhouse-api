@@ -31,9 +31,9 @@ const type = `
 `;
 
 const query = `
-    unloadRefunds(search: String, manager: ID, client: ID, store: ID, date: Date, status: String, _id: ID): String
-    refunds(search: String, skip: Int, limit: Int, manager: ID, client: ID, store: ID, date: Date, status: String): [Refund]
-    refundsCount(search: String, manager: ID, client: ID, store: ID, date: Date, status: String): Int
+    unloadRefunds(search: String, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String, _id: ID): String
+    refunds(search: String, skip: Int, limit: Int, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): [Refund]
+    refundsCount(search: String, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): Int
     refund(_id: ID!): Refund
 `;
 
@@ -43,14 +43,15 @@ const mutation = `
 `;
 
 const resolvers = {
-    unloadRefunds: async(parent, {search, client, store, manager, date, status, _id}, {user}) => {
+    unloadRefunds: async(parent, {search, client, store, manager, dateStart, dateEnd, status, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
-            let dateStart, dateEnd
-            if (date&&date.toString()!=='Invalid Date') {
-                dateStart = new Date(date)
-                dateStart.setHours(0, 0, 0, 0)
+            dateStart = checkDate(dateStart)
+            dateStart.setHours(0, 0, 0, 0)
+            if(dateEnd)
+                dateEnd = new Date(dateEnd)
+            else {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
@@ -65,7 +66,7 @@ const resolvers = {
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
                         ...store?{store}:{},
-                        ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                        $and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}],
                         ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
                     }
             )
@@ -84,7 +85,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'sale',
-                    select: '_id number'
+                    select: '_id number order'
                 })
                 .populate('itemsRefund')
                 .lean()
@@ -163,23 +164,27 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    refunds: async(parent, {search, skip, manager, client, store, limit, date, status}, {user}) => {
+    refunds: async(parent, {search, skip, manager, client, store, limit, dateStart, dateEnd, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
-            let dateStart, dateEnd
-            if (date&&date.toString()!=='Invalid Date') {
-                dateStart = new Date(date)
+            if (dateStart) {
+                dateStart = new Date(dateStart)
                 dateStart.setHours(0, 0, 0, 0)
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
+                if(dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
             }
             let res = await Refund.find({
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
-                ...date?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
                 ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .skip(skip != undefined ? skip : 0)
@@ -199,26 +204,31 @@ const resolvers = {
                 })
                 .populate({
                     path: 'sale',
-                    select: '_id number'
+                    select: '_id number order'
                 })
                 .lean()
             return res
         }
     },
-    refundsCount: async(parent, {search, client, store, manager, date, status}, {user}) => {
+    refundsCount: async(parent, {search, client, store, manager, dateStart, dateEnd, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
-            let dateStart = checkDate(date)
+            dateStart = checkDate(dateStart)
             dateStart.setHours(0, 0, 0, 0)
-            let dateEnd = new Date(dateStart)
-            dateEnd.setDate(dateEnd.getDate() + 1)
+            if(dateEnd)
+                dateEnd = new Date(dateEnd)
+            else {
+                dateEnd = new Date(dateStart)
+                dateEnd.setDate(dateEnd.getDate() + 1)
+            }
+            dateEnd.setHours(0, 0, 0, 0)
             return await Refund.countDocuments({
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
-                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
+                $and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}],
                 ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
             })
                 .lean()
@@ -243,7 +253,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'sale',
-                    select: '_id number'
+                    select: '_id number order'
                 })
                 .populate('itemsRefund')
                 .lean()
@@ -256,6 +266,7 @@ const resolversMutation = {
     addRefund: async(parent, {client, discount, itemsRefund, amount, comment, currency, sale}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             for(let i=0; i<itemsRefund.length; i++) {
+                console.log(itemsRefund[i])
                 itemsRefund[i] = new ItemRefund(itemsRefund[i]);
                 itemsRefund[i] = (await ItemRefund.create(itemsRefund[i]))._id
             }
@@ -306,8 +317,20 @@ const resolversMutation = {
                         gridDebt = 0
                     let monthInstallment = grid.length - 1
                     let paidInstallment = checkFloat(gridDebt / monthInstallment)
+
+                    let remainder = 0
+                    if(gridDebt) {
+                        remainder = paidInstallment % (paidInstallment >= 100 ? 100 : 1)
+                        remainder = Math.round(remainder * monthInstallment)
+                        if (remainder)
+                            paidInstallment = checkFloat((gridDebt - remainder) / monthInstallment)
+                    }
+
                     for (let i = 0; i < monthInstallment; i++)
                         grid[i + 1].amount = paidInstallment
+
+                    grid[grid.length-1].amount += remainder
+
                     if (!installment.debt)
                         installment.status = 'оплачен'
 
@@ -438,14 +461,23 @@ const resolversMutation = {
                                     what: 'Отмена возврата'
                                 });
                                 await History.create(history)
-                                installment.amount = installment.amount + object.amount
+                                installment.amount = sale.amountEnd
                                 installment.debt = installment.amount - installment.paid
                                 let grid = [...installment.grid]
                                 let gridDebt = installment.amount - checkFloat(grid[0].amount)
                                 let monthInstallment = grid.length - 1
                                 let paidInstallment = checkFloat(gridDebt / monthInstallment)
+
+                                let remainder = paidInstallment % (paidInstallment >= 100 ? 100 : 1)
+                                remainder = Math.round(remainder * monthInstallment)
+                                if (remainder)
+                                    paidInstallment = checkFloat((gridDebt - remainder) / monthInstallment)
+
                                 for (let i = 0; i < monthInstallment; i++)
                                     grid[i + 1].amount = paidInstallment
+
+                                grid[grid.length-1].amount += remainder
+
                                 if (!installment.debt)
                                     installment.status = 'оплачен'
                                 else

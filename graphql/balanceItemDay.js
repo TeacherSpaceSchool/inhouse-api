@@ -185,7 +185,6 @@ const resolvers = {
                     select: 'name _id'
                 })
                 .lean()
-            console.log(res)
             return res
         }
     },

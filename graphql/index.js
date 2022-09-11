@@ -31,7 +31,6 @@ const Warehouse = require('./warehouse');
 const WayItem = require('./wayItem');
 const Passport = require('./passport');
 const Consultation = require('./consultation');
-const Order = require('./order');
 const Refund = require('./refund');
 const Reservation = require('./reservation');
 const Sale = require('./sale');
@@ -132,7 +131,6 @@ const typeDefs = gql`
     ${Faq.type}
     ${Item.type}
     ${Passport.type}
-    ${Order.type}
     ${Reservation.type}
     ${Refund.type}
     ${Sale.type}
@@ -147,7 +145,6 @@ const typeDefs = gql`
         ${Faq.mutation}
         ${Item.mutation}
         ${Passport.mutation}
-        ${Order.mutation}
         ${Refund.mutation}
         ${Reservation.mutation}
         ${Sale.mutation}
@@ -178,7 +175,6 @@ const typeDefs = gql`
         ${Promotion.query}
         ${History.query}
         ${Passport.query}
-        ${Order.query}
         ${Sale.query}
         ${Reservation.query}
         ${Refund.query}
@@ -241,7 +237,6 @@ const resolvers = {
         ...Promotion.resolvers,
         ...History.resolvers,
         ...Passport.resolvers,
-        ...Order.resolvers,
         ...Reservation.resolvers,
         ...Refund.resolvers,
         ...Sale.resolvers,
@@ -274,7 +269,6 @@ const resolvers = {
         ...Client.resolversMutation,
         ...Promotion.resolversMutation,
         ...Passport.resolversMutation,
-        ...Order.resolversMutation,
         ...Refund.resolversMutation,
         ...Reservation.resolversMutation,
         ...Sale.resolversMutation,

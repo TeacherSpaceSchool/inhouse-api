@@ -4,7 +4,6 @@ const Cashbox = require('../models/cashbox');
 const BalanceCashboxDay = require('../models/balanceCashboxDay');
 const History = require('../models/history');
 const Doc = require('../models/doc');
-const Order = require('../models/order');
 const Sale = require('../models/sale');
 const Store = require('../models/store');
 const Installment = require('../models/installment');
@@ -43,7 +42,7 @@ const type = `
     currency: String
     number: String
     date: Date
-    order: Order
+    order: Sale
     sale: Sale
     installment: Installment
     installmentMonth: Date
@@ -784,7 +783,7 @@ const resolversMutation = {
                             if (clearRecipient||client||employment||cashboxRecipient||moneyRecipient) {
                                 //удаляем старые оплаты баланса
                                 if(object.order)
-                                    await Order.updateOne({_id: object.order}, {paymentConfirmation: false})
+                                    await Sale.updateOne({_id: object.order}, {paymentConfirmation: false})
                                 else if(object.reservation)
                                     await Reservation.updateOne({_id: object.reservation}, {paymentConfirmation: false})
                                 else if(object.refund)
@@ -1114,14 +1113,13 @@ const resolversMutation = {
                 amountEnd
             });
 
-            if(order)
-                await Order.updateOne({_id: order}, {paymentConfirmation: true})
-            else if(reservation)
+
+            if(reservation)
                 await Reservation.updateOne({_id: reservation}, {paymentConfirmation: true})
             else if(refund)
                 await Refund.updateOne({_id: refund}, {paymentConfirmation: true})
-            else if(sale) {
-                let saleObject = await Sale.findById(sale)
+            else if(sale||order) {
+                let saleObject = await Sale.findById(sale?sale:order)
                 if(saleObject.installment) {
                     let installmentObject = await Installment.findById(saleObject.installment).lean()
                     await setGridInstallment({_id: installmentObject._id, newAmount: amountEnd, oldAmount: 0, month: installmentObject.grid[0].month, type: '+', user})
@@ -1291,7 +1289,7 @@ const resolversMutation = {
                 if (clearRecipient||client||employment||order||sale||reservation||refund||cashboxRecipient||moneyRecipient) {
                     //удаляем старые оплаты баланса
                     if(object.order)
-                        await Order.updateOne({_id: object.order}, {paymentConfirmation: false})
+                        await Sale.updateOne({_id: object.order}, {paymentConfirmation: false})
                     else if(object.reservation)
                         await Reservation.updateOne({_id: object.reservation}, {paymentConfirmation: false})
                     else if(object.refund)
@@ -1332,14 +1330,12 @@ const resolversMutation = {
                     object.installment = installment?installment:null
                     object.installmentMonth = installmentMonth?installmentMonth:null
                     //добавляем новые оплаты баланса
-                    if(order)
-                        await Order.updateOne({_id: order}, {paymentConfirmation: true})
-                    else if(reservation)
+                    if(reservation)
                         await Reservation.updateOne({_id: reservation}, {paymentConfirmation: true})
                     else if(refund)
                         await Refund.updateOne({_id: refund}, {paymentConfirmation: true})
-                    else if(sale) {
-                        let saleObject = await Sale.findById(sale)
+                    else if(sale||order) {
+                        let saleObject = await Sale.findById(sale?sale:order)
                         if(saleObject.installment) {
                             let installmentObject = await Installment.findById(saleObject.installment).lean()
                             await setGridInstallment({_id: installmentObject._id, newAmount: object.amountEnd, oldAmount: 0, month: installmentObject.grid[0].month, type: '+', user})
@@ -1469,7 +1465,7 @@ const resolversMutation = {
             if(object) {
 
                 if(object.order)
-                    await Order.updateOne({_id: object.order}, {paymentConfirmation: false})
+                    await Sale.updateOne({_id: object.order}, {paymentConfirmation: false})
                 else if(object.reservation)
                     await Reservation.updateOne({_id: object.reservation}, {paymentConfirmation: false})
                 else if(object.refund)

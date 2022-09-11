@@ -2,7 +2,6 @@ const BalanceClient = require('../models/balanceClient');
 const Installment = require('../models/installment');
 const Client = require('../models/client');
 const Sale = require('../models/sale');
-const Order = require('../models/order');
 const Reservation = require('../models/reservation');
 const { urlMain } = require('../module/const');
 const ExcelJS = require('exceljs');
@@ -33,7 +32,6 @@ const resolvers = {
                 managerClients = [
                     ...(await Sale.find({manager: user._id}).distinct('client').lean()),
                     ...(await Reservation.find({manager: user._id}).distinct('client').lean()),
-                    ...(await Order.find({manager: user._id}).distinct('client').lean())
                 ]
             }
             let searchClients = await Client.find({
@@ -62,7 +60,8 @@ const resolvers = {
                     .lean()
             }
             else if(debtor==='order') {
-                orderClients = await Order.find({
+                orderClients = await Sale.find({
+                    order: true,
                     paymentConfirmation: {$ne: true}
                 })
                     .distinct('client')
@@ -135,7 +134,6 @@ const resolvers = {
                 managerClients = [
                     ...(await Sale.find({manager: user._id}).distinct('client').lean()),
                     ...(await Reservation.find({manager: user._id}).distinct('client').lean()),
-                    ...(await Order.find({manager: user._id}).distinct('client').lean())
                 ]
             }
             let searchClients = await Client.find({
@@ -164,8 +162,9 @@ const resolvers = {
                     .lean()
             }
             else if(debtor==='order') {
-                orderClients = await Order.find({
-                    paymentConfirmation: {$ne: true}
+                orderClients = await Sale.find({
+                    paymentConfirmation: {$ne: true},
+                    order: true
                 })
                     .distinct('client')
                     .lean()
@@ -223,8 +222,7 @@ const resolvers = {
             if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
                 managerClients = [
                     ...(await Sale.find({manager: user._id}).distinct('client').lean()),
-                    ...(await Reservation.find({manager: user._id}).distinct('client').lean()),
-                    ...(await Order.find({manager: user._id}).distinct('client').lean())
+                    ...(await Reservation.find({manager: user._id}).distinct('client').lean())
                 ]
             }
             let searchClients = await Client.find({
@@ -253,8 +251,9 @@ const resolvers = {
                     .lean()
             }
             else if(debtor==='order') {
-                orderClients = await Order.find({
-                    paymentConfirmation: {$ne: true}
+                orderClients = await Sale.find({
+                    paymentConfirmation: {$ne: true},
+                    order: true
                 })
                     .distinct('client')
                     .lean()

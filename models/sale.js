@@ -2,10 +2,6 @@ const mongoose = require('mongoose');
 
 const SaleSchema = mongoose.Schema({
     number: String,
-    deliverymans: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'UserINHOUSE'
-    }],
     manager: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'UserINHOUSE'
@@ -52,10 +48,7 @@ const SaleSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StoreINHOUSE'
     },
-    orders: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'OrderINHOUSE'
-    }],
+    order: Boolean,
     reservations: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ReservationINHOUSE'
