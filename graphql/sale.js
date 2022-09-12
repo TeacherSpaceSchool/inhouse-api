@@ -22,6 +22,7 @@ const type = `
   type Sale {
     _id: ID
     createdAt: Date
+    divide: Boolean
     paymentConfirmation: Boolean
     number: String
     manager: User
@@ -33,9 +34,9 @@ const type = `
     cpa: Cpa
     deliveryFact: Date
     percentCpa: Float
+    bonusCpa: Float
     bonusManager: Float
     prepaid: Float
-    bonusCpa: Float
     amountStart: Float
     amountEnd: Float
     typePayment: String
@@ -66,7 +67,8 @@ const query = `
 
 const mutation = `
     addSale(client: ID!, prepaid: Float, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
-    setSale(_id: ID!, bonusManager: Float, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
+    setSale(_id: ID!, percentManager: Float, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
+    divideSale(_id: ID!, newItems: [ItemFromListInput]!, currentItems: [ItemFromListInput]!): String
 `;
 
 const resolvers = {
@@ -176,7 +178,7 @@ const resolvers = {
                 row +=1
                 if(res[i].cpa) {
                     worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Партнер'
+                    worksheet.getRow(row).getCell(1).value = 'Дизайнер'
                     worksheet.getRow(row).getCell(2).value = `${res[i].cpa.name} ${res[i].percentCpa}%`
                     row += 1
                 }
@@ -737,7 +739,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setSale: async(parent, {_id, bonusManager, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
+    setSale: async(parent, {_id, percentManager, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await Sale.findById(_id)
             if(object) {
@@ -855,9 +857,9 @@ const resolversMutation = {
                     history.what = `${history.what}Сумма до скидки:${object.amountStart}→${amountStart};\n`
                     object.amountStart = amountStart
                 }
-                if (bonusManager) {
+                if (percentManager!=undefined) {
                     history.what = `${history.what}Процент менеджера;\n`
-                    let bonus = checkFloat(object.amountEnd/100*bonusManager)
+                    let bonus = checkFloat(object.amountEnd/100*percentManager)
                     let date = new Date(object.createdAt)
                     date.setHours(0, 0, 0, 0)
                     date.setDate(1)
@@ -868,7 +870,7 @@ const resolversMutation = {
                             where: salary._id,
                             what: `Бонус:${salary.bonus}`
                         });
-                        salary.bonus = checkFloat(salary.bonus - object.bonusManager + bonus)
+                        salary.bonus = checkFloat(salary.bonus - checkFloat(object.bonusManager) + bonus)
                         if(salary.bonus<0)
                             salary.bonus = 0
                         salary.pay = checkFloat(checkFloat(salary.debtStart) + checkFloat(salary.accrued) + checkFloat(salary.bonus) + checkFloat(salary.premium) - checkFloat(salary.penaltie) - checkFloat(salary.advance))
@@ -929,18 +931,19 @@ const resolversMutation = {
                 if (amountEnd!=undefined) {
                     history.what = `${history.what}Сумма после скидки:${object.amountEnd}→${amountEnd};\n`
                     let bonus = checkFloat(object.bonusManager*amountEnd/object.amountEnd)
-                    let date = new Date(object.createdAt)
-                    date.setHours(0, 0, 0, 0)
-                    date.setDate(1)
-                    let salary = await Salary.findOne({employment: object.manager, date})
-                    if (salary) {
+                    if(bonus) {
+                        let date = new Date(object.createdAt)
+                        date.setHours(0, 0, 0, 0)
+                        date.setDate(1)
+                        let salary = await Salary.findOne({employment: object.manager, date})
+                        if (salary) {
                             let history = new History({
                                 who: user._id,
                                 where: salary._id,
                                 what: `Бонус:${salary.bonus}`
                             });
-                            salary.bonus = checkFloat(salary.bonus - object.bonusManager + bonus)
-                            if(salary.bonus<0)
+                            salary.bonus = checkFloat(salary.bonus - checkFloat(object.bonusManager) + bonus)
+                            if (salary.bonus < 0)
                                 salary.bonus = 0
                             salary.pay = checkFloat(checkFloat(salary.debtStart) + checkFloat(salary.accrued) + checkFloat(salary.bonus) + checkFloat(salary.premium) - checkFloat(salary.penaltie) - checkFloat(salary.advance))
                             salary.debtEnd = checkFloat(checkFloat(salary.pay) - checkFloat(salary.paid))
@@ -948,8 +951,11 @@ const resolversMutation = {
                             history.what += `→${salary.bonus};`
                             await History.create(history)
                         }
-                    else {
-                            let debtStart = await Salary.findOne({employment: object.manager, date: {$lt: date}}).select('debtEnd').sort('-date').lean()
+                        else {
+                            let debtStart = await Salary.findOne({
+                                employment: object.manager,
+                                date: {$lt: date}
+                            }).select('debtEnd').sort('-date').lean()
                             if (debtStart)
                                 debtStart = debtStart.debtEnd
                             else
@@ -968,9 +974,9 @@ const resolversMutation = {
                                 accrued: 0,
                                 penaltie: 0,
                                 advance: 0,
-                                pay: bonus+debtStart,
+                                pay: bonus + debtStart,
                                 paid: 0,
-                                debtEnd: bonus+debtStart
+                                debtEnd: bonus + debtStart
                             });
                             salary = await Salary.create(salary)
                             let history = new History({
@@ -980,24 +986,28 @@ const resolversMutation = {
                             });
                             await History.create(history)
                         }
-                    let lastSalary = salary
-                    let lastDebtEnd = salary.debtEnd
-                    let _salary
-                    while(lastSalary) {
-                            _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: object._id}}).sort('date')
-                            if(_salary) {
+                        let lastSalary = salary
+                        let lastDebtEnd = salary.debtEnd
+                        let _salary
+                        while (lastSalary) {
+                            _salary = await Salary.findOne({
+                                date: {$gt: lastSalary.date},
+                                employment: object.manager,
+                                _id: {$ne: object._id}
+                            }).sort('date')
+                            if (_salary) {
                                 _salary.debtStart = lastDebtEnd
-                                _salary.pay = checkFloat(_salary.debtStart+_salary.accrued+_salary.bonus+_salary.premium-_salary.penaltie-_salary.advance)
-                                _salary.debtEnd = checkFloat(_salary.pay-_salary.paid)
+                                _salary.pay = checkFloat(_salary.debtStart + _salary.accrued + _salary.bonus + _salary.premium - _salary.penaltie - _salary.advance)
+                                _salary.debtEnd = checkFloat(_salary.pay - _salary.paid)
                                 lastDebtEnd = _salary.debtEnd
                                 await _salary.save()
                             }
                             lastSalary = _salary
                         }
-
+                    }
                     object.bonusManager = bonus
                     object.amountEnd = amountEnd
-                    object.bonusCpa = object.percentCpa?object.amountEnd/100*object.percentCpa:0
+                    object.bonusCpa = checkFloat(object.amountEnd/100*object.percentCpa)
                     if(object.installment) {
                         let installment = await Installment.findOne({_id: object.installment, status: {$nin: ['перерасчет', 'отмена']}}).lean()
                         if(installment) {
@@ -1031,9 +1041,9 @@ const resolversMutation = {
                     history.what = `${history.what}Бонус менеджера:${object.bonusManager}→${bonus};\n`
                 }
                 if (percentCpa!=undefined) {
-                    history.what = `${history.what}Процент партнера:${object.percentCpa}→${percentCpa};\n`
+                    history.what = `${history.what}Процент дизайнера:${object.percentCpa}→${percentCpa};\n`
                     object.percentCpa = percentCpa
-                    object.bonusCpa = object.percentCpa?object.amountEnd/100*object.percentCpa:0
+                    object.bonusCpa = checkFloat(object.amountEnd/100*object.percentCpa)
                 }
                 if (comment) {
                     history.what = `${history.what}Комментарий:${object.comment}→${comment};\n`
@@ -1047,7 +1057,7 @@ const resolversMutation = {
 
                         let balanceClient = await BalanceClient.findOne({client: object.client})
                         let debtInstallment = 0
-                            if(object.installment) {
+                        if(object.installment) {
                             let installment = await Installment.findOne({_id: object.installment, status: {$nin: ['перерасчет', 'отмена']}})
                             if(installment) {
                                 let history = new History({
@@ -1158,7 +1168,139 @@ const resolversMutation = {
             }
         }
         return 'ERROR'
-    }
+    },
+    divideSale: async(parent, {_id, newItems, currentItems}, {user}) => {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+            //поиск продажи
+            let object = await Sale.findById(_id)
+            if(object) {
+                let history = new History({
+                    who: user._id,
+                    where: object._id,
+                    what: 'Разделение операции\n'
+                });
+                object.divide = true
+                let amountStart = 0
+                //процент оплаты
+                let paid, paidPrecent
+                paidPrecent =  object.paid===object.amountEnd?100:object.paid*100/object.amountEnd
+                //процент оплаты
+                let prepaidPrecent = object.prepaid?object.prepaid*100/object.amountEnd:0
+                //проверка рассрочки
+                let installment = object.installment
+                if(installment)
+                    object.installment = null
+                //процент бонуса менеджера
+                let bonusManagerPrecent = checkFloat(object.bonusManager)*100/object.amountEnd
+                //процент скидки
+                let discountPrecent = 0
+                if(object.discount) {
+                    discountPrecent = object.discount*100/object.amountStart
+                }
+                //обновление позиций
+                let newItemsSale = []
+                for(let i=0; i<currentItems.length; i++) {
+                    amountStart  = checkFloat(amountStart + currentItems[i].amount)
+                    if(currentItems[i].count) {
+                        newItemsSale.push(currentItems[i]._id)
+                        await ItemSale.updateOne({_id: currentItems[i]._id}, currentItems[i])
+                    }
+                    else
+                        await ItemSale.deleteOne({_id: currentItems[i]._id})
+                }
+                await Sale.updateOne({_id}, {itemsSale: newItemsSale})
+                //сумма до скидки
+                history.what = `${history.what}Сумма до скидки:${object.amountStart}→${amountStart};\n`
+                object.amountStart = amountStart
+                //скидка
+                let discount = checkFloat(amountStart/100*discountPrecent)
+                history.what = `${history.what}Скидка:${object.discount}→${discount};\n`
+                object.discount = discount
+                //сумма после скидки
+                let amountEnd = checkFloat(amountStart - discount)
+                history.what = `${history.what}Сумма после скидки:${object.amountEnd}→${amountEnd};\n`
+                object.amountEnd = amountEnd
+                //предоплачено
+                if(prepaidPrecent) {
+                    let prepaid = checkFloat(object.amountEnd/100*prepaidPrecent)
+                    history.what = `${history.what}Предоплачено:${object.prepaid}→${prepaid};\n`
+                    object.prepaid = prepaid
+                }
+                //оплачено
+                paid = checkFloat(object.amountEnd/100*paidPrecent)
+                history.what = `${history.what}Оплачено:${object.paid}→${paid};\n`
+                object.paid = paid
+                //бонус менеджера
+                if(bonusManagerPrecent) {
+                    let bonusManager = checkFloat(amountEnd/100*bonusManagerPrecent)
+                    history.what = `${history.what}Бонус менеджера:${object.bonusManager}→${bonusManager};\n`
+                    object.bonusManager = bonusManager
+                }
+                //процент СРА
+                object.bonusCpa = checkFloat(object.amountEnd/100*object.percentCpa)
+
+                await History.create(history)
+                //новая продажа
+                let newObject = new Sale({
+                    order: object.order,
+                    number: (await Sale.countDocuments({order: object.order}).lean())+1,
+                    manager: object.manager,
+                    client: object.client,
+                    store: object.store,
+                    geo: object.geo,
+                    status: object.status,
+                    cpa: object.cpa,
+                    promotion: object.promotion,
+                    typePayment: object.typePayment,
+                    address: object.address,
+                    addressInfo: object.addressInfo,
+                    delivery: object.delivery,
+                    comment: object.comment,
+                    currency: object.currency,
+                    reservations: [],
+                    itemsSale: [],
+                    paymentConfirmation: object.paymentConfirmation,
+                    percentCpa: object.percentCpa,
+                    amountStart: 0,
+                    divide: true
+                });
+                //обновление позиций
+                for(let i=0; i<newItems.length; i++) {
+                    if (newItems[i].count) {
+                        newObject.amountStart = checkFloat(newObject.amountStart + newItems[i].amount)
+                        newItems[i] = new ItemSale(newItems[i]);
+                        newItems[i] = (await ItemSale.create(newItems[i]))._id
+                    }
+                }
+                newObject.itemsSale = newItems
+                //скидка
+                newObject.discount = checkFloat(newObject.amountStart/100*discountPrecent)
+                //сумма после скидки
+                newObject.amountEnd = checkFloat(newObject.amountStart - newObject.discount)
+                //предоплачено
+                if(prepaidPrecent)
+                    newObject.prepaid = checkFloat(newObject.amountEnd/100*prepaidPrecent)
+                //оплачено
+                newObject.paid = checkFloat(newObject.amountEnd/100*paidPrecent)
+                //бонус менеджера
+                newObject.bonusManager = checkFloat(newObject.amountEnd/100*bonusManagerPrecent)
+                //процент СРА
+                newObject.bonusCpa = checkFloat(newObject.amountEnd/100*newObject.percentCpa)
+
+                newObject = await Sale.create(newObject)
+                history = new History({
+                    who: user._id,
+                    where: newObject._id,
+                    what: 'Создание разделением'
+                });
+                await History.create(history)
+
+                await object.save();
+                return newObject._id
+            }
+        }
+        return 'ERROR'
+    },
 };
 
 module.exports.resolversMutation = resolversMutation;

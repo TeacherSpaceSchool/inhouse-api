@@ -49,6 +49,7 @@ const SaleSchema = mongoose.Schema({
         ref: 'StoreINHOUSE'
     },
     order: Boolean,
+    divide: Boolean,
     reservations: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'ReservationINHOUSE'

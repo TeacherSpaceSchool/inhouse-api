@@ -7,8 +7,8 @@ const ItemSaleSchema = mongoose.Schema({
         ref: 'ItemINHOUSE'
     },
     count: Number,
-    price: Number,
     amount: Number,
+    price: Number,
     characteristics: [[String]],
     unit: String,
     status: String
