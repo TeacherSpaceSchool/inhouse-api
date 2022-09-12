@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 
 const SaleSchema = mongoose.Schema({
     number: String,
+    deliverymans: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'UserINHOUSE'
+    }],
     manager: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'UserINHOUSE'

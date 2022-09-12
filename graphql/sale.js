@@ -26,6 +26,7 @@ const type = `
     paymentConfirmation: Boolean
     number: String
     manager: User
+    deliverymans: [User]
     client: Client
     promotion: Promotion
     itemsSale: [ItemFromList]
@@ -67,24 +68,26 @@ const query = `
 
 const mutation = `
     addSale(client: ID!, prepaid: Float, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
-    setSale(_id: ID!, percentManager: Float, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
+    setSale(_id: ID!, deliverymans: [ID], percentManager: Float, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
     divideSale(_id: ID!, newItems: [ItemFromListInput]!, currentItems: [ItemFromListInput]!): String
 `;
 
 const resolvers = {
     unloadSales: async(parent, {search, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
-            dateStart = checkDate(dateStart)
-            dateStart.setHours(0, 0, 0, 0)
-            if(dateEnd)
-                dateEnd = new Date(dateEnd)
-            else {
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
+            if(!delivery||dateStart) {
+                dateStart = checkDate(dateStart)
+                dateStart.setHours(0, 0, 0, 0)
+                if (dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
             }
-            dateEnd.setHours(0, 0, 0, 0)
             if (delivery) {
                 deliveryStart = new Date(delivery)
                 deliveryStart.setHours(0, 0, 0, 0)
@@ -98,7 +101,7 @@ const resolvers = {
                     }
                     :
                     {
-                        order,
+                        ...order!==false?{order}:{},
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
@@ -106,13 +109,25 @@ const resolvers = {
                         ...promotion?{promotion}:{},
                         ...cpa?{cpa}:{},
                         $and: [
-                            {createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}},
+                            ...dateStart?[{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]:[],
                             ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[]
                         ],
-                        ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
-                    }
+                        ...user.role==='доставщик'?
+                            {status: 'отгружен', deliverymans: user._id}
+                            :
+                                status?
+                                    status==='доставка'?
+                                        {status: {$in: ['на доставку', 'отгружен', 'доставлен']}}
+                                        :
+                                        status==='оплата'?
+                                            {status: {$ne: 'отмена'}}
+                                            :
+                                            {status}
+                                    :
+                                    {}
+                        }
             )
-                .sort('-createdAt')
+                .sort(status==='доставка'?'-delivery':'-createdAt')
                 .populate({
                     path: 'manager',
                     select: '_id name'
@@ -132,6 +147,10 @@ const resolvers = {
                 .populate({
                     path: 'installment',
                     select: '_id status number'
+                })
+                .populate({
+                    path: 'deliverymans',
+                    select: '_id name'
                 })
                 .populate({
                     path: 'reservations',
@@ -371,7 +390,7 @@ const resolvers = {
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
             let res = await Sale.find({
-                order,
+                ...order!==false?{order}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...promotion?{promotion}:{},
@@ -382,11 +401,23 @@ const resolvers = {
                     ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[],
                     ...dateStart?[{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]:[]
                 ]}:{},
-                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                ...user.role==='доставщик'?
+                    {status: 'отгружен', deliverymans: user._id}
+                    :
+                        status?
+                            status==='доставка'?
+                                {status: {$in: ['на доставку', 'отгружен', 'доставлен']}}
+                                :
+                                status==='оплата'?
+                                    {status: {$ne: 'отмена'}}
+                                    :
+                                    {status}
+                            :
+                            {}
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
-                .sort('-createdAt')
+                .sort(status==='доставка'?'-delivery':'-createdAt')
                 .populate({
                     path: 'manager',
                     select: '_id name'
@@ -406,6 +437,10 @@ const resolvers = {
                 .populate({
                     path: 'installment',
                     select: '_id status number'
+                })
+                .populate({
+                    path: 'deliverymans',
+                    select: '_id name'
                 })
                 .populate({
                     path: 'reservations',
@@ -436,15 +471,17 @@ const resolvers = {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
-            dateStart = checkDate(dateStart)
-            dateStart.setHours(0, 0, 0, 0)
-            if(dateEnd)
-                dateEnd = new Date(dateEnd)
-            else {
-                dateEnd = new Date(dateStart)
-                dateEnd.setDate(dateEnd.getDate() + 1)
+            if(!delivery||dateStart) {
+                dateStart = checkDate(dateStart)
+                dateStart.setHours(0, 0, 0, 0)
+                if (dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
             }
-            dateEnd.setHours(0, 0, 0, 0)
             if (delivery) {
                 deliveryStart = new Date(delivery)
                 deliveryStart.setHours(0, 0, 0, 0)
@@ -452,7 +489,7 @@ const resolvers = {
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
             return await Sale.countDocuments({
-                order,
+                ...order!==false?{order}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
@@ -460,10 +497,22 @@ const resolvers = {
                 ...store?{store}:{},
                 ...cpa?{cpa}:{},
                 $and: [
-                    {createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}},
+                    ...dateStart?[{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]:[],
                     ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[]
                 ],
-                ...status?status==='оплата'?{status: {$ne: 'отмена'}}:{status}:{},
+                ...user.role==='доставщик'?
+                    {status: 'отгружен', deliverymans: user._id}
+                    :
+                        status?
+                            status==='доставка'?
+                                {status: {$in: ['на доставку', 'отгружен', 'доставлен']}}
+                                :
+                                status==='оплата'?
+                                    {status: {$ne: 'отмена'}}
+                                    :
+                                    {status}
+                            :
+                            {}
             })
                 .lean()
         }
@@ -485,10 +534,14 @@ const resolvers = {
                     path: 'store',
                     select: '_id name'
                 })
-                .populate({
-                    path: 'cpa',
-                    select: '_id name'
-                })
+                 .populate({
+                     path: 'cpa',
+                     select: '_id name'
+                 })
+                 .populate({
+                     path: 'deliverymans',
+                     select: '_id name'
+                 })
                 .populate({
                     path: 'installment',
                     select: '_id status number'
@@ -739,7 +792,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setSale: async(parent, {_id, percentManager, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
+    setSale: async(parent, {_id, deliverymans, percentManager, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await Sale.findById(_id)
             if(object) {
@@ -790,6 +843,10 @@ const resolversMutation = {
                         }
                     }
                     await Sale.updateOne({_id}, {itemsSale: newItemsSale})
+                }
+                if (deliverymans) {
+                    history.what = `${history.what}Доставщики;\n`
+                    object.deliverymans = deliverymans
                 }
                 if (geo) {
                     history.what = `${history.what}Гео:${object.geo}→${geo};\n`
