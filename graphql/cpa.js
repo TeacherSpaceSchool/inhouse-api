@@ -21,9 +21,7 @@ const type = `
 `;
 
 const query = `
-    unloadStatisticCpa(cpa: ID, dateStart: Date!, dateEnd: Date, store: ID): String
     unloadCpas(search: String): String
-    statisticCpa(cpa: ID, dateStart: Date!, dateEnd: Date, store: ID, skip: Int): [[String]]
     cpas(search: String, skip: Int, limit: Int): [Cpa]
     cpasCount(search: String): Int
     cpa(_id: ID!): Cpa
@@ -37,118 +35,6 @@ const mutation = `
 `;
 
 const resolvers = {
-    statisticCpa: async(parent, {cpa, dateStart, dateEnd, store, skip}, {user}) => {
-        if(['admin', 'управляющий'].includes(user.role)) {
-            if(user.store) store = user.store
-            if (dateStart) {
-                dateStart = new Date(dateStart)
-                dateStart.setHours(0, 0, 0, 0)
-                if(dateEnd)
-                    dateEnd = new Date(dateEnd)
-                else {
-                    dateEnd = new Date(dateStart)
-                    dateEnd.setDate(dateEnd.getDate() + 1)
-                }
-                dateEnd.setHours(0, 0, 0, 0)
-            }
-            let statistic = {}, allCount = 0, allBonusCpa = 0
-            let data = await Sale.find({
-                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
-                ...store?{store}:{},
-                ...cpa?{cpa}:{cpa: {$ne: null}},
-            })
-                .skip(skip != undefined ? skip : 0)
-                .limit(skip != undefined ? 30 : 10000000000)
-                .sort('-createdAt')
-                .select('cpa bonusCpa')
-                .populate({
-                    path: 'cpa',
-                    select: '_id name'
-                })
-                .lean()
-            for(let i=0; i<data.length; i++) {
-                if(!statistic[data[i].cpa._id]) {
-                    allCount += 1
-                    statistic[data[i].cpa._id] = [
-                        data[i].cpa.name,
-                        0
-                    ]
-                }
-                statistic[data[i].cpa._id][1] += data[i].bonusCpa
-                allBonusCpa += data[i].bonusCpa
-            }
-            data = Object.values(statistic)
-            data = data.sort(function(a, b) {
-                return b[1] - a[1]
-            });
-            if(!skip)
-                data = [
-                    [
-                        allCount,
-                        checkFloat(allBonusCpa)
-                    ],
-                    ...data
-                ]
-            return data
-        }
-    },
-    unloadStatisticCpa: async(parent, {cpa, dateStart, dateEnd, store}, {user}) => {
-        if(['admin', 'управляющий'].includes(user.role)) {
-            if(user.store) store = user.store
-            if (dateStart) {
-                dateStart = new Date(dateStart)
-                dateStart.setHours(0, 0, 0, 0)
-                if(dateEnd)
-                    dateEnd = new Date(dateEnd)
-                else {
-                    dateEnd = new Date(dateStart)
-                    dateEnd.setDate(dateEnd.getDate() + 1)
-                }
-                dateEnd.setHours(0, 0, 0, 0)
-            }
-            let statistic = {}
-            let data = await Sale.find({
-                ...dateStart?{$and: [{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]}:{},
-                ...store?{store}:{},
-                ...cpa?{cpa}:{cpa: {$ne: null}},
-            })
-                .sort('-createdAt')
-                .select('cpa bonusCpa')
-                .populate({
-                    path: 'cpa',
-                    select: '_id name'
-                })
-                .lean()
-            for(let i=0; i<data.length; i++) {
-                if(!statistic[data[i].cpa._id]) {
-                    statistic[data[i].cpa._id] = [
-                        data[i].cpa.name,
-                        0
-                    ]
-                }
-                statistic[data[i].cpa._id][1] += data[i].bonusCpa
-            }
-            data = Object.values(statistic)
-            data = data.sort(function(a, b) {
-                return b[1] - a[1]
-            });
-            const workbook = new ExcelJS.Workbook();
-            const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getColumn(1).width = 40
-            worksheet.getRow(1).getCell(1).font = {bold: true};
-            worksheet.getRow(1).getCell(1).value = 'Дизайнер'
-            worksheet.getRow(1).getCell(2).font = {bold: true};
-            worksheet.getRow(1).getCell(2).value = 'Бонус'
-            for(let i = 0; i < data.length; i++) {
-                worksheet.getRow(i+2).getCell(1).value = data[i][0]
-                worksheet.getRow(i+2).getCell(2).value = data[i][1]
-            }
-            let xlsxname = `${randomstring.generate(20)}.xlsx`;
-            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
-            await workbook.xlsx.writeFile(xlsxpath);
-            return urlMain + '/xlsx/' + xlsxname
-        }
-    },
     unloadCpas: async(parent, {search}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'управляющий'].includes(user.role)) {
             let res =  await Cpa.find({
