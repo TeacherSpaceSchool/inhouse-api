@@ -71,10 +71,15 @@ const typeDefs = gql`
         unit: String
         count: Float
         price: Float
+        cost: Float
         images: [String]
         amount: Float
         characteristics: [[String]]
         status: String
+        type: String
+        category: String
+        factory: String
+        size: String
     }
     input ItemFromListInput {
         _id: ID
@@ -83,9 +88,14 @@ const typeDefs = gql`
         item: ID
         count: Float
         price: Float
+        cost: Float
         amount: Float
         characteristics: [[String]]
         status: String
+        type: String
+        category: String
+        factory: String
+        size: String        
     }
     type ReloadData {
         who: ID
@@ -215,7 +225,7 @@ const resolvers = {
         name: 'Date',
         description: 'Date custom scalar type',
         parseValue(value) {
-            return new Date(value); // value from the client
+            return new Date(value);
         },
         serialize(value) {
             return new Date(value).getTime();

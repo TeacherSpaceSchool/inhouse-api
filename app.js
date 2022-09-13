@@ -70,11 +70,9 @@ if(process.env.NODE_ENV!=='test') {
         credentials: true
     };
     app.use(cors(corsOptions));
-//route
     app.use('/subscribe', subscribe);
     app.use('/push', push);
 
-// catch 404 and forward to error handler
     app.use(function (req, res, next) {
         if (req.path !== '/graphql')
             next(createError(404));
@@ -82,13 +80,10 @@ if(process.env.NODE_ENV!=='test') {
             next()
     });
 
-// error handler
     app.use(function (err, req, res, next) {
-        // set locals, only providing error in development
         res.locals.message = err.message;
         res.locals.error = req.app.get('env') === 'development' ? err : {};
 
-        // render the error page
         res.status(err.status || 500);
         res.render('error');
     });

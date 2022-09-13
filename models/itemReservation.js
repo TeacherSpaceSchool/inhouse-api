@@ -12,6 +12,11 @@ const ItemReservationSchema = mongoose.Schema({
     characteristics: [[String]],
     status: String,
     unit: String,
+    cost: Number,
+    type: String,
+    category: String,
+    factory: String,
+    size: String
 }, {
     timestamps: true
 });

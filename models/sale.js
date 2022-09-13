@@ -42,6 +42,7 @@ const SaleSchema = mongoose.Schema({
     },
     address: String,
     addressInfo: String,
+    selfDelivery: Boolean,
     delivery: Date,
     deliveryFact: Date,
     status: String,

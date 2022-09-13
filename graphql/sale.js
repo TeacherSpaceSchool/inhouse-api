@@ -32,6 +32,7 @@ const type = `
     itemsSale: [ItemFromList]
     geo: [Float]
     discount: Float
+    selfDelivery: Boolean
     cpa: Cpa
     deliveryFact: Date
     percentCpa: Float
@@ -57,7 +58,8 @@ const type = `
 `;
 
 const query = `
-    unloadSales(search: String, manager: ID, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
+    unloadDeliveries(search: String, manager: ID, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
+    unloadSales(search: String, manager: ID, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
     getAttachment(_id: ID!): String
     salesBonusManager: [Float]
     sales(search: String, order: Boolean, skip: Int, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): [Sale]
@@ -67,13 +69,13 @@ const query = `
 `;
 
 const mutation = `
-    addSale(client: ID!, prepaid: Float, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
-    setSale(_id: ID!, deliverymans: [ID], percentManager: Float, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
+    addSale(client: ID!, prepaid: Float, selfDelivery: Boolean, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
+    setSale(_id: ID!, deliverymans: [ID], percentManager: Float, selfDelivery: Boolean, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
     divideSale(_id: ID!, newItems: [ItemFromListInput]!, currentItems: [ItemFromListInput]!): String
 `;
 
 const resolvers = {
-    unloadSales: async(parent, {search, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
+    unloadDeliveries: async(parent, {search, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -115,17 +117,200 @@ const resolvers = {
                         ...user.role==='доставщик'?
                             {status: 'отгружен', deliverymans: user._id}
                             :
-                                status?
-                                    status==='доставка'?
-                                        {status: {$in: ['на доставку', 'отгружен', 'доставлен']}}
-                                        :
-                                        status==='оплата'?
-                                            {status: {$ne: 'отмена'}}
-                                            :
-                                            {status}
+                            status?
+                                status==='доставка'?
+                                    {status: {$in: ['на доставку', 'отгружен', 'доставлен']}}
                                     :
-                                    {}
-                        }
+                                    status==='оплата'?
+                                        {status: {$ne: 'отмена'}}
+                                        :
+                                        {status}
+                                :
+                                {}
+                    }
+            )
+                .sort(status==='доставка'?'-delivery':'-createdAt')
+                .populate({
+                    path: 'manager',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'client',
+                    select: '_id name phones'
+                })
+                .populate({
+                    path: 'deliverymans',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'store',
+                    select: '_id name'
+                })
+                .populate('itemsSale')
+                .lean()
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Выгрузка');
+            let cell = 1
+            worksheet.getColumn(cell).width = 5
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = '№'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Статус'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Магазин'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Тип продажи'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Клиент'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Сумма продажи'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Дата доставки'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Доставщики'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Товары'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Номера телефона'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Адрес'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Комментарии'
+            let row = 1, length
+            for(let i = 0; i < res.length; i++) {
+                cell = 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].number;
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].status;
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].store.name;
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = `${res[i].paid<res[i].amounEnd?'Рассрочка ':''}${res[i].order?'Заказ':'Наличка'}`;
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].client.name;
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].amountEnd;
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].selfDelivery?'Самовывоз ':'';
+                worksheet.getRow(row+1).getCell(cell).value += res[i].delivery?pdDDMMYYHHMM(res[i].delivery):'---';
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).alignment = {wrapText: true}
+                worksheet.getRow(row+1).getCell(cell).value = '';
+                if(res[i].deliverymans) {
+                    length = res[i].deliverymans.length-1
+                    for (let i1 = 0; i1 < res[i].deliverymans.length; i1++) {
+                        worksheet.getRow(row + 1).getCell(cell).value += `${res[i].deliverymans[i1].name}`
+                        if(i1<length)
+                            worksheet.getRow(row + 1).getCell(cell).value += '\n'
+                    }
+                }
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).alignment = {wrapText: true}
+                worksheet.getRow(row+1).getCell(cell).value = '';
+                length = res[i].itemsSale.length-1
+                for(let i1 = 0; i1 < res[i].itemsSale.length; i1++) {
+                    worksheet.getRow(row+1).getCell(cell).value += `${res[i].itemsSale[i1].name}: ${res[i].itemsSale[i1].count} ${res[i].itemsSale[i1].unit}`
+                    if(i1<length)
+                        worksheet.getRow(row + 1).getCell(cell).value += '\n'
+                }
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).alignment = {wrapText: true}
+                worksheet.getRow(row+1).getCell(cell).value = '';
+                if(res[i].client.phones) {
+                    length = res[i].client.phones.length-1
+                    for (let i1 = 0; i1 < res[i].client.phones.length; i1++) {
+                        worksheet.getRow(row + 1).getCell(cell).value += `${res[i].client.phones[i1]}`
+                        if(i1<length)
+                            worksheet.getRow(row + 1).getCell(cell).value += '\n'
+                    }
+                }
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].address;
+                cell += 1
+                worksheet.getRow(row+1).getCell(cell).value = res[i].comment;
+                row += 1
+            }
+            let xlsxname = `${randomstring.generate(20)}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+        }
+    },
+    unloadSales: async(parent, {search, cost, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
+            if(user.store) store = user.store
+            let deliveryStart, deliveryEnd
+            if(!delivery||dateStart) {
+                dateStart = checkDate(dateStart)
+                dateStart.setHours(0, 0, 0, 0)
+                if (dateEnd)
+                    dateEnd = new Date(dateEnd)
+                else {
+                    dateEnd = new Date(dateStart)
+                    dateEnd.setDate(dateEnd.getDate() + 1)
+                }
+                dateEnd.setHours(0, 0, 0, 0)
+            }
+            if (delivery) {
+                deliveryStart = new Date(delivery)
+                deliveryStart.setHours(0, 0, 0, 0)
+                deliveryEnd = new Date(deliveryStart)
+                deliveryEnd.setDate(deliveryEnd.getDate() + 1)
+            }
+            let res = await Sale.find(
+                _id?
+                    {
+                        _id
+                    }
+                    :
+                    {
+                        ...order!==false?{order}:{},
+                        ...search?{number: search}:{},
+                        ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
+                        ...client?{client}:{},
+                        ...store?{store}:{},
+                        ...promotion?{promotion}:{},
+                        ...cpa?{cpa}:{},
+                        $and: [
+                            ...dateStart?[{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]:[],
+                            ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[]
+                        ],
+                        ...user.role==='доставщик'?
+                            {status: 'отгружен', deliverymans: user._id}
+                            :
+                            status?
+                                status==='доставка'?
+                                    {status: {$in: ['на доставку', 'отгружен', 'доставлен']}}
+                                    :
+                                    status==='оплата'?
+                                        {status: {$ne: 'отмена'}}
+                                        :
+                                        {status}
+                                :
+                                {}
+                    }
             )
                 .sort(status==='доставка'?'-delivery':'-createdAt')
                 .populate({
@@ -149,10 +334,6 @@ const resolvers = {
                     select: '_id status number'
                 })
                 .populate({
-                    path: 'deliverymans',
-                    select: '_id name'
-                })
-                .populate({
                     path: 'reservations',
                     select: '_id number'
                 })
@@ -164,117 +345,189 @@ const resolvers = {
                     path: 'promotion',
                     select: '_id name'
                 })
-                .populate('itemsSale')
+                .populate({
+                    path: 'itemsSale'
+                })
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getColumn(1).width = 20
-            let row = 1
+            let cell = 1
+            worksheet.getColumn(cell).width = 5
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = '№'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Статус'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Магазин'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Дата'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Тип товара'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Фабрика'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Категория'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Товар'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Размер'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Количество'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Тип продажи'
+            cell += 1
+            worksheet.getColumn(cell).width = 17
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Сумма без скидки'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Скидка'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Скидка %'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Итоговая сумма'
+            if(['admin', 'управляющий'].includes(user.role)&&cost) {
+                cell += 1
+                worksheet.getColumn(cell).width = 15
+                worksheet.getRow(1).getCell(cell).font = {bold: true};
+                worksheet.getRow(1).getCell(cell).value = 'Себестоимость'
+                cell += 1
+                worksheet.getColumn(cell).width = 15
+                worksheet.getRow(1).getCell(cell).font = {bold: true};
+                worksheet.getRow(1).getCell(cell).value = 'Доход'
+            }
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Клиент'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Менеджер'
+            if(['admin', 'управляющий'].includes(user.role)) {
+                cell += 1
+                worksheet.getColumn(cell).width = 17
+                worksheet.getRow(1).getCell(cell).font = {bold: true};
+                worksheet.getRow(1).getCell(cell).value = 'Бонус менеджера'
+            }
+            cell += 1
+            worksheet.getColumn(cell).width = 30
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Дата доставки'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Дизайнер'
+            if(['admin', 'управляющий'].includes(user.role)) {
+                cell += 1
+                worksheet.getColumn(cell).width = 17
+                worksheet.getRow(1).getCell(cell).font = {bold: true};
+                worksheet.getRow(1).getCell(cell).value = 'Бонус дизайнера'
+            }
+            cell += 1
+            worksheet.getColumn(cell).width = 10
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Бронь'
+            cell += 1
+            worksheet.getColumn(cell).width = 10
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Возврат'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Комментарий'
+            let row = 1, discountPrecent, discountItem, costItem
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = res[i].order?'На заказ №':'Продажа №'
-                worksheet.getRow(row).getCell(2).value = res[i].number
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Статус'
-                worksheet.getRow(row).getCell(2).value = `${res[i].status} ${res[i].paymentConfirmation?'оплачен':''}`
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Создан'
-                worksheet.getRow(row).getCell(2).value = pdDDMMYYHHMM(res[i].createdAt)
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Доставка'
-                worksheet.getRow(row).getCell(2).value = pdDDMMYYYY(res[i].delivery)
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Магазин'
-                worksheet.getRow(row).getCell(2).value = res[i].store.name
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Менеджер'
-                worksheet.getRow(row).getCell(2).value = res[i].manager.name
-                row +=1
-                if(res[i].cpa) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Дизайнер'
-                    worksheet.getRow(row).getCell(2).value = `${res[i].cpa.name} ${res[i].percentCpa}%`
-                    row += 1
-                }
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Клиент'
-                worksheet.getRow(row).getCell(2).value = res[i].client.name
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Тип платежа'
-                worksheet.getRow(row).getCell(2).value = res[i].typePayment
-                row +=1
-                if(res[i].discount) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Скидка'
-                    worksheet.getRow(row).getCell(2).value = `${res[i].discount} сом`
-                    row +=1
-                }
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Итого'
-                worksheet.getRow(row).getCell(2).value = `${res[i].amountEnd} сом`
-                row +=1
-                if(res[i].prepaid) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Предоплата'
-                    worksheet.getRow(row).getCell(2).value = `${res[i].prepaid} сом`
-                    row +=1
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'К оплате'
-                    worksheet.getRow(row).getCell(2).value = `${res[i].amountEnd-res[i].prepaid} сом`
-                    row +=1
-                }
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Оплачено'
-                worksheet.getRow(row).getCell(2).value = `${res[i].paid} ${res[i].currency}`
-                row +=1
-                if(res[i].installment) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Рассрочка'
-                    worksheet.getRow(row).getCell(2).value = res[i].installment.status
-                    row +=1
-                }
-                if(res[i].comment) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Комментарий'
-                    worksheet.getRow(row).getCell(2).value = res[i].comment
-                    row +=1
-                }
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Адрес'
-                worksheet.getRow(row).getCell(2).value = res[i].address
-                row +=1
-                if(res[i].addressInfo) {
-                    worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Этаж, квартира, лифт, код к подъезду'
-                    worksheet.getRow(row).getCell(2).value = res[i].addressInfo
-                    row += 1
-                }
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Позиции'
-                worksheet.getRow(row).getCell(2).value = res[i].itemsSale.length
-                row +=1
-                for(let i1=0; i1<res[i].itemsSale.length; i1++) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
-                    worksheet.getRow(row).getCell(1).value = res[i].itemsSale[i1].name
-                    worksheet.getRow(row).getCell(2).value = `${res[i].itemsSale[i1].price} сом * ${res[i].itemsSale[i1].count} ${res[i].itemsSale[i1].unit} = ${res[i].itemsSale[i1].amount} сом`
-                    if(res[i].itemsSale[i1].characteristics.length) {
-                        let characteristics = ''
-                        for(let i2=0; i2<res[i].itemsSale[i1].characteristics.length; i2++) {
-                            characteristics = `${characteristics?`${characteristics}`:''}${res[i].itemsSale[i1].characteristics[i2][0]}: ${res[i].itemsSale[i1].characteristics[i2][1]}`
-                        }
-                        worksheet.getRow(row).getCell(3).value = characteristics
+                discountPrecent = checkFloat(res[i].discount*100/res[i].amountStart)
+                for(let i1 = 0; i1 < res[i].itemsSale.length; i1++) {
+                    cell = 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].number;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].status;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].store.name;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = pdDDMMYYHHMM(res[i].createdAt);
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].type;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].factory;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].category;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].name;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].size;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].count;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amounEnd?'Рассрочка':res[i].order?'Заказ':'Наличка';
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount);
+                    cell += 1
+                    discountItem = checkFloat(res[i].itemsSale[i1].amount/100*discountPrecent)
+                    worksheet.getRow(row+1).getCell(cell).value = discountItem;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = `${discountPrecent}%`;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount-discountItem);
+                    if(['admin', 'управляющий'].includes(user.role)&&cost) {
+                        cell += 1
+                        costItem = checkFloat(res[i].itemsSale[i1].cost*res[i].itemsSale[i1].count)
+                        worksheet.getRow(row+1).getCell(cell).value = costItem;
+                        cell += 1
+                        worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount-discountItem-costItem);
                     }
-                    row +=1
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].client.name;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].manager.name;
+                    if(['admin', 'управляющий'].includes(user.role)) {
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].bonusManager;
+                    }
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].selfDelivery?'Самовывоз ':'';
+                    worksheet.getRow(row+1).getCell(cell).value += res[i].delivery?pdDDMMYYHHMM(res[i].delivery):'---';
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].cpa?res[i].cpa.name:'нет';
+                    if(['admin', 'управляющий'].includes(user.role)) {
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].bonusCpa ? res[i].bonusCpa : 0;
+                    }
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].reservations&&res[i].reservations.length?'да':'нет';
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].refunds&&res[i].refunds.length?'да':'нет';
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].comment;
+                    row += 1
                 }
-                row +=1
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -592,7 +845,7 @@ const resolvers = {
 };
 
 const resolversMutation = {
-    addSale: async(parent, {order, client, prepaid, promotion, itemsSale, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, reservations}, {user}) => {
+    addSale: async(parent, {order, client, prepaid, selfDelivery, promotion, itemsSale, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, reservations}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             if (delivery&&delivery.toString()!=='Invalid Date') 
                 delivery = new Date(delivery)
@@ -619,7 +872,8 @@ const resolversMutation = {
                 comment,
                 currency,
                 paid,
-                reservations
+                reservations,
+                selfDelivery
             });
             //процент дизайнера
             if(cpa) {
@@ -792,7 +1046,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setSale: async(parent, {_id, deliverymans, percentManager, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
+    setSale: async(parent, {_id, deliverymans, percentManager, selfDelivery, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let object = await Sale.findById(_id)
             if(object) {
@@ -860,13 +1114,17 @@ const resolversMutation = {
                     history.what = `${history.what}Доставка:${pdDDMMYYYY(object.delivery)}→${pdDDMMYYYY(delivery)};\n`
                     object.delivery = delivery
                 }
+                if (selfDelivery!=undefined) {
+                    history.what = `${history.what}Самовывоз:${object.selfDelivery}→${selfDelivery};\n`
+                    object.selfDelivery = selfDelivery
+                }
                 if (addressInfo) {
                     history.what = `${history.what}Адрес инфо:${object.addressInfo}→${addressInfo};\n`
                     object.addressInfo = addressInfo
                 }
                 if (paid!=undefined) {
                     history.what = `${history.what}Оплачено:${object.paid}→${paid};\n`
-
+                    //Оплачено не меняет долг?
                     //let balanceClient = await BalanceClient.findOne({client: object.client})
                     //balanceClient.balance = checkFloat(balanceClient.balance + object.paid - paid)
                     if(object.installment) {
@@ -1307,6 +1565,7 @@ const resolversMutation = {
                     geo: object.geo,
                     status: object.status,
                     cpa: object.cpa,
+                    selfDelivery: object.selfDelivery,
                     promotion: object.promotion,
                     typePayment: object.typePayment,
                     address: object.address,

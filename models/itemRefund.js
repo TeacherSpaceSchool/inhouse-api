@@ -11,7 +11,12 @@ const ItemRefundSchema = mongoose.Schema({
     amount: Number,
     characteristics: [[String]],
     status: String,
-    unit: String
+    unit: String,
+    cost: Number,
+    type: String,
+    category: String,
+    factory: String,
+    size: String
 }, {
     timestamps: true
 });

@@ -3,7 +3,6 @@ const Cashbox = require('../models/cashbox');
 const {checkFloat, cloneObject} = require('./const');
 
 module.exports.createTestBalanceCashboxDay = async () => {
-    //await BalanceCashboxDay.deleteMany()
     let object
     let today = new Date()
     today.setHours(0, 0, 0, 0)

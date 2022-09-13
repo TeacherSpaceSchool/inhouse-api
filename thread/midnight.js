@@ -20,7 +20,7 @@ if(!isMainThread) {
         let balanceItems = await BalanceItem.find({}).select('store warehouse item amount').lean()
         for(let i1 = 0; i1 < balanceItems.length; i1++) {
             object = new BalanceItemDay({
-                item: balanceItems[i1]._id,
+                item: balanceItems[i1].item,
                 startAmount: balanceItems[i1].amount,
                 endAmount: balanceItems[i1].amount,
                 store: balanceItems[i1].store,

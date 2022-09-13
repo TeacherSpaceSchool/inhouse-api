@@ -11,7 +11,12 @@ const ItemSaleSchema = mongoose.Schema({
     price: Number,
     characteristics: [[String]],
     unit: String,
-    status: String
+    status: String,
+    cost: Number,
+    type: String,
+    category: String,
+    factory: String,
+    size: String
 }, {
     timestamps: true
 });

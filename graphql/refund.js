@@ -46,7 +46,6 @@ const resolvers = {
     unloadRefunds: async(parent, {search, client, store, manager, dateStart, dateEnd, status, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
             dateStart = checkDate(dateStart)
             dateStart.setHours(0, 0, 0, 0)
             if(dateEnd)
@@ -85,78 +84,127 @@ const resolvers = {
                 })
                 .populate({
                     path: 'sale',
-                    select: '_id number order'
+                    select: '_id number order paid amounEnd'
                 })
                 .populate('itemsRefund')
                 .lean()
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            worksheet.getColumn(1).width = 20
-            let row = 1
+            let cell = 1
+            worksheet.getColumn(cell).width = 5
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = '№'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Статус'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Магазин'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Дата'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Тип товара'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Фабрика'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Категория'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Товар'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Размер'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Количество'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Тип продажи'
+            cell += 1
+            worksheet.getColumn(cell).width = 17
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Сумма без уценки'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Уценка'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Уценка %'
+            cell += 1
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Итоговая сумма'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Клиент'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Менеджер'
+            cell += 1
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Комментарий'
+            let row = 1, discountPrecent, discountItem
             for(let i = 0; i < res.length; i++) {
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Возврат №'
-                worksheet.getRow(row).getCell(2).value = res[i].number
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Статус'
-                worksheet.getRow(row).getCell(2).value = `${res[i].status} ${res[i].paymentConfirmation?'оплачен':''}`
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Создан'
-                worksheet.getRow(row).getCell(2).value = pdDDMMYYHHMM(res[i].createdAt)
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Продажа'
-                worksheet.getRow(row).getCell(2).value = `№${res[i].sale.number}`
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Магазин'
-                worksheet.getRow(row).getCell(2).value = res[i].store.name
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Менеджер'
-                worksheet.getRow(row).getCell(2).value = res[i].manager.name
-                row +=1
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Клиент'
-                worksheet.getRow(row).getCell(2).value = res[i].client.name
-                row +=1
-                if(res[i].discount) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Уценка'
-                    worksheet.getRow(row).getCell(2).value = `${res[i].discount} сом`
-                    row +=1
+                discountPrecent = checkFloat(res[i].discount*100/res[i].amountStart)
+                for(let i1 = 0; i1 < res[i].itemsRefund.length; i1++) {
+                    cell = 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].number;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].status;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].store.name;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = pdDDMMYYHHMM(res[i].createdAt);
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].type;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].factory;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].category;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].name;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].size;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].count;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].sale.paid<res[i].sale.amounEnd?'Рассрочка':res[i].sale.order?'Заказ':'Наличка';
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsRefund[i1].amount);
+                    cell += 1
+                    discountItem = checkFloat(res[i].itemsRefund[i1].amount/100*discountPrecent)
+                    worksheet.getRow(row+1).getCell(cell).value = discountItem;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = `${discountPrecent}%`;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsRefund[i1].amount-discountItem);
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].client.name;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].manager.name;
+                    cell += 1
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].comment;
+                    row += 1
                 }
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Итого'
-                worksheet.getRow(row).getCell(2).value = `${res[i].amount} сом`
-                row +=1
-                if(res[i].comment) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).value = 'Комментарий'
-                    worksheet.getRow(row).getCell(2).value = res[i].comment
-                    row +=1
-                }
-                worksheet.getRow(row).getCell(1).font = {bold: true};
-                worksheet.getRow(row).getCell(1).value = 'Позиции'
-                worksheet.getRow(row).getCell(2).value = res[i].itemsRefund.length
-                row +=1
-                for(let i1=0; i1<res[i].itemsRefund.length; i1++) {
-                    worksheet.getRow(row).getCell(1).font = {bold: true};
-                    worksheet.getRow(row).getCell(1).alignment = {wrapText: true}
-                    worksheet.getRow(row).getCell(1).value = res[i].itemsRefund[i1].name
-                    worksheet.getRow(row).getCell(2).value = `${res[i].itemsRefund[i1].price} сом * ${res[i].itemsRefund[i1].count} ${res[i].itemsRefund[i1].unit} = ${res[i].itemsRefund[i1].amount} сом`
-                    if(res[i].itemsRefund[i1].characteristics.length) {
-                        let characteristics = ''
-                        for(let i2=0; i2<res[i].itemsRefund[i1].characteristics.length; i2++) {
-                            characteristics = `${characteristics?`${characteristics}`:''}${res[i].itemsRefund[i1].characteristics[i2][0]}: ${res[i].itemsRefund[i1].characteristics[i2][1]}`
-                        }
-                        worksheet.getRow(row).getCell(3).value = characteristics
-                    }
-                    row +=1
-                }
-                row +=1
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -266,7 +314,6 @@ const resolversMutation = {
     addRefund: async(parent, {client, discount, itemsRefund, amount, comment, currency, sale}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             for(let i=0; i<itemsRefund.length; i++) {
-                console.log(itemsRefund[i])
                 itemsRefund[i] = new ItemRefund(itemsRefund[i]);
                 itemsRefund[i] = (await ItemRefund.create(itemsRefund[i]))._id
             }
