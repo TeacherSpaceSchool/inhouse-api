@@ -207,7 +207,7 @@ const resolvers = {
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = res[i].store.name;
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = `${res[i].paid<res[i].amounEnd?'Рассрочка ':''}${res[i].order?'Заказ':'Наличка'}`;
+                worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amounEnd?'Рассрочка':res[i].promotion?'Акция':res[i].order?'Заказ':'Наличка'
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = res[i].client.name;
                 cell += 1
@@ -241,7 +241,7 @@ const resolvers = {
                 if(res[i].client.phones) {
                     length = res[i].client.phones.length-1
                     for (let i1 = 0; i1 < res[i].client.phones.length; i1++) {
-                        worksheet.getRow(row + 1).getCell(cell).value += `${res[i].client.phones[i1]}`
+                        worksheet.getRow(row + 1).getCell(cell).value += `+996${res[i].client.phones[i1]}`
                         if(i1<length)
                             worksheet.getRow(row + 1).getCell(cell).value += '\n'
                     }
@@ -319,7 +319,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'client',
-                    select: '_id name'
+                    select: '_id name phones'
                 })
                 .populate({
                     path: 'store',
@@ -486,7 +486,7 @@ const resolvers = {
                     cell += 1
                     worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].count;
                     cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amounEnd?'Рассрочка':res[i].order?'Заказ':'Наличка';
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amounEnd?'Рассрочка':res[i].promotion?'Акция':res[i].order?'Заказ':'Наличка'
                     cell += 1
                     worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount);
                     cell += 1
@@ -546,7 +546,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'client',
-                    select: '_id name'
+                    select: '_id name phones'
                 })
                 .populate({
                     path: 'store',
@@ -677,7 +677,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'client',
-                    select: '_id name'
+                    select: '_id name phones'
                 })
                 .populate({
                     path: 'store',
@@ -781,7 +781,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'client',
-                    select: '_id name'
+                    select: '_id name phones'
                 })
                 .populate({
                     path: 'store',
