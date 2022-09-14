@@ -62,7 +62,7 @@ const queryUnload = `
     unloadBonusManagerSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadBonusCpaSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadDeliveries(search: String, manager: ID, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): String
-    unloadSales(search: String, manager: ID, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
+    unloadSales(search: String, manager: ID, type: String, category: String, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
     unloadFactorySales(manager: ID, type: String, category: String, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
 `;
 
@@ -1173,7 +1173,7 @@ const resolversUnload = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    unloadSales: async(parent, {search, cost, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
+    unloadSales: async(parent, {search, type, category, cost, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -1384,70 +1384,72 @@ const resolversUnload = {
             for(let i = 0; i < res.length; i++) {
                 discountPrecent = checkFloat(res[i].discount*100/res[i].amountStart)
                 for(let i1 = 0; i1 < res[i].itemsSale.length; i1++) {
-                    cell = 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].number;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].status;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].store.name;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = pdDDMMYYHHMM(res[i].createdAt);
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].type;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].factory;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].category;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].name;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].size;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsSale[i1].count;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amounEnd?'Рассрочка':res[i].promotion?'Акция':res[i].order?'Заказ':'Наличка'
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount);
-                    cell += 1
-                    discountItem = checkFloat(res[i].itemsSale[i1].amount/100*discountPrecent)
-                    worksheet.getRow(row+1).getCell(cell).value = discountItem;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = `${discountPrecent}%`;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount-discountItem);
-                    if(['admin', 'управляющий'].includes(user.role)&&cost) {
+                    if ((!category || res[i].itemsSale[i1].category === category) && (!type || res[i].itemsSale[i1].type === type)) {
+                        cell = 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].number;
                         cell += 1
-                        costItem = checkFloat(res[i].itemsSale[i1].cost*res[i].itemsSale[i1].count)
-                        worksheet.getRow(row+1).getCell(cell).value = costItem;
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].status;
                         cell += 1
-                        worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount-discountItem-costItem);
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].store.name;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = pdDDMMYYHHMM(res[i].createdAt);
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].itemsSale[i1].type;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].itemsSale[i1].factory;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].itemsSale[i1].category;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].itemsSale[i1].name;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].itemsSale[i1].size;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].itemsSale[i1].count;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].paid < res[i].amounEnd ? 'Рассрочка' : res[i].promotion ? 'Акция' : res[i].order ? 'Заказ' : 'Наличка'
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount);
+                        cell += 1
+                        discountItem = checkFloat(res[i].itemsSale[i1].amount / 100 * discountPrecent)
+                        worksheet.getRow(row + 1).getCell(cell).value = discountItem;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = `${discountPrecent}%`;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount - discountItem);
+                        if (['admin', 'управляющий'].includes(user.role) && cost) {
+                            cell += 1
+                            costItem = checkFloat(res[i].itemsSale[i1].cost * res[i].itemsSale[i1].count)
+                            worksheet.getRow(row + 1).getCell(cell).value = costItem;
+                            cell += 1
+                            worksheet.getRow(row + 1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount - discountItem - costItem);
+                        }
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].client.name;
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].manager.name;
+                        if (['admin', 'управляющий'].includes(user.role)) {
+                            cell += 1
+                            worksheet.getRow(row + 1).getCell(cell).value = res[i].bonusManager;
+                        }
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].selfDelivery ? 'Самовывоз ' : '';
+                        worksheet.getRow(row + 1).getCell(cell).value += res[i].delivery ? pdDDMMYYHHMM(res[i].delivery) : '---';
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].cpa ? res[i].cpa.name : 'нет';
+                        if (['admin', 'управляющий'].includes(user.role)) {
+                            cell += 1
+                            worksheet.getRow(row + 1).getCell(cell).value = res[i].bonusCpa ? res[i].bonusCpa : 0;
+                        }
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].reservations && res[i].reservations.length ? 'да' : 'нет';
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].refunds && res[i].refunds.length ? 'да' : 'нет';
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].promotion ? res[i].promotion.name : 'нет';
+                        cell += 1
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].comment;
+                        row += 1
                     }
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].client.name;
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].manager.name;
-                    if(['admin', 'управляющий'].includes(user.role)) {
-                        cell += 1
-                        worksheet.getRow(row + 1).getCell(cell).value = res[i].bonusManager;
-                    }
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].selfDelivery?'Самовывоз ':'';
-                    worksheet.getRow(row+1).getCell(cell).value += res[i].delivery?pdDDMMYYHHMM(res[i].delivery):'---';
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].cpa?res[i].cpa.name:'нет';
-                    if(['admin', 'управляющий'].includes(user.role)) {
-                        cell += 1
-                        worksheet.getRow(row + 1).getCell(cell).value = res[i].bonusCpa ? res[i].bonusCpa : 0;
-                    }
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].reservations&&res[i].reservations.length?'да':'нет';
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].refunds&&res[i].refunds.length?'да':'нет';
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].promotion?res[i].promotion.name:'нет';
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].comment;
-                    row += 1
                 }
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
