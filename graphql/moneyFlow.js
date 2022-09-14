@@ -298,7 +298,7 @@ const resolvers = {
             worksheet.getRow(row).getCell(cell).value = 'Итого'
             cell++
             worksheet.getRow(row).getCell(cell).font = {bold: true};
-            worksheet.getRow(row).getCell(cell).value = 'Коментарий'
+            worksheet.getRow(row).getCell(cell).value = 'Комментарий'
             for(let i = 0; i < res.length; i++) {
                 row += 1
                 cell = 1

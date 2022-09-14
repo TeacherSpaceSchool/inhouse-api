@@ -11,7 +11,7 @@ const WayItem = require('../models/wayItem');
 const Item = require('../models/item');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const BalanceClient = require('../models/balanceClient');
-const {urlMain, checkFloat, pdDDMMYYYY, pdDDMMYYHHMM, checkDate, checkInt} = require('../module/const');
+const {urlMain, checkFloat, pdDDMMYYYY, pdDDMMYYHHMM, checkDate} = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -223,7 +223,7 @@ const resolversUnload = {
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = pdDDMMYYHHMM(res[i].createdAt);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amounEnd?'Рассрочка':res[i].promotion?'Акция':res[i].order?'Заказ':'Наличка'
+                worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amountEnd?'Рассрочка':res[i].promotion?'Акция':res[i].order?'Заказ':'Наличка'
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = res[i].amountStart;
                 cell += 1
@@ -303,7 +303,7 @@ const resolversUnload = {
                 .lean()
             let bonusManagers = {}, promotions = [], discountPrecent, bonusAll = {}
             for(let i = 0; i < res.length; i++) {
-                discountPrecent = checkInt(res[i].discount*100/res[i].amountStart)
+                discountPrecent = checkFloat(res[i].discount*100/res[i].amountStart)
                 if(!bonusManagers[res[i].manager._id])
                     bonusManagers[res[i].manager._id] = {
                         name: res[i].manager.name
@@ -318,11 +318,11 @@ const resolversUnload = {
                     bonusManagers[res[i].manager._id][res[i].promotion.name] = checkFloat(checkFloat(bonusManagers[res[i].manager._id][res[i].promotion.name]) + checkFloat(res[i].bonusManager))
                     bonusAll[res[i].promotion.name] = checkFloat(checkFloat(bonusAll[res[i].promotion.name]) + checkFloat(res[i].bonusManager))
                 }
-                else if(res[i].paid<res[i].amounEnd&&res[i].order) {
+                else if(res[i].paid<res[i].amountEnd&&res[i].order) {
                     bonusManagers[res[i].manager._id]['Заказ Рассрочка'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Заказ Рассрочка']) + checkFloat(res[i].bonusManager))
                     bonusAll['Заказ Рассрочка'] = checkFloat(checkFloat(bonusAll['Заказ Рассрочка']) + checkFloat(res[i].bonusManager))
                 }
-                else if(res[i].paid<res[i].amounEnd) {
+                else if(res[i].paid<res[i].amountEnd) {
                     bonusManagers[res[i].manager._id]['Рассрочка'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Рассрочка']) + checkFloat(res[i].bonusManager))
                     bonusAll['Рассрочка'] = checkFloat(checkFloat(bonusAll['Рассрочка']) + checkFloat(res[i].bonusManager))
                 }
@@ -334,13 +334,13 @@ const resolversUnload = {
                     bonusManagers[res[i].manager._id]['Без скидки'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Без скидки']) + checkFloat(res[i].bonusManager))
                     bonusAll['Без скидки'] = checkFloat(checkFloat(bonusAll['Без скидки']) + checkFloat(res[i].bonusManager))
                 }
-                else if(discountPrecent>0&&discountPrecent<=4) {
-                    bonusManagers[res[i].manager._id]['Скидка 0-4%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 0-4%']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Скидка 0-4%'] = checkFloat(checkFloat(bonusAll['Скидка 0-4%']) + checkFloat(res[i].bonusManager))
+                else if(discountPrecent>0&&discountPrecent<=5) {
+                    bonusManagers[res[i].manager._id]['Скидка 0-5%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 0-5%']) + checkFloat(res[i].bonusManager))
+                    bonusAll['Скидка 0-5%'] = checkFloat(checkFloat(bonusAll['Скидка 0-5%']) + checkFloat(res[i].bonusManager))
                 }
-                else if(discountPrecent>5&&discountPrecent<=15) {
-                    bonusManagers[res[i].manager._id]['Скидка 5-15%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 5-15%']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Скидка 5-15%'] = checkFloat(checkFloat(bonusAll['Скидка 5-15%']) + checkFloat(res[i].bonusManager))
+                else if(discountPrecent>5&&discountPrecent<=16) {
+                    bonusManagers[res[i].manager._id]['Скидка 5-16%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 5-16%']) + checkFloat(res[i].bonusManager))
+                    bonusAll['Скидка 5-16%'] = checkFloat(checkFloat(bonusAll['Скидка 5-16%']) + checkFloat(res[i].bonusManager))
                 }
                 else if(discountPrecent>16&&discountPrecent<=20) {
                     bonusManagers[res[i].manager._id]['Скидка 16-20%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 16-20%']) + checkFloat(res[i].bonusManager))
@@ -368,11 +368,11 @@ const resolversUnload = {
             cell += 1
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 0-4%'
+            worksheet.getRow(1).getCell(cell).value = 'Скидка 0-5%'
             cell += 1
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 5-15%'
+            worksheet.getRow(1).getCell(cell).value = 'Скидка 5-16%'
             cell += 1
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
@@ -413,9 +413,9 @@ const resolversUnload = {
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Без скидки']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 0-4%']);
+                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 0-5%']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 5-15%']);
+                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 5-16%']);
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 16-20%']);
                 cell += 1
@@ -426,9 +426,9 @@ const resolversUnload = {
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Рассрочка']);
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Заказ Рассрочка']);
-                for(let i = 0; i < promotions.length; i++) {
+                for(let i1 = 0; i1 < promotions.length; i1++) {
                     cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i][promotions[i]]);
+                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i][promotions[i1]]);
                 }
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Всего продаж']);
@@ -441,9 +441,9 @@ const resolversUnload = {
             cell += 1
             worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Без скидки']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 0-4%']);
+            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 0-5%']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 5-15%']);
+            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 5-16%']);
             cell += 1
             worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 16-20%']);
             cell += 1
@@ -530,7 +530,7 @@ const resolversUnload = {
                             bonusFactorys[factory][`Скидка ${res[i].promotion.name} %%`] = checkFloat( bonusFactorys[factory][`Скидка ${res[i].promotion.name}`]*100/bonusFactorys[factory][res[i].promotion.name])
                             bonusFactorys['ИТОГО'][`Скидка ${res[i].promotion.name} %%`] = checkFloat( bonusFactorys['ИТОГО'][`Скидка ${res[i].promotion.name}`]*100/bonusFactorys['ИТОГО'][res[i].promotion.name])
                         }
-                        else if (res[i].paid < res[i].amounEnd && res[i].order) {
+                        else if ((res[i].paid < res[i].amountEnd) && res[i].order) {
                             bonusFactorys[factory]['Заказ Рассрочка'] = checkFloat(checkFloat(bonusFactorys[factory]['Заказ Рассрочка']) + checkFloat(res[i].itemsSale[i1].amount))
                             bonusFactorys['ИТОГО']['Заказ Рассрочка'] = checkFloat(checkFloat(bonusFactorys['ИТОГО']['Заказ Рассрочка']) + checkFloat(res[i].itemsSale[i1].amount))
                             bonusFactorys[factory]['Скидка Заказ Рассрочка'] = checkFloat(checkFloat(bonusFactorys[factory]['Скидка Заказ Рассрочка']) + discountItem)
@@ -538,7 +538,7 @@ const resolversUnload = {
                             bonusFactorys[factory]['Скидка Заказ Рассрочка %%'] = checkFloat( bonusFactorys[factory]['Скидка Заказ Рассрочка']*100/bonusFactorys[factory]['Заказ Рассрочка'])
                             bonusFactorys['ИТОГО']['Скидка Заказ Рассрочка %%'] = checkFloat( bonusFactorys['ИТОГО']['Скидка Заказ Рассрочка']*100/bonusFactorys['ИТОГО']['Заказ Рассрочка'])
                         }
-                        else if (res[i].paid < res[i].amounEnd) {
+                        else if (res[i].paid < res[i].amountEnd) {
                             bonusFactorys[factory]['Рассрочка'] = checkFloat(checkFloat(bonusFactorys[factory]['Рассрочка']) + checkFloat(res[i].itemsSale[i1].amount))
                             bonusFactorys['ИТОГО']['Рассрочка'] = checkFloat(checkFloat(bonusFactorys['ИТОГО']['Рассрочка']) + checkFloat(res[i].itemsSale[i1].amount))
                             bonusFactorys[factory]['Скидка Рассрочка'] = checkFloat(checkFloat(bonusFactorys[factory]['Скидка Рассрочка']) + discountItem)
@@ -820,59 +820,31 @@ const resolversUnload = {
                     path: 'cpa',
                     select: '_id name'
                 })
-                .populate({
-                    path: 'promotion',
-                    select: '_id name'
-                })
                 .lean()
-            let bonusCpas = {}, promotions = [], discountPrecent, bonusAll = {}
+            let bonusCpas = {}, discountPrecent, bonusAll = {}
             for(let i = 0; i < res.length; i++) {
-                discountPrecent = checkInt(res[i].discount*100/res[i].amountStart)
-                if(!bonusCpas[res[i].cpa._id])
-                    bonusCpas[res[i].cpa._id] = {
-                        name: res[i].cpa.name
+                if(res[i].cpa) {
+                    discountPrecent = checkFloat(res[i].discount * 100 / res[i].amountStart)
+                    if (!bonusCpas[res[i].cpa._id])
+                        bonusCpas[res[i].cpa._id] = {
+                            name: res[i].cpa.name
+                        }
+                    bonusCpas[res[i].cpa._id]['Всего продаж'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Всего продаж']) + checkFloat(res[i].amountEnd))
+                    bonusAll['Всего продаж'] = checkFloat(checkFloat(bonusAll['Всего продаж']) + checkFloat(res[i].amountEnd))
+                    bonusCpas[res[i].cpa._id]['Бонус'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Бонус']) + checkFloat(res[i].bonusCpa))
+                    bonusAll['Бонус'] = checkFloat(checkFloat(bonusAll['Бонус']) + checkFloat(res[i].bonusCpa))
+                    if (res[i].paid < res[i].amountEnd) {
+                        bonusCpas[res[i].cpa._id]['Рассрочка'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Рассрочка']) + checkFloat(res[i].bonusCpa))
+                        bonusAll['Рассрочка'] = checkFloat(checkFloat(bonusAll['Рассрочка']) + checkFloat(res[i].bonusCpa))
                     }
-                bonusCpas[res[i].cpa._id]['Всего продаж'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Всего продаж']) + checkFloat(res[i].amountEnd))
-                bonusAll['Всего продаж'] = checkFloat(checkFloat(bonusAll['Всего продаж']) + checkFloat(res[i].amountEnd))
-                bonusCpas[res[i].cpa._id]['Бонус'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Бонус']) + checkFloat(res[i].bonusCpa))
-                bonusAll['Бонус'] = checkFloat(checkFloat(bonusAll['Бонус']) + checkFloat(res[i].bonusCpa))
-                if(res[i].promotion) {
-                    if(!promotions.includes(res[i].promotion.name))
-                        promotions.push(res[i].promotion.name)
-                    bonusCpas[res[i].cpa._id][res[i].promotion.name] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id][res[i].promotion.name]) + checkFloat(res[i].bonusCpa))
-                    bonusAll[res[i].promotion.name] = checkFloat(checkFloat(bonusAll[res[i].promotion.name]) + checkFloat(res[i].bonusCpa))
-                }
-                else if(res[i].paid<res[i].amounEnd&&res[i].order) {
-                    bonusCpas[res[i].cpa._id]['Заказ Рассрочка'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Заказ Рассрочка']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Заказ Рассрочка'] = checkFloat(checkFloat(bonusAll['Заказ Рассрочка']) + checkFloat(res[i].bonusCpa))
-                }
-                else if(res[i].paid<res[i].amounEnd) {
-                    bonusCpas[res[i].cpa._id]['Рассрочка'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Рассрочка']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Рассрочка'] = checkFloat(checkFloat(bonusAll['Рассрочка']) + checkFloat(res[i].bonusCpa))
-                }
-                else if(res[i].order) {
-                    bonusCpas[res[i].cpa._id]['Заказ'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Заказ']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Заказ'] = checkFloat(checkFloat(bonusAll['Заказ']) + checkFloat(res[i].bonusCpa))
-                }
-                else if(!discountPrecent) {
-                    bonusCpas[res[i].cpa._id]['Без скидки'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Без скидки']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Без скидки'] = checkFloat(checkFloat(bonusAll['Без скидки']) + checkFloat(res[i].bonusCpa))
-                }
-                else if(discountPrecent>0&&discountPrecent<=4) {
-                    bonusCpas[res[i].cpa._id]['Скидка 0-4%'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Скидка 0-4%']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Скидка 0-4%'] = checkFloat(checkFloat(bonusAll['Скидка 0-4%']) + checkFloat(res[i].bonusCpa))
-                }
-                else if(discountPrecent>5&&discountPrecent<=15) {
-                    bonusCpas[res[i].cpa._id]['Скидка 5-15%'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Скидка 5-15%']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Скидка 5-15%'] = checkFloat(checkFloat(bonusAll['Скидка 5-15%']) + checkFloat(res[i].bonusCpa))
-                }
-                else if(discountPrecent>16&&discountPrecent<=20) {
-                    bonusCpas[res[i].cpa._id]['Скидка 16-20%'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Скидка 16-20%']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Скидка 16-20%'] = checkFloat(checkFloat(bonusAll['Скидка 16-20%']) + checkFloat(res[i].bonusCpa))
-                }
-                else if(discountPrecent>20) {
-                    bonusCpas[res[i].cpa._id]['Свыше 20%'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Свыше 20%']) + checkFloat(res[i].bonusCpa))
-                    bonusAll['Свыше 20%'] = checkFloat(checkFloat(bonusAll['Свыше 20%']) + checkFloat(res[i].bonusCpa))
+                    else if (res[i].order) {
+                        bonusCpas[res[i].cpa._id]['Заказ'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Заказ']) + checkFloat(res[i].bonusCpa))
+                        bonusAll['Заказ'] = checkFloat(checkFloat(bonusAll['Заказ']) + checkFloat(res[i].bonusCpa))
+                    }
+                    else if (!discountPrecent) {
+                        bonusCpas[res[i].cpa._id]['Наличка'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Наличка']) + checkFloat(res[i].bonusCpa))
+                        bonusAll['Наличка'] = checkFloat(checkFloat(bonusAll['Наличка']) + checkFloat(res[i].bonusCpa))
+                    }
                 }
             }
             const workbook = new ExcelJS.Workbook();
@@ -888,23 +860,7 @@ const resolversUnload = {
             cell += 1
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Без скидки'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 0-4%'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 5-15%'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 16-20%'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Свыше 20%'
+            worksheet.getRow(1).getCell(cell).value = 'Наличка'
             cell += 1
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
@@ -913,16 +869,6 @@ const resolversUnload = {
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
             worksheet.getRow(1).getCell(cell).value = 'Рассрочка'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Заказ Рассрочка'
-            for(let i = 0; i < promotions.length; i++) {
-                cell += 1
-                worksheet.getColumn(cell).width = 15
-                worksheet.getRow(1).getCell(cell).font = {bold: true};
-                worksheet.getRow(1).getCell(cell).value = promotions[i]
-            }
             cell += 1
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
@@ -935,25 +881,11 @@ const resolversUnload = {
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Бонус']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Без скидки']);
-                cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 0-4%']);
-                cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 5-15%']);
-                cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 16-20%']);
-                cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Свыше 20%']);
+                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Наличка']);
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Заказ']);
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Рассрочка']);
-                cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Заказ Рассрочка']);
-                for(let i = 0; i < promotions.length; i++) {
-                    cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i][promotions[i]]);
-                }
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Всего продаж']);
             }
@@ -963,25 +895,11 @@ const resolversUnload = {
             cell += 1
             worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Бонус']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Без скидки']);
-            cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 0-4%']);
-            cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 5-15%']);
-            cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 16-20%']);
-            cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Свыше 20%']);
+            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Наличка']);
             cell += 1
             worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Заказ']);
             cell += 1
             worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Рассрочка']);
-            cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Заказ Рассрочка']);
-            for(let i = 0; i < promotions.length; i++) {
-                cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll[promotions[i]]);
-            }
             cell += 1
             worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Всего продаж']);
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
@@ -1122,7 +1040,7 @@ const resolversUnload = {
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = res[i].store.name;
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amounEnd?'Рассрочка':res[i].promotion?'Акция':res[i].order?'Заказ':'Наличка'
+                worksheet.getRow(row+1).getCell(cell).value = res[i].paid<res[i].amountEnd?'Рассрочка':res[i].promotion?'Акция':res[i].order?'Заказ':'Наличка'
                 cell += 1
                 worksheet.getRow(row+1).getCell(cell).value = res[i].client.name;
                 cell += 1
@@ -1406,7 +1324,7 @@ const resolversUnload = {
                         cell += 1
                         worksheet.getRow(row + 1).getCell(cell).value = res[i].itemsSale[i1].count;
                         cell += 1
-                        worksheet.getRow(row + 1).getCell(cell).value = res[i].paid < res[i].amounEnd ? 'Рассрочка' : res[i].promotion ? 'Акция' : res[i].order ? 'Заказ' : 'Наличка'
+                        worksheet.getRow(row + 1).getCell(cell).value = res[i].paid < res[i].amountEnd ? 'Рассрочка' : res[i].promotion ? 'Акция' : res[i].order ? 'Заказ' : 'Наличка'
                         cell += 1
                         worksheet.getRow(row + 1).getCell(cell).value = checkFloat(res[i].itemsSale[i1].amount);
                         cell += 1
@@ -2066,8 +1984,6 @@ const resolversMutation = {
                 if (paid!=undefined) {
                     history.what = `${history.what}Оплачено:${object.paid}→${paid};\n`
                     //Оплачено не меняет долг?
-                    //let balanceClient = await BalanceClient.findOne({client: object.client})
-                    //balanceClient.balance = checkFloat(balanceClient.balance + object.paid - paid)
                     if(object.installment) {
                         let installment = await Installment.findOne({_id: object.installment, status: {$nin: ['перерасчет', 'отмена']}}).lean()
                         if(installment) {
@@ -2096,12 +2012,9 @@ const resolversMutation = {
 
                             grid[grid.length-1].amount += remainder
 
-                            await Installment.updateOne({_id: object.installment}, {paid: installment.paid, debt, grid})
-                            //balanceClient.balance = checkFloat(balanceClient.balance + installment.debt - debt)
+                            await Installment.updateOne({_id: object.installment}, {/*paid: installment.paid, */debt, grid})
                         }
                     }
-
-                    //await balanceClient.save()
 
                     object.paid = paid
                 }
@@ -2186,6 +2099,9 @@ const resolversMutation = {
                 }
                 if (amountEnd!=undefined) {
                     history.what = `${history.what}Сумма после скидки:${object.amountEnd}→${amountEnd};\n`
+                    let balanceClient = await BalanceClient.findOne({client: object.client})
+                    balanceClient.balance = checkFloat(balanceClient.balance + object.amountEnd - amountEnd)
+                    await balanceClient.save()
                     let bonus = checkFloat(object.bonusManager*amountEnd/object.amountEnd)
                     if(bonus) {
                         let date = new Date(object.createdAt)

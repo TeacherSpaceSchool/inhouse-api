@@ -460,7 +460,7 @@ const resolversMutation = {
             if (info&&object.who.toString()===user._id.toString()&&['отложен', 'обработка'].includes(object.status)) {
                 history.what = `${history.what}Комментарий:${object.info}→${info};\n`
                 object.info = info
-                webPush.message = `${webPush.message}\nКоментарий задачи изменен`
+                webPush.message = `${webPush.message}\nКомментарий задачи изменен`
             }
             if (status&&object.status!=='проверен') {
                 history.what = `${history.what}Статус:${object.status}→${status};`
