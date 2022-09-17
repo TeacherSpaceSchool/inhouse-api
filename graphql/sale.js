@@ -61,7 +61,7 @@ const queryUnload = `
     unloadClientSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadBonusManagerSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadBonusCpaSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
-    unloadDeliveries(search: String, manager: ID, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): String
+    unloadDeliveries(search: String, _id: ID, manager: ID, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): String
     unloadSales(search: String, manager: ID, type: String, category: String, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
     unloadFactorySales(manager: ID, type: String, category: String, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
 `;
