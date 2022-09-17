@@ -298,7 +298,7 @@ const resolversMutation = {
                             let lastDebtEnd = object.debtEnd
                             let salary
                             while(lastSalary) {
-                                salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: object._id}}).sort('date')
+                                salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: lastSalary._id}}).sort('date')
                                 if(salary) {
                                     salary.debtStart = lastDebtEnd
                                     salary.pay = checkFloat(salary.debtStart+salary.accrued+salary.bonus+salary.premium-salary.penaltie-salary.advance)
@@ -350,7 +350,7 @@ const resolversMutation = {
                         let lastSalary = object
                         let lastDebtEnd = object.debtEnd
                         while(lastSalary) {
-                            salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: object._id}}).sort('date')
+                            salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: lastSalary._id}}).sort('date')
                             if(salary) {
                                 salary.debtStart = lastDebtEnd
                                 salary.pay = checkFloat(salary.debtStart+salary.accrued+salary.bonus+salary.premium-salary.penaltie-salary.advance)
@@ -405,7 +405,7 @@ const resolversMutation = {
             let lastSalary = object
             let lastDebtEnd = object.debtEnd
             while(lastSalary) {
-                salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: object._id}}).sort('date')
+                salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: lastSalary._id}}).sort('date')
                 if(salary) {
                     salary.debtStart = lastDebtEnd
                     salary.pay = checkFloat(salary.debtStart+salary.accrued+salary.bonus+salary.premium-salary.penaltie-salary.advance)
@@ -497,7 +497,7 @@ const resolversMutation = {
                     let lastDebtEnd = object.debtEnd
                     let salary
                     while(lastSalary) {
-                        salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: object._id}}).sort('date')
+                        salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: lastSalary._id}}).sort('date')
                         if(salary) {
                             salary.debtStart = lastDebtEnd
                             salary.pay = checkFloat(salary.debtStart+salary.accrued+salary.bonus+salary.premium-salary.penaltie-salary.advance)
@@ -526,7 +526,7 @@ const resolversMutation = {
                 lastSalary = lastSalary?lastSalary:object
                 let salary
                 while(lastSalary) {
-                    salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: object._id}}).sort('date')
+                    salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.employment, _id: {$ne: lastSalary._id}}).sort('date')
                     if(salary) {
                         salary.debtStart = lastDebtEnd
                         salary.pay = checkFloat(salary.debtStart+salary.accrued+salary.bonus+salary.premium-salary.penaltie-salary.advance)

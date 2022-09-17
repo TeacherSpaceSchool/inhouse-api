@@ -23,6 +23,8 @@ module.exports.createAdmin = async () => {
         });
         await User.create(_user);
     }
-    else if(!findAdmin.checkPassword(process.env.adminpass.trim()))
-        await User.updateOne({login: 'admin'}, {password: process.env.adminpass.trim()})
+    else if(!findAdmin.checkPassword(process.env.adminpass.trim())) {
+        findAdmin.password = process.env.adminpass.trim()
+        await findAdmin.save()
+    }
 }

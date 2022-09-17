@@ -24,6 +24,20 @@ module.exports.weekDay = [
     'СБ',
 ]
 const months = [
+    'января',
+    'февраля',
+    'марта',
+    'апреля',
+    'майя',
+    'июня',
+    'июля',
+    'августа',
+    'сентября',
+    'октября',
+    'ноября',
+    'декабря'
+]
+const Months = [
     'Январь',
     'Февраль',
     'Март',
@@ -151,6 +165,7 @@ const pdHHMM = (date) =>
 }
 
 module.exports.months = months
+module.exports.Months = Months
 module.exports.pdMonthYYYY = pdMonthYYYY;
 module.exports.statsCollection = statsCollection;
 module.exports.checkInt = checkInt;

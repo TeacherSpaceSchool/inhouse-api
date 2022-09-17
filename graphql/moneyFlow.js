@@ -358,7 +358,7 @@ const resolvers = {
             let moneyFlow = await MoneyFlow.findById(_id)
                 .populate({
                     path: 'client',
-                    select: '_id name'
+                    select: '_id name passport'
                 })
                 .populate({
                     path: 'cashbox',
@@ -404,26 +404,36 @@ const resolvers = {
             let RKOfile = path.join(app.dirname, 'docs', 'RKO.xlsx');
             let workbook = new ExcelJS.Workbook();
             workbook = await workbook.xlsx.readFile(RKOfile);
-            let worksheet = workbook.getWorksheet('РКО');
+            let float = (moneyFlow.amountEnd.toString().split('.'))[1]
+            let worksheet = workbook.worksheets[0];
             let doc = await Doc.findOne({}).select('name').lean()
-            worksheet.getRow(9).getCell(2).value = doc?doc.name:'InHouse'
             let date = new Date(moneyFlow.createdAt)
-            worksheet.getRow(14).getCell(11).value = moneyFlow.number
-            worksheet.getRow(14).getCell(12).value = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getFullYear()}`
-            worksheet.getRow(20).getCell(8).value = moneyFlow.amountEnd;
-            worksheet.getRow(22).getCell(3).value = moneyFlow.client?moneyFlow.client.name:
+            //наименование
+            worksheet.getRow(5).getCell(1).value = doc?doc.name:'InHouse'
+            //номер
+            worksheet.getRow(11).getCell(19).value = moneyFlow.number
+            //дата
+            worksheet.getRow(11).getCell(25).value = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getFullYear()} г.`
+            worksheet.getRow(32).getCell(1).value = worksheet.getRow(11).getCell(25).value
+            //сумма
+            worksheet.getRow(16).getCell(22).value = moneyFlow.amountEnd;
+            //получатель
+            worksheet.getRow(18).getCell(7).value = moneyFlow.client?moneyFlow.client.name:
                 moneyFlow.moneyRecipient?moneyFlow.moneyRecipient.name:
                     moneyFlow.employment?moneyFlow.employment.name:
-                        moneyFlow.cashboxRecipient?moneyFlow.cashboxRecipient.name:'не указан'
-            worksheet.getRow(24).getCell(3).value = moneyFlow.moneyArticle.name
-            worksheet.getRow(26).getCell(4).value = moneyFlow.sale?`Продажа №${moneyFlow.sale.number}`:
+                        moneyFlow.cashboxRecipient?moneyFlow.cashboxRecipient.name:''
+            //основание
+            worksheet.getRow(20).getCell(7).value = moneyFlow.moneyArticle.name
+            //приложение
+            worksheet.getRow(24).getCell(8).value = moneyFlow.sale?`Продажа №${moneyFlow.sale.number}`:
                 moneyFlow.refund?`Возврат №${moneyFlow.refund.number}`:
                     moneyFlow.reservation?`Бронь №${moneyFlow.reservation.number}`:
                         moneyFlow.order?`На заказ №${moneyFlow.order.number}`:
                             moneyFlow.installment?`Рассрочка №${moneyFlow.installment.number}`:''
-            worksheet.getRow(29).getCell(3).value = await numberToWord(moneyFlow.amountEnd, 'all')
-            date = new Date()
-            worksheet.getRow(35).getCell(3).value = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getFullYear()}`
+            //прописью
+            worksheet.getRow(22).getCell(7).value = `${await numberToWord(moneyFlow.amountEnd)} сом ${float} тыйын`
+            //паспорт
+            worksheet.getRow(34).getCell(7).value = moneyFlow.client?`паспорту ${moneyFlow.client.passport}`:''
             let xlsxname = `РКО-${moneyFlow.number}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
             await workbook.xlsx.writeFile(xlsxpath);
@@ -482,40 +492,33 @@ const resolvers = {
             let PKOfile = path.join(app.dirname, 'docs', 'PKO.xlsx');
             let workbook = new ExcelJS.Workbook();
             workbook = await workbook.xlsx.readFile(PKOfile);
-            let worksheet = workbook.getWorksheet('ПКО');
+            let worksheet = workbook.worksheets[0];
             let doc = await Doc.findOne({}).select('name').lean()
-            worksheet.getRow(7).getCell(1).value = doc?doc.name:'InHouse'
-            worksheet.getRow(3).getCell(75).value = doc?doc.name:'InHouse'
+            //название
+            worksheet.getRow(5).getCell(2).value = doc?doc.name:'InHouse'
             let date = new Date(moneyFlow.createdAt)
-            let float = (moneyFlow.amountEnd.toString().split('.'))[1]
-            worksheet.getRow(13).getCell(43).value = moneyFlow.number
-            worksheet.getRow(13).getCell(55).value = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getFullYear()}`
-            worksheet.getRow(19).getCell(41).value = moneyFlow.amountEnd;
-            worksheet.getRow(21).getCell(11).value = moneyFlow.client?moneyFlow.client.name:
+            //номер
+            worksheet.getRow(13).getCell(6).value = moneyFlow.number
+            //дата
+            worksheet.getRow(13).getCell(8).value = `${date.getDate()<10?'0':''}${date.getDate()}.${date.getMonth()<9?'0':''}${date.getMonth()+1}.${date.getFullYear()} г.`
+            //сумма
+            worksheet.getRow(19).getCell(7).value = moneyFlow.amountEnd;
+            //получатель
+            worksheet.getRow(21).getCell(3).value = moneyFlow.client?moneyFlow.client.name:
                 moneyFlow.moneyRecipient?moneyFlow.moneyRecipient.name:
                     moneyFlow.employment?moneyFlow.employment.name:
-                        moneyFlow.cashboxRecipient?moneyFlow.cashboxRecipient.name:'не указан'
-            worksheet.getRow(23).getCell(11).value = moneyFlow.moneyArticle.name
-            worksheet.getRow(25).getCell(8).value = await numberToWord(moneyFlow.amountEnd)
+                        moneyFlow.cashboxRecipient?moneyFlow.cashboxRecipient.name:''
+            //статья
+            worksheet.getRow(23).getCell(3).value = moneyFlow.moneyArticle.name
+            //прописью
+            worksheet.getRow(26).getCell(3).value = `${await numberToWord(moneyFlow.amountEnd)} сом`
+            //приложение
             worksheet.getRow(30).getCell(12).value = moneyFlow.sale?`Продажа №${moneyFlow.sale.number}`:
                 moneyFlow.refund?`Возврат №${moneyFlow.refund.number}`:
                     moneyFlow.reservation?`Бронь №${moneyFlow.reservation.number}`:
                         moneyFlow.order?`На заказ №${moneyFlow.order.number}`:
                             moneyFlow.installment?`Рассрочка №${moneyFlow.installment.number}`:''
-            worksheet.getRow(10).getCell(79).value = `${date.getDate()<10?'0':''}${date.getDate()}`
-            worksheet.getRow(10).getCell(85).value = `${date.getMonth()<9?'0':''}${date.getMonth()+1}`
-            worksheet.getRow(10).getCell(101).value = date.getFullYear()
-            worksheet.getRow(12).getCell(84).value = moneyFlow.client?moneyFlow.client.name:
-                moneyFlow.moneyRecipient?moneyFlow.moneyRecipient.name:
-                    moneyFlow.employment?moneyFlow.employment.name:
-                        moneyFlow.cashboxRecipient?moneyFlow.cashboxRecipient.name:'не указан'
-            worksheet.getRow(15).getCell(75).value = moneyFlow.moneyArticle.name
-            worksheet.getRow(19).getCell(81).value = moneyFlow.amountEnd;
-            worksheet.getRow(21).getCell(75).value = await numberToWord(moneyFlow.amountEnd)
-            worksheet.getRow(27).getCell(55).value = float?float:'0'
-            worksheet.getRow(19).getCell(103).value = float?float:'0'
-            worksheet.getRow(24).getCell(103).value = float?float:'0'
-            worksheet.getRow(9).getCell(102).value = moneyFlow.number
+
             let xlsxname = `ПКО-${moneyFlow.number}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
             await workbook.xlsx.writeFile(xlsxpath);
@@ -1347,6 +1350,7 @@ const resolversMutation = {
                     }
                     else if(installment)
                         await setGridInstallment({_id: installment, newAmount: object.amountEnd, oldAmount: 0, month: installmentMonth, type: '+', user})
+
 
                     if(cashboxRecipient) {
                         let index = undefined

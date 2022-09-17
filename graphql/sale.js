@@ -11,7 +11,7 @@ const WayItem = require('../models/wayItem');
 const Item = require('../models/item');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const BalanceClient = require('../models/balanceClient');
-const {urlMain, checkFloat, pdDDMMYYYY, pdDDMMYYHHMM, checkDate} = require('../module/const');
+const {urlMain, checkFloat, pdDDMMYYYY, pdDDMMYYHHMM, checkDate, months} = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -841,7 +841,7 @@ const resolversUnload = {
                         bonusCpas[res[i].cpa._id]['Заказ'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Заказ']) + checkFloat(res[i].bonusCpa))
                         bonusAll['Заказ'] = checkFloat(checkFloat(bonusAll['Заказ']) + checkFloat(res[i].bonusCpa))
                     }
-                    else if (!discountPrecent) {
+                    else {
                         bonusCpas[res[i].cpa._id]['Наличка'] = checkFloat(checkFloat(bonusCpas[res[i].cpa._id]['Наличка']) + checkFloat(res[i].bonusCpa))
                         bonusAll['Наличка'] = checkFloat(checkFloat(bonusAll['Наличка']) + checkFloat(res[i].bonusCpa))
                     }
@@ -1379,7 +1379,7 @@ const resolversUnload = {
 };
 
 const query = `
-    getAttachment(_id: ID!): String
+    getAttachmentSale(_id: ID!): String
     salesBonusManager: [Float]
     sales(search: String, order: Boolean, skip: Int, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): [Sale]
     salesCount(search: String, order: Boolean, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): Int
@@ -1388,13 +1388,13 @@ const query = `
 `;
 
 const mutation = `
-    addSale(client: ID!, prepaid: Float, selfDelivery: Boolean, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
+    addSale(client: ID!, prepaid: Float, selfDelivery: Boolean, installment: Boolean, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
     setSale(_id: ID!, deliverymans: [ID], percentManager: Float, selfDelivery: Boolean, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
     divideSale(_id: ID!, newItems: [ItemFromListInput]!, currentItems: [ItemFromListInput]!): String
 `;
 
 const resolvers = {
-    getAttachment: async(parent, {_id}, {user}) => {
+    getAttachmentSale: async(parent, {_id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад', 'юрист'].includes(user.role)) {
             let sale = await Sale.findOne({
                 _id,
@@ -1413,46 +1413,80 @@ const resolvers = {
                 })
                 .populate('itemsSale')
                 .lean()
-            let attachmentFile = path.join(app.dirname, 'docs', 'attachment.xlsx');
-            let workbook = new ExcelJS.Workbook();
-            workbook = await workbook.xlsx.readFile(attachmentFile);
-            let worksheet = workbook.getWorksheet('TDSheet');
+            let attachmentFile, workbook, worksheet
             let doc = await Doc.findOne({}).select('name director').lean()
-            worksheet.getRow(1).getCell(4).value = doc.name
-            worksheet.getRow(7).getCell(8).value = sale.amountStart
-            worksheet.getRow(10).getCell(4).value = sale.client.name
-            worksheet.getRow(12).getCell(4).value = doc.director
-            worksheet.getRow(14).getCell(4).value = sale.manager.name
-            if(!sale.discount)
-                worksheet.spliceRows(8, 1)
-            else {
-                worksheet.getRow(8).getCell(3).value = `Итого сумма со скидкой ${checkFloat(sale.discount*100/sale.amountStart)}%`
-                worksheet.getRow(8).getCell(8).value = sale.amountEnd
-            }
-
-            worksheet.duplicateRow(6, sale.itemsSale.length-1, true)
-            for(let i=0; i<sale.itemsSale.length; i++) {
-                let row = 6+i
-                let art = await Item.findById(sale.itemsSale[i].item).select('art').lean()
-                if(art)
-                    worksheet.getRow(row).getCell(3).value = art.art
-                worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].name
-                worksheet.getRow(row).getCell(5).value = ''
-                if(sale.itemsSale[i].characteristics.length) {
-                    if(sale.itemsSale[i].characteristics.length>2)
-                        worksheet.getRow(row).height = 15*sale.itemsSale[i].characteristics.length
-                    for(let i1=0; i1<sale.itemsSale[i].characteristics.length; i1++) {
-                        worksheet.getRow(row).getCell(5).value += `${sale.itemsSale[i].characteristics[i1][0]}: ${sale.itemsSale[i].characteristics[i1][1]};`
-                        if(i1+1!==sale.itemsSale[i].characteristics.length)
-                            worksheet.getRow(row).getCell(5).value += '\n'
-                    }
+            let discountPrecent = checkFloat(sale.discount*100/sale.amountStart)
+            if(sale.installment) {
+                attachmentFile = path.join(app.dirname, 'docs', sale.discount?'installment-discount.xlsx':'installment.xlsx');
+                workbook = new ExcelJS.Workbook();
+                workbook = await workbook.xlsx.readFile(attachmentFile);
+                worksheet = workbook.worksheets[0];
+                worksheet.getRow(2).getCell(2).value = `Накладная  от ${sale.createdAt.getDate()<10?'0':''}${sale.createdAt.getDate()} ${months[sale.createdAt.getMonth()]} ${sale.createdAt.getFullYear()} г`
+                worksheet.getRow(4).getCell(4).value = doc.name
+                worksheet.getRow(6).getCell(4).value = sale.client.name
+                worksheet.getRow(8).getCell(4).value = sale.client.address
+                worksheet.getRow(9).getCell(4).value = (sale.client.phones.map(phone=>`+996${phone}`)).toString()
+                worksheet.getRow(14).getCell(7).value = sale.amountStart
+                worksheet.getRow(19).getCell(4).value = sale.manager.name
+                worksheet.getRow(23).getCell(4).value = sale.comment
+                worksheet.getRow(33).getCell(4).value = sale.client.name
+                if(sale.discount) {
+                    worksheet.getRow(14).getCell(8).value = sale.discount
+                    worksheet.getRow(14).getCell(9).value = sale.amountEnd
+                    worksheet.getRow(16).getCell(9).value = sale.paid
+                    worksheet.getRow(17).getCell(9).value = sale.amountEnd-sale.paid
                 }
-                worksheet.getRow(row).getCell(6).value = sale.itemsSale[i].count
-                worksheet.getRow(row).getCell(7).value = sale.itemsSale[i].price
-                worksheet.getRow(row).getCell(8).value = sale.itemsSale[i].amount
+                else {
+                    worksheet.getRow(14).getCell(8).value = sale.amountEnd
+                    worksheet.getRow(16).getCell(8).value = sale.paid
+                    worksheet.getRow(17).getCell(8).value = sale.amountEnd-sale.paid
+                }
+                worksheet.duplicateRow(13, sale.itemsSale.length-1, true)
+                for(let i=0; i<sale.itemsSale.length; i++) {
+                    let row = 13+i
+                    worksheet.getRow(row).getCell(2).value = i+1
+                    worksheet.getRow(row).getCell(3).value = sale.itemsSale[i].name
+                    worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].unit
+                    worksheet.getRow(row).getCell(5).value = sale.itemsSale[i].count
+                    worksheet.getRow(row).getCell(6).value = sale.itemsSale[i].price
+                    worksheet.getRow(row).getCell(7).value = sale.itemsSale[i].amount
+                    if(sale.discount) {
+                        worksheet.getRow(row).getCell(8).value = checkFloat(sale.itemsSale[i].amount/100*discountPrecent)
+                        worksheet.getRow(row).getCell(9).value = checkFloat(sale.itemsSale[i].amount-sale.itemsSale[i].amount/100*discountPrecent)
+                    }
+                    else
+                        worksheet.getRow(row).getCell(8).value = sale.itemsSale[i].amount
+                }
             }
-
-            let xlsxname = `Прилож к договору купли-продажи №${sale.number}.xlsx`;
+            else {
+                attachmentFile = path.join(app.dirname, 'docs', 'attachment-order.xlsx');
+                workbook = new ExcelJS.Workbook();
+                workbook = await workbook.xlsx.readFile(attachmentFile);
+                worksheet = workbook.worksheets[0];
+                worksheet.getRow(7).getCell(2).value = doc.name
+                worksheet.getRow(11).getCell(3).value = sale.client.name
+                worksheet.getRow(20).getCell(4).value = sale.client.name
+                worksheet.getRow(22).getCell(4).value = doc.director
+                worksheet.getRow(24).getCell(4).value = sale.manager.name
+                worksheet.getRow(16).getCell(10).value = sale.amountStart
+                if(sale.discount) {
+                    worksheet.getRow(17).getCell(10).value = sale.discount
+                    worksheet.getRow(18).getCell(10).value = sale.amountEnd
+                }
+                else {
+                    worksheet.spliceRows(17, 2)
+                }
+                worksheet.duplicateRow(15, sale.itemsSale.length-1, true)
+                for(let i=0; i<sale.itemsSale.length; i++) {
+                    let row = 15+i
+                    worksheet.getRow(row).getCell(3).value = sale.itemsSale[i].factory
+                    worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].name
+                    worksheet.getRow(row).getCell(5).value = sale.itemsSale[i].count
+                    worksheet.getRow(row).getCell(9).value = sale.itemsSale[i].price
+                    worksheet.getRow(row).getCell(10).value = sale.itemsSale[i].amount
+                }
+            }
+            let xlsxname = `Прилож к договору №${sale.number}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
             await workbook.xlsx.writeFile(xlsxpath);
             return urlMain + '/xlsx/' + xlsxname
@@ -1481,7 +1515,7 @@ const resolvers = {
         }
     },
     sales: async(parent, {search, skip, limit, order, items, manager, client, cpa, dateStart, dateEnd, delivery, status, store, promotion}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'управляющий', 'доставщик',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
             if (dateStart) {
@@ -1580,7 +1614,7 @@ const resolvers = {
         }
     },
     salesCount: async(parent, {order, search, promotion, manager, client, cpa, dateStart, dateEnd, delivery, status, store}, {user}) => {
-        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'управляющий',  'кассир', 'доставщик', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
             if(!delivery||dateStart) {
@@ -1704,9 +1738,9 @@ const resolvers = {
 };
 
 const resolversMutation = {
-    addSale: async(parent, {order, client, prepaid, selfDelivery, promotion, itemsSale, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, reservations}, {user}) => {
+    addSale: async(parent, {order, client, installment, prepaid, selfDelivery, promotion, itemsSale, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, reservations}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
-            if (delivery&&delivery.toString()!=='Invalid Date') 
+            if (delivery&&delivery.toString()!=='Invalid Date')
                 delivery = new Date(delivery)
             else
                 delivery = null
@@ -1792,9 +1826,9 @@ const resolversMutation = {
             }
             object.itemsSale = itemsSale
             //Баланс клиента
-            if(paid===amountEnd) {
+            if(!installment) {
                 let balanceClient = await BalanceClient.findOne({client})
-                balanceClient.balance = checkFloat(balanceClient.balance - amountEnd)
+                balanceClient.balance = checkFloat(balanceClient.balance - paid)
                 await balanceClient.save()
             }
             //Бонус менеджера
@@ -1879,7 +1913,7 @@ const resolversMutation = {
                         let lastSalary = salary
                         let lastDebtEnd = salary.debtEnd
                         while(lastSalary) {
-                            salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: user._id, _id: {$ne: salary._id}}).sort('date')
+                            salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: user._id, _id: {$ne: lastSalary._id}}).sort('date')
                             if(salary) {
                                 salary.debtStart = lastDebtEnd
                                 salary.pay = checkFloat(salary.debtStart+salary.accrued+salary.bonus+salary.premium-salary.penaltie-salary.advance)
@@ -1906,7 +1940,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     setSale: async(parent, {_id, deliverymans, percentManager, selfDelivery, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
-        if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+        if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад', 'доставщик'].includes(user.role)) {
             let object = await Sale.findById(_id)
             if(object) {
                 let history = new History({
@@ -2084,7 +2118,7 @@ const resolversMutation = {
                     let lastDebtEnd = salary.debtEnd
                     let _salary
                     while(lastSalary) {
-                        _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: object._id}}).sort('date')
+                        _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: lastSalary._id}}).sort('date')
                         if(_salary) {
                             _salary.debtStart = lastDebtEnd
                             _salary.pay = checkFloat(_salary.debtStart+_salary.accrued+_salary.bonus+_salary.premium-_salary.penaltie-_salary.advance)
@@ -2190,7 +2224,7 @@ const resolversMutation = {
                             });
                             await History.create(history)
 
-                            let amount = amountEnd
+                            let amount = amountEnd - checkFloat(object.prepaid)
                             let debt = amount - installment.paid
                             let grid = [...installment.grid]
                             let gridDebt = amount - checkFloat(grid[0].amount)
@@ -2248,13 +2282,13 @@ const resolversMutation = {
                             let reservations = await Reservation.find({_id: {$in: object.reservations}})
                             for(let i=0; i<reservations.length; i++) {
                                 reservations[i].sale = null
-                                reservations[i].status = 'обработка'
-                                await ItemReservation.updateMany({_id: {$in: reservations[i].itemsReservation}}, {status: 'обработка'})
+                                reservations[i].status = 'отмена'
+                                await ItemReservation.updateMany({_id: {$in: reservations[i].itemsReservation}}, {status: 'отмена'})
                                 await reservations[i].save()
                             }
                         }
 
-                        balanceClient.balance = checkFloat(balanceClient.balance + object.paid + debtInstallment)
+                        balanceClient.balance = checkFloat(balanceClient.balance + object.amountEnd)
                         await balanceClient.save()
 
                         if(!object.order) {
@@ -2294,7 +2328,7 @@ const resolversMutation = {
                                 let lastDebtEnd = salary.debtEnd
                                 let _salary
                                 while(lastSalary) {
-                                    _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: object._id}}).sort('date')
+                                    _salary = await Salary.findOne({date: {$gt: lastSalary.date}, employment: object.manager, _id: {$ne: lastSalary._id}}).sort('date')
                                     if(_salary) {
                                         _salary.debtStart = lastDebtEnd
                                         _salary.pay = checkFloat(_salary.debtStart+_salary.accrued+_salary.bonus+_salary.premium-_salary.penaltie-_salary.advance)

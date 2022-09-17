@@ -5,11 +5,12 @@ const History = require('../models/history');
 const ItemRefund = require('../models/itemRefund');
 const BalanceClient = require('../models/balanceClient');
 const Salary = require('../models/salary');
-const {checkFloat, urlMain, pdDDMMYYHHMM, checkDate } = require('../module/const');
+const {checkFloat, urlMain, pdDDMMYYHHMM, checkDate, months } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
 const randomstring = require('randomstring');
+const Doc = require('../models/doc');
 
 const type = `
   type Refund {
@@ -31,6 +32,7 @@ const type = `
 `;
 
 const query = `
+    getAttachmentRefund(_id: ID!): String
     unloadRefunds(search: String, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String, _id: ID): String
     refunds(search: String, skip: Int, limit: Int, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): [Refund]
     refundsCount(search: String, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): Int
@@ -43,6 +45,68 @@ const mutation = `
 `;
 
 const resolvers = {
+    getAttachmentRefund: async(parent, {_id}, {user}) => {
+        if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад', 'юрист'].includes(user.role)) {
+            let refund = await Refund.findOne({
+                _id,
+            })
+                .populate({
+                    path: 'manager',
+                    select: '_id name'
+                })
+                .populate({
+                    path: 'client',
+                    select: '_id name phones'
+                })
+                .populate({
+                    path: 'store',
+                    select: '_id name'
+                })
+                .populate('itemsRefund')
+                .lean()
+            let attachmentFile, workbook, worksheet
+            let doc = await Doc.findOne({}).select('name director').lean()
+            let discountPrecent = checkFloat(refund.discount*100/checkFloat(refund.amount+refund.discount))
+            attachmentFile = path.join(app.dirname, 'docs', refund.discount?'refund-discount.xlsx':'refund.xlsx');
+            workbook = new ExcelJS.Workbook();
+            workbook = await workbook.xlsx.readFile(attachmentFile);
+            worksheet = workbook.worksheets[0];
+            worksheet.getRow(2).getCell(2).value = `Накладная на возврат от ${refund.createdAt.getDate()<10?'0':''}${refund.createdAt.getDate()} ${months[refund.createdAt.getMonth()]} ${refund.createdAt.getFullYear()} г`
+            worksheet.getRow(4).getCell(4).value = doc.name
+            worksheet.getRow(6).getCell(4).value = refund.client.name
+            worksheet.getRow(8).getCell(4).value = refund.client.address
+            worksheet.getRow(9).getCell(4).value = (refund.client.phones.map(phone=>`+996${phone}`)).toString()
+            worksheet.getRow(19).getCell(4).value = refund.manager.name
+            worksheet.getRow(14).getCell(7).value = refund.amount
+            worksheet.getRow(23).getCell(4).value = refund.comment
+            worksheet.getRow(28).getCell(4).value = refund.client.name
+            if(refund.discount) {
+                worksheet.getRow(14).getCell(8).value = refund.discount
+                worksheet.getRow(14).getCell(9).value = checkFloat(refund.amount+refund.discount)
+            }
+            worksheet.duplicateRow(13, refund.itemsRefund.length-1, true)
+            for(let i=0; i<refund.itemsRefund.length; i++) {
+                let row = 13+i
+                worksheet.getRow(row).getCell(2).value = i+1
+                worksheet.getRow(row).getCell(3).value = refund.itemsRefund[i].name
+                worksheet.getRow(row).getCell(4).value = refund.itemsRefund[i].unit
+                worksheet.getRow(row).getCell(5).value = refund.itemsRefund[i].count
+                worksheet.getRow(row).getCell(6).value = refund.itemsRefund[i].price
+                worksheet.getRow(row).getCell(7).value = refund.itemsRefund[i].amount
+                if(refund.discount) {
+                    worksheet.getRow(row).getCell(8).value = checkFloat(refund.itemsRefund[i].amount/100*discountPrecent)
+                    worksheet.getRow(row).getCell(9).value = checkFloat(refund.itemsRefund[i].amount-refund.itemsRefund[i].amount/100*discountPrecent)
+                }
+                else
+                    worksheet.getRow(row).getCell(8).value = refund.itemsRefund[i].amount
+            }
+            let xlsxname = `Прилож к договору №${refund.number}.xlsx`;
+            let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
+            await workbook.xlsx.writeFile(xlsxpath);
+            return urlMain + '/xlsx/' + xlsxname
+
+        }
+    },
     unloadRefunds: async(parent, {search, client, store, manager, dateStart, dateEnd, status, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
@@ -84,7 +148,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'sale',
-                    select: '_id number order paid amounEnd'
+                    select: '_id number order paid amountEnd'
                 })
                 .populate('itemsRefund')
                 .lean()
@@ -164,7 +228,7 @@ const resolvers = {
             worksheet.getRow(1).getCell(cell).value = 'Комментарий'
             let row = 1, discountPrecent, discountItem
             for(let i = 0; i < res.length; i++) {
-                discountPrecent = checkFloat(res[i].discount*100/res[i].amountStart)
+                discountPrecent = checkFloat(res[i].discount*100/(res[i].amount+res[i].discount))
                 for(let i1 = 0; i1 < res[i].itemsRefund.length; i1++) {
                     cell = 1
                     worksheet.getRow(row+1).getCell(cell).value = res[i].number;
@@ -187,9 +251,9 @@ const resolvers = {
                     cell += 1
                     worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].count;
                     cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = res[i].sale.paid<res[i].sale.amounEnd?'Рассрочка':res[i].sale.order?'Заказ':'Наличка';
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].sale.paid<res[i].sale.amountEnd?'Рассрочка':res[i].sale.order?'Заказ':'Наличка';
                     cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i].itemsRefund[i1].amount);
+                    worksheet.getRow(row+1).getCell(cell).value = res[i].itemsRefund[i1].amount
                     cell += 1
                     discountItem = checkFloat(res[i].itemsRefund[i1].amount/100*discountPrecent)
                     worksheet.getRow(row+1).getCell(cell).value = discountItem;

@@ -154,7 +154,7 @@ const resolvers = {
         return []
     },
     users: async(parent, {skip, search, store, role, limit, department, position}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'управляющий', 'завсклад'].includes(user.role)) {
+        if(user.role) {
             if(user.store) store = user.store
             let res = await User.find({
                 ...['менеджер/завсклад', 'завсклад'].includes(user.role)?
