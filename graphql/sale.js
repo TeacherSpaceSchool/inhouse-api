@@ -1389,7 +1389,7 @@ const query = `
 
 const mutation = `
     addSale(client: ID!, prepaid: Float, selfDelivery: Boolean, installment: Boolean, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
-    setSale(_id: ID!, deliverymans: [ID], percentManager: Float, selfDelivery: Boolean, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, percentCpa: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
+    setSale(_id: ID!, deliverymans: [ID], percentManager: Float, percentCpa: Float, selfDelivery: Boolean, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
     divideSale(_id: ID!, newItems: [ItemFromListInput]!, currentItems: [ItemFromListInput]!): String
 `;
 
