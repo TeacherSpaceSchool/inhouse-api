@@ -61,7 +61,7 @@ const queryUnload = `
     unloadClientSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadBonusManagerSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadBonusCpaSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
-    unloadDeliveries(search: String, _id: ID, manager: ID, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): String
+    unloadDeliveries(search: String, _id: ID, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): String
     unloadSales(search: String, manager: ID, type: String, category: String, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
     unloadFactorySales(manager: ID, type: String, category: String, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
 `;
@@ -908,7 +908,7 @@ const resolversUnload = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    unloadDeliveries: async(parent, {search, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
+    unloadDeliveries: async(parent, {search, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -936,7 +936,6 @@ const resolversUnload = {
                     }
                     :
                     {
-                        ...order!==false?{order}:{},
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
@@ -1119,7 +1118,7 @@ const resolversUnload = {
                     }
                     :
                     {
-                        ...order!==false?{order}:{},
+                        ...order===true?{order: true}:order===false?{order: {$ne: true}}:{},
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
@@ -1536,7 +1535,7 @@ const resolvers = {
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
             let res = await Sale.find({
-                ...order!==false?{order}:{},
+                ...order===true?{order: true}:order===false?{order: {$ne: true}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...promotion?{promotion}:{},
@@ -1635,7 +1634,7 @@ const resolvers = {
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
             return await Sale.countDocuments({
-                ...order!==false?{order}:{},
+                ...order===true?{order: true}:order===false?{order: {$ne: true}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
