@@ -55,7 +55,7 @@ const resolvers = {
         }
     },
     factorys: async(parent, {search, skip}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'завсклад', 'управляющий'].includes(user.role)) {
+        if(user.role) {
             return await Factory.find({
                 del: {$ne: true},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{},

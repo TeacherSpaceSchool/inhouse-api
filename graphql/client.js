@@ -100,7 +100,7 @@ const resolvers = {
         }
     },
     clients: async(parent, {search, skip, level, limit}, {user}) => {
-        if(['admin', 'менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист'].includes(user.role)) {
+        if(user.role) {
             let res = await Client.find({
                 del: {$ne: true},
                 ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
@@ -115,7 +115,7 @@ const resolvers = {
         }
     },
     client: async(parent, {_id}, {user}) => {
-        if(['admin', 'менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист'].includes(user.role)) {
+        if(user.role) {
             let res = await Client.findOne({
                 _id,
             })

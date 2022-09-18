@@ -71,7 +71,7 @@ const resolvers = {
         }
     },
     warehouses: async(parent, {search, skip, store}, {user}) => {
-        if(['admin', 'менеджер/завсклад', 'управляющий', 'завсклад'].includes(user.role)) {
+        if(user.role) {
             if(user.store) store = user.store
             let res =  await Warehouse.find({
                 del: {$ne: true},
