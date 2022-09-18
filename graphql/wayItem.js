@@ -337,26 +337,9 @@ const resolversMutation = {
                     row.getCell(2).value = (await Item.findOne({name: row.getCell(2).value}).select('_id').lean())._id
                 if(row.getCell(3).value)
                     row.getCell(3).value = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
-                if(row.getCell(1).value||row.getCell(2).value&&row.getCell(3).value) {
+                if(row.getCell(1).value||row.getCell(2).value&&row.getCell(3).value&&checkFloat(row.getCell(4).value)>=0) {
                     _id = row.getCell(1).value
-                    let bookings = []
                     let amountBookings = 0
-                    if(row.getCell(7).value) {
-                        row.getCell(7).value = row.getCell(7).value.toString().split(', ')
-                        for (let i = 0; i < row.getCell(7).value.length; i++) {
-                            row.getCell(7).value[i] = row.getCell(7).value[i].split(': ')
-                            row.getCell(7).value[i][0] = await User.findOne({name: row.getCell(7).value[i][0]}).select('_id name').lean()
-                            if (!row.getCell(7).value[i][0])
-                                return 'ERROR'
-                            row.getCell(7).value[i][1] = checkFloat(row.getCell(7).value[i][1])
-                            bookings.push({
-                                manager: row.getCell(7).value[i][0]._id,
-                                nameManager: row.getCell(7).value[i][0].name,
-                                amount: row.getCell(7).value[i][1]
-                            })
-                            amountBookings += row.getCell(7).value[i][1]
-                        }
-                    }
                     if(_id) {
                         object = await WayItem.findById(_id)
                         if(object&&object.status!=='прибыл'&&object.status!=='отмена') {
@@ -365,9 +348,8 @@ const resolversMutation = {
                                 where: object._id,
                                 what: ''
                             });
-                            if (bookings&&JSON.stringify(object.bookings)!==JSON.stringify(bookings)) {
-                                history.what = `Бронь:${JSON.stringify(object.bookings)}→${JSON.stringify(bookings)};\n`
-                                object.bookings = bookings
+                            for (let i = 0; i < object.bookings.length; i++) {
+                                amountBookings += object.bookings[i].amount
                             }
                             if(row.getCell(4).value) {
                                 row.getCell(4).value = checkFloat(row.getCell(4).value)
@@ -410,7 +392,7 @@ const resolversMutation = {
                         let object = new WayItem({
                             item: row.getCell(2).value,
                             store: row.getCell(3).value,
-                            bookings,
+                            bookings: [],
                             amount: checkFloat(row.getCell(4).value),
                             status: 'в пути',
                             dispatchDate: row.getCell(5).value,

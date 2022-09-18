@@ -277,7 +277,7 @@ const resolversMutation = {
             let rowNumber = 1, row, _id, object
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(2).value) {
+                if(row.getCell(2).value&&checkFloat(row.getCell(8).value)>=0&&checkFloat(row.getCell(9).value)>=0&&checkFloat(row.getCell(10).value)>=0&&checkFloat(row.getCell(11).value)>=0&&checkFloat(row.getCell(12).value)>=0) {
                     if(row.getCell(6).value)
                         row.getCell(6).value = (await Category.findOne({name: row.getCell(6).value}).select('_id').lean())._id
                     if(row.getCell(7).value)

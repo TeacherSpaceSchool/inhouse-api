@@ -10,10 +10,6 @@ module.exports.setBalanceItemDay = async ({store, item, warehouse, amount, diff}
         date: today,
         warehouse
     })
-    let balanceItem = await BalanceItem.findOne({
-        item,
-        warehouse
-    }).select('amount').lean()
     if(balanceItemDay) {
         balanceItemDay.endAmount = amount
         if(diff>0)
@@ -27,19 +23,16 @@ module.exports.setBalanceItemDay = async ({store, item, warehouse, amount, diff}
             store,
             warehouse,
             item,
-            startAmount: diff!=undefined?balanceItem.amount - diff:0,
-            endAmount: balanceItem.amount,
+            startAmount: amount - diff,
+            endAmount: amount,
             date: today,
             plus: 0,
             minus: 0
         });
-        if(diff!=undefined)
-            if(diff>0)
-                balanceItemDay.plus = checkFloat(balanceItemDay.plus + diff)
-            else
-                balanceItemDay.minus = checkFloat(balanceItemDay.minus - diff)
+        if(diff>0)
+            balanceItemDay.plus = checkFloat(balanceItemDay.plus + diff)
         else
-            balanceItemDay.plus = balanceItemDay.startAmount
+            balanceItemDay.minus = checkFloat(balanceItemDay.minus - diff)
         await BalanceItemDay.create(balanceItemDay);
     }
 }

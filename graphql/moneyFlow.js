@@ -750,7 +750,7 @@ const resolversMutation = {
             while(true) {
                 let object, cashbox, client, cashboxRecipient, moneyRecipient, employment, store, date, moneyArticle, clearRecipient
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(8).value) {
+                if(row.getCell(8).value&&checkFloat(row.getCell(11).value)>=0&&checkFloat(row.getCell(9).value)>=0) {
                     if(row.getCell(3).value)
                         store = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
                     if(row.getCell(4).value)

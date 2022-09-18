@@ -191,14 +191,14 @@ const resolversMutation = {
             let rowNumber = 1, row, object, item, warehouse, amount, store, nameWarehouse
             while(true) {
                 row = worksheet.getRow(rowNumber);
-                if(row.getCell(1).value&&row.getCell(2).value&&row.getCell(3).value) {
+                amount = checkFloat(row.getCell(4).value)
+                if(row.getCell(1).value&&row.getCell(2).value&&row.getCell(3).value&&amount>=0) {
                     let diff = 0
                     item = (await Item.findOne({name: row.getCell(1).value}).select('_id').lean())._id
                     store = (await Store.findOne({name: row.getCell(3).value}).select('_id').lean())._id
                     warehouse = await Warehouse.findOne({name: row.getCell(2).value, store}).select('_id name').lean()
                     nameWarehouse = warehouse.name
                     warehouse = warehouse._id
-                    amount = checkFloat(row.getCell(4).value)
                     object = await BalanceItem.findOne({item, warehouse});
                     let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
                     let check = true
@@ -236,6 +236,7 @@ const resolversMutation = {
                             store
                         });
                         object = await BalanceItem.create(object)
+                        diff = amount
                         let history = new History({
                             who: user._id,
                             where: object._id,
@@ -302,7 +303,7 @@ const resolversMutation = {
                 what: 'Создание'
             });
             await History.create(history)
-            await setBalanceItemDay({store, item, warehouse, amount: object.amount, diff: 0})
+            await setBalanceItemDay({store, item, warehouse, amount: object.amount, diff: object.amount})
             return await BalanceItem.findById(object._id)
                 .populate({
                     path: 'item',
@@ -382,6 +383,7 @@ const resolversMutation = {
                         store
                     });
                     object = await BalanceItem.create(object)
+                    diff = amount
                     let history = new History({
                         who: user._id,
                         where: object._id,

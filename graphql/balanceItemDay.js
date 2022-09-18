@@ -161,7 +161,7 @@ const resolvers = {
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? 30 : 10000000000)
-                .sort(sort? sort : '-amount')
+                .sort('-date')
                 .populate({
                     path: 'item',
                     select: 'name _id unit factory category',

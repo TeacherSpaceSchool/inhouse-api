@@ -209,7 +209,20 @@ const resolversMutation = {
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 let employment = await User.findOne({name: row.getCell(2).value}).select('_id store').lean()
-                if(row.getCell(1).value&&row.getCell(1).value.length===7&&employment) {
+                if(
+                    row.getCell(1).value&&
+                    row.getCell(1).value.length===7&&
+                    employment&&
+                    checkFloat(row.getCell(3).value)>=0&&
+                    checkFloat(row.getCell(4).value)>=0&&
+                    checkFloat(row.getCell(5).value)>=0&&
+                    checkFloat(row.getCell(6).value)>=0&&
+                    checkFloat(row.getCell(7).value)>=0&&
+                    checkFloat(row.getCell(8).value)>=0&&
+                    checkFloat(row.getCell(9).value)>=0&&
+                    checkFloat(row.getCell(10).value)>=0&&
+                    checkFloat(row.getCell(11).value)
+                ) {
                     let date = row.getCell(1).value.split('.')
                     date = new Date(`${date[0]}.01.${date[1]}`)
                     date.setHours(0, 0, 0, 0)

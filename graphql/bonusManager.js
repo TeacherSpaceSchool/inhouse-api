@@ -28,7 +28,6 @@ const query = `
 `;
 
 const mutation = `
-    uploadBonusManager(document: Upload!): String
     addBonusManager(store: ID!, sale: [[Float]]!, saleInstallment: [[Float]]!, order: [[Float]]!, orderInstallment: [[Float]]!, promotion: [[Float]]!): BonusManager
     setBonusManager(_id: ID!, sale: [[Float]], saleInstallment: [[Float]], order: [[Float]], orderInstallment: [[Float]], promotion: [[Float]]): String
     deleteBonusManager(_id: ID!): String
@@ -150,97 +149,6 @@ const resolvers = {
 };
 
 const resolversMutation = {
-    uploadBonusManager: async(parent, { document }, {user}) => {
-        if(['admin'].includes(user.role)) {
-            let {createReadStream, filename} = await document;
-            let stream = createReadStream()
-            filename = await saveFile(stream, filename);
-            let xlsxpath = path.join(app.dirname, 'public', filename);
-            let workbook = new ExcelJS.Workbook();
-            workbook = await workbook.xlsx.readFile(xlsxpath);
-            let worksheet = workbook.worksheets[0];
-            let rowNumber = 1
-            while(true) {
-                let row = worksheet.getRow(rowNumber);
-                if(row.getCell(1).value) {
-                    let store = (await Store.findOne({name: row.getCell(1).value}).select('_id').lean())._id
-                    let object = await BonusManager.findOne({store})
-                    let sale = []
-                    let saleInstallment = []
-                    let order = []
-                    let orderInstallment = []
-                    let promotion = []
-                    row.getCell(2).value = row.getCell(2).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(2).value.length; i++) {
-                        row.getCell(2).value[i] = row.getCell(2).value[i].split(': ')
-                        sale.push([checkFloat(row.getCell(2).value[i][0]), checkFloat(row.getCell(2).value[i][1])])
-                    }
-                    row.getCell(3).value = row.getCell(3).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(3).value.length; i++) {
-                        row.getCell(3).value[i] = row.getCell(3).value[i].split(': ')
-                        saleInstallment.push([checkFloat(row.getCell(3).value[i][0]), checkFloat(row.getCell(3).value[i][1])])
-                    }
-                    row.getCell(4).value = row.getCell(4).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(4).value.length; i++) {
-                        row.getCell(4).value[i] = row.getCell(4).value[i].split(': ')
-                        order.push([checkFloat(row.getCell(4).value[i][0]), checkFloat(row.getCell(4).value[i][1])])
-                    }
-                    row.getCell(5).value = row.getCell(5).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(5).value.length; i++) {
-                        row.getCell(5).value[i] = row.getCell(5).value[i].split(': ')
-                        orderInstallment.push([checkFloat(row.getCell(5).value[i][0]), checkFloat(row.getCell(5).value[i][1])])
-                    }
-                    row.getCell(6).value = row.getCell(6).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(6).value.length; i++) {
-                        row.getCell(6).value[i] = row.getCell(6).value[i].split(': ')
-                        promotion.push([checkFloat(row.getCell(6).value[i][0]), checkFloat(row.getCell(6).value[i][1])])
-                    }
-
-                    if(object) {
-                        let history = new History({
-                            who: user._id,
-                            where: object._id,
-                            what: ''
-                        });
-                        history.what = `${history.what}Продажа:${object.sale}→${sale};\n`
-                        object.sale = sale
-                        history.what = `${history.what}Рассрочка:${object.saleInstallment}→${saleInstallment};\n`
-                        object.saleInstallment = saleInstallment
-                        history.what = `${history.what}На заказ:${object.order}→${order};\n`
-                        object.order = order
-                        history.what = `${history.what}На заказ рассрочка:${object.orderInstallment}→${orderInstallment};\n`
-                        object.orderInstallment = orderInstallment
-                        history.what = `${history.what}Акция:${object.promotion}→${promotion};\n`
-                        object.promotion = promotion
-                        await object.save();
-                        await History.create(history)
-                    }
-                    else {
-                        object = new BonusManager({
-                            store,
-                            sale,
-                            saleInstallment,
-                            order,
-                            orderInstallment,
-                            promotion
-                        });
-                        object = await BonusManager.create(object)
-                        let history = new History({
-                            who: user._id,
-                            where: object._id,
-                            what: 'Создание'
-                        });
-                        await History.create(history)
-                    }
-                    rowNumber++
-                }
-                else break
-            }
-            await deleteFile(filename)
-            return 'OK'
-        }
-        return 'ERROR'
-    },
     addBonusManager: async(parent, {store, sale, saleInstallment, order, orderInstallment, promotion}, {user}) => {
         if(['admin'].includes(user.role)&&!(await BonusManager.countDocuments({store}).lean())) {
             let object = new BonusManager({

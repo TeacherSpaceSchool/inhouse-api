@@ -26,7 +26,6 @@ const query = `
 `;
 
 const mutation = `
-    uploadBonusCpa(document: Upload!): String
     addBonusCpa(store: ID!, sale: [[Float]]!, order: [[Float]]!, installment: [[Float]]!): BonusCpa
     setBonusCpa(_id: ID!, sale: [[Float]], order: [[Float]], installment: [[Float]]): String
     deleteBonusCpa(_id: ID!): String
@@ -130,79 +129,6 @@ const resolvers = {
 };
 
 const resolversMutation = {
-    uploadBonusCpa: async(parent, { document }, {user}) => {
-        if(['admin'].includes(user.role)) {
-            let {createReadStream, filename} = await document;
-            let stream = createReadStream()
-            filename = await saveFile(stream, filename);
-            let xlsxpath = path.join(app.dirname, 'public', filename);
-            let workbook = new ExcelJS.Workbook();
-            workbook = await workbook.xlsx.readFile(xlsxpath);
-            let worksheet = workbook.worksheets[0];
-            let rowNumber = 1
-            while(true) {
-                let row = worksheet.getRow(rowNumber);
-                if(row.getCell(1).value) {
-                    let store = (await Store.findOne({name: row.getCell(1).value}).select('_id').lean())._id
-                    let object = await BonusCpa.findOne({store})
-                    let sale = []
-                    let order = []
-                    let installment = []
-                    row.getCell(2).value = row.getCell(2).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(2).value.length; i++) {
-                        row.getCell(2).value[i] = row.getCell(2).value[i].split(': ')
-                        sale.push([checkFloat(row.getCell(2).value[i][0]), checkFloat(row.getCell(2).value[i][1])])
-                    }
-                    row.getCell(3).value = row.getCell(3).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(3).value.length; i++) {
-                        row.getCell(3).value[i] = row.getCell(3).value[i].split(': ')
-                        order.push([checkFloat(row.getCell(3).value[i][0]), checkFloat(row.getCell(3).value[i][1])])
-                    }
-                    row.getCell(6).value = row.getCell(6).value.toString().split(', ')
-                    for(let i=0; i<row.getCell(6).value.length; i++) {
-                        row.getCell(6).value[i] = row.getCell(6).value[i].split(': ')
-                        installment.push([checkFloat(row.getCell(6).value[i][0]), checkFloat(row.getCell(6).value[i][1])])
-                    }
-
-                    if(object) {
-                        let history = new History({
-                            who: user._id,
-                            where: object._id,
-                            what: ''
-                        });
-                        history.what = `${history.what}Продажа:${object.sale}→${sale};\n`
-                        object.sale = sale
-                        history.what = `${history.what}Рассрочка:${object.saleInstallment}→${installment};\n`
-                        object.saleInstallment = installment
-                        history.what = `${history.what}На заказ:${object.order}→${order};\n`
-                        object.order = order
-                        await object.save();
-                        await History.create(history)
-                    }
-                    else {
-                        object = new BonusCpa({
-                            store,
-                            sale,
-                            installment,
-                            order,
-                        });
-                        object = await BonusCpa.create(object)
-                        let history = new History({
-                            who: user._id,
-                            where: object._id,
-                            what: 'Создание'
-                        });
-                        await History.create(history)
-                    }
-                    rowNumber++
-                }
-                else break
-            }
-            await deleteFile(filename)
-            return 'OK'
-        }
-        return 'ERROR'
-    },
     addBonusCpa: async(parent, {store, sale, installment, order}, {user}) => {
         if(['admin'].includes(user.role)&&!(await BonusCpa.countDocuments({store}).lean())) {
             let object = new BonusCpa({
