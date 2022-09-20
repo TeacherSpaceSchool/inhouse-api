@@ -301,8 +301,48 @@ const resolversUnload = {
                     select: '_id name'
                 })
                 .lean()
-            let bonusManagers = {}, promotions = [], discountPrecent, bonusAll = {}
+            let heads = [], bonusManagers = {}, discountPrecent, bonusAll = {}, head, maxPrecent
+            let bonusManagerPrecents = await BonusManager.findOne({store}).lean()
+            if(bonusManagerPrecents) {
+                bonusManagerPrecents.sale = bonusManagerPrecents.sale.sort((a, b) => a[0] - b[0]);
+                heads.push('Наличка')
+                for (let i = 0; i < bonusManagerPrecents.sale.length; i++) {
+                    heads.push(`Наличка до ${bonusManagerPrecents.sale[i][0]}%`)
+                    maxPrecent = bonusManagerPrecents.sale[i][0]
+                }
+                heads.push(`Наличка свыше ${maxPrecent}%`)
+                bonusManagerPrecents.saleInstallment = bonusManagerPrecents.saleInstallment.sort((a, b) => a[0] - b[0]);
+                heads.push('Рассрочка')
+                for (let i = 0; i < bonusManagerPrecents.saleInstallment.length; i++) {
+                    heads.push(`Рассрочка до ${bonusManagerPrecents.saleInstallment[i][0]}%`)
+                    maxPrecent = bonusManagerPrecents.saleInstallment[i][0]
+                }
+                heads.push(`Рассрочка свыше ${maxPrecent}%`)
+                bonusManagerPrecents.order = bonusManagerPrecents.order.sort((a, b) => a[0] - b[0]);
+                heads.push('На заказ')
+                for (let i = 0; i < bonusManagerPrecents.order.length; i++) {
+                    heads.push(`На заказ до ${bonusManagerPrecents.order[i][0]}%`)
+                    maxPrecent = bonusManagerPrecents.order[i][0]
+                }
+                heads.push(`На заказ свыше ${maxPrecent}%`)
+                bonusManagerPrecents.orderInstallment = bonusManagerPrecents.orderInstallment.sort((a, b) => a[0] - b[0]);
+                heads.push('На заказ рассрочка')
+                for (let i = 0; i < bonusManagerPrecents.orderInstallment.length; i++) {
+                    heads.push(`На заказ рассрочка до ${bonusManagerPrecents.orderInstallment[i][0]}%`)
+                    maxPrecent = bonusManagerPrecents.orderInstallment[i][0]
+                }
+                heads.push(`На заказ рассрочка свыше ${maxPrecent}%`)
+                bonusManagerPrecents.promotion = bonusManagerPrecents.promotion.sort((a, b) => a[0] - b[0]);
+                heads.push('Акция')
+                for (let i = 0; i < bonusManagerPrecents.promotion.length; i++) {
+                    heads.push(`Акция до ${bonusManagerPrecents.promotion[i][0]}%`)
+                    maxPrecent = bonusManagerPrecents.promotion[i][0]
+                }
+                heads.push(`Акция свыше ${maxPrecent}%`)
+            }
+            else heads = ['Наличка', 'Рассрочка', 'На заказ', 'На заказ рассрочка', 'Акция']
             for(let i = 0; i < res.length; i++) {
+                head = ''
                 discountPrecent = checkFloat(res[i].discount*100/res[i].amountStart)
                 if(!bonusManagers[res[i].manager._id])
                     bonusManagers[res[i].manager._id] = {
@@ -313,122 +353,121 @@ const resolversUnload = {
                 bonusManagers[res[i].manager._id]['Бонус'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Бонус']) + checkFloat(res[i].bonusManager))
                 bonusAll['Бонус'] = checkFloat(checkFloat(bonusAll['Бонус']) + checkFloat(res[i].bonusManager))
                 if(res[i].promotion) {
-                    if(!promotions.includes(res[i].promotion.name))
-                        promotions.push(res[i].promotion.name)
-                    bonusManagers[res[i].manager._id][res[i].promotion.name] = checkFloat(checkFloat(bonusManagers[res[i].manager._id][res[i].promotion.name]) + checkFloat(res[i].bonusManager))
-                    bonusAll[res[i].promotion.name] = checkFloat(checkFloat(bonusAll[res[i].promotion.name]) + checkFloat(res[i].bonusManager))
+                    if(!discountPrecent||!bonusManagerPrecents) {
+                        head = 'Акция'
+                    }
+                    else {
+                        for(let i = 0; i < bonusManagerPrecents.promotion.length; i++) {
+                            if(discountPrecent<=bonusManagerPrecents.promotion[i][0]) {
+                                head = `Акция до ${bonusManagerPrecents.promotion[i][0]}%`
+                                break
+                            }
+                        }
+                        if(!head)
+                            head = 'Акция свыше'
+                    }
+                    bonusManagers[res[i].manager._id][head] = checkFloat(checkFloat(bonusManagers[res[i].manager._id][head]) + checkFloat(res[i].bonusManager))
+                    bonusAll[head] = checkFloat(checkFloat(bonusAll[head]) + checkFloat(res[i].bonusManager))
                 }
                 else if(res[i].paid<res[i].amountEnd&&res[i].order) {
-                    bonusManagers[res[i].manager._id]['Заказ Рассрочка'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Заказ Рассрочка']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Заказ Рассрочка'] = checkFloat(checkFloat(bonusAll['Заказ Рассрочка']) + checkFloat(res[i].bonusManager))
+                    if(!discountPrecent||!bonusManagerPrecents) {
+                        head = 'На заказ рассрочка'
+                    }
+                    else {
+                        for(let i = 0; i < bonusManagerPrecents.orderInstallment.length; i++) {
+                            if(discountPrecent<=bonusManagerPrecents.orderInstallment[i][0]) {
+                                head = `На заказ рассрочка до ${bonusManagerPrecents.orderInstallment[i][0]}%`
+                                break
+                            }
+                        }
+                        if(!head)
+                            head = 'На заказ рассрочка свыше'
+                    }
+                    bonusManagers[res[i].manager._id][head] = checkFloat(checkFloat(bonusManagers[res[i].manager._id][head]) + checkFloat(res[i].bonusManager))
+                    bonusAll[head] = checkFloat(checkFloat(bonusAll[head]) + checkFloat(res[i].bonusManager))
                 }
                 else if(res[i].paid<res[i].amountEnd) {
-                    bonusManagers[res[i].manager._id]['Рассрочка'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Рассрочка']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Рассрочка'] = checkFloat(checkFloat(bonusAll['Рассрочка']) + checkFloat(res[i].bonusManager))
+                    if(!discountPrecent||!bonusManagerPrecents) {
+                        head = 'Рассрочка'
+                    }
+                    else {
+                        for(let i = 0; i < bonusManagerPrecents.saleInstallment.length; i++) {
+                            if(discountPrecent<=bonusManagerPrecents.saleInstallment[i][0]) {
+                                head = `Рассрочка до ${bonusManagerPrecents.saleInstallment[i][0]}%`
+                                break
+                            }
+                        }
+                        if(!head)
+                            head = 'Рассрочка свыше'
+                    }
+                    bonusManagers[res[i].manager._id][head] = checkFloat(checkFloat(bonusManagers[res[i].manager._id][head]) + checkFloat(res[i].bonusManager))
+                    bonusAll[head] = checkFloat(checkFloat(bonusAll[head]) + checkFloat(res[i].bonusManager))
                 }
                 else if(res[i].order) {
-                    bonusManagers[res[i].manager._id]['Заказ'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Заказ']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Заказ'] = checkFloat(checkFloat(bonusAll['Заказ']) + checkFloat(res[i].bonusManager))
+                    if(!discountPrecent||!bonusManagerPrecents) {
+                        head = 'На заказ'
+                    }
+                    else {
+                        for(let i = 0; i < bonusManagerPrecents.order.length; i++) {
+                            if(discountPrecent<=bonusManagerPrecents.order[i][0]) {
+                                head = `На заказ до ${bonusManagerPrecents.order[i][0]}%`
+                                break
+                            }
+                        }
+                        if(!head)
+                            head = 'На заказ свыше'
+                    }
+                    bonusManagers[res[i].manager._id][head] = checkFloat(checkFloat(bonusManagers[res[i].manager._id][head]) + checkFloat(res[i].bonusManager))
+                    bonusAll[head] = checkFloat(checkFloat(bonusAll[head]) + checkFloat(res[i].bonusManager))
                 }
-                else if(!discountPrecent) {
-                    bonusManagers[res[i].manager._id]['Без скидки'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Без скидки']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Без скидки'] = checkFloat(checkFloat(bonusAll['Без скидки']) + checkFloat(res[i].bonusManager))
-                }
-                else if(discountPrecent>0&&discountPrecent<=5) {
-                    bonusManagers[res[i].manager._id]['Скидка 0-5%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 0-5%']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Скидка 0-5%'] = checkFloat(checkFloat(bonusAll['Скидка 0-5%']) + checkFloat(res[i].bonusManager))
-                }
-                else if(discountPrecent>5&&discountPrecent<=16) {
-                    bonusManagers[res[i].manager._id]['Скидка 5-16%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 5-16%']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Скидка 5-16%'] = checkFloat(checkFloat(bonusAll['Скидка 5-16%']) + checkFloat(res[i].bonusManager))
-                }
-                else if(discountPrecent>16&&discountPrecent<=20) {
-                    bonusManagers[res[i].manager._id]['Скидка 16-20%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Скидка 16-20%']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Скидка 16-20%'] = checkFloat(checkFloat(bonusAll['Скидка 16-20%']) + checkFloat(res[i].bonusManager))
-                }
-                else if(discountPrecent>20) {
-                    bonusManagers[res[i].manager._id]['Свыше 20%'] = checkFloat(checkFloat(bonusManagers[res[i].manager._id]['Свыше 20%']) + checkFloat(res[i].bonusManager))
-                    bonusAll['Свыше 20%'] = checkFloat(checkFloat(bonusAll['Свыше 20%']) + checkFloat(res[i].bonusManager))
+                else {
+                    if(!discountPrecent||!bonusManagerPrecents) {
+                        head = 'Наличка'
+                    }
+                    else {
+                        for(let i = 0; i < bonusManagerPrecents.sale.length; i++) {
+                            if(discountPrecent<=bonusManagerPrecents.sale[i][0]) {
+                                head = `Наличка до ${bonusManagerPrecents.sale[i][0]}%`
+                                break
+                            }
+                        }
+                        if(!head)
+                            head = 'Наличка свыше'
+                    }
+                    bonusManagers[res[i].manager._id][head] = checkFloat(checkFloat(bonusManagers[res[i].manager._id][head]) + checkFloat(res[i].bonusManager))
+                    bonusAll[head] = checkFloat(checkFloat(bonusAll[head]) + checkFloat(res[i].bonusManager))
                 }
             }
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Выгрузка');
-            let cell = 1
+            let cell = 1, row = 1
             worksheet.getColumn(cell).width = 20
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Менеджер'
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Менеджер'
             cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Бонус'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Без скидки'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 0-5%'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 5-16%'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Скидка 16-20%'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Свыше 20%'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Заказ'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Рассрочка'
-            cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Заказ Рассрочка'
-            for(let i = 0; i < promotions.length; i++) {
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Бонус'
+            for(let i = 0; i < heads.length; i++) {
                 cell += 1
-                worksheet.getColumn(cell).width = 15
-                worksheet.getRow(1).getCell(cell).font = {bold: true};
-                worksheet.getRow(1).getCell(cell).value = promotions[i]
+                worksheet.getColumn(cell).width = 20
+                worksheet.getRow(row).getCell(cell).font = {bold: true};
+                worksheet.getRow(row).getCell(cell).value = heads[i]
             }
             cell += 1
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Всего продаж'
-            let row = 2
+            worksheet.getColumn(cell).width = 20
+            worksheet.getRow(row).getCell(cell).font = {bold: true};
+            worksheet.getRow(row).getCell(cell).value = 'Всего продаж'
+            row += 1
             res = Object.values(bonusManagers)
             for(let i = 0; i < res.length; i++) {
                 cell = 1
                 worksheet.getRow(row).getCell(cell).value = res[i].name;
                 cell += 1
                 worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Бонус']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Без скидки']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Скидка 0-5%']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Скидка 5-16%']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Скидка 16-20%']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Свыше 20%']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Заказ']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Рассрочка']);
-                cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Заказ Рассрочка']);
-                for(let i1 = 0; i1 < promotions.length; i1++) {
+                for(let i1 = 0; i1 < heads.length; i1++) {
                     cell += 1
-                    worksheet.getRow(row).getCell(cell).value = checkFloat(res[i][promotions[i1]]);
+                    worksheet.getRow(row).getCell(cell).value = checkFloat(res[i][heads[i1]]);
                 }
                 cell += 1
                 worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Всего продаж']);
@@ -438,25 +477,9 @@ const resolversUnload = {
             worksheet.getRow(row).getCell(cell).value = 'Итого';
             cell += 1
             worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Бонус']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Без скидки']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Скидка 0-5%']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Скидка 5-16%']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Скидка 16-20%']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Свыше 20%']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Заказ']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Рассрочка']);
-            cell += 1
-            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Заказ Рассрочка']);
-            for(let i = 0; i < promotions.length; i++) {
+            for(let i = 0; i < heads.length; i++) {
                 cell += 1
-                worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll[promotions[i]]);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll[heads[i]]);
             }
             cell += 1
             worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Всего продаж']);
