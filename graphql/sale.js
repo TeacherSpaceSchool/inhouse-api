@@ -403,63 +403,63 @@ const resolversUnload = {
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
             worksheet.getRow(1).getCell(cell).value = 'Всего продаж'
-            let row = 1
+            let row = 2
             res = Object.values(bonusManagers)
             for(let i = 0; i < res.length; i++) {
                 cell = 1
-                worksheet.getRow(row+1).getCell(cell).value = res[i].name;
+                worksheet.getRow(row).getCell(cell).value = res[i].name;
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Бонус']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Бонус']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Без скидки']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Без скидки']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 0-5%']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Скидка 0-5%']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 5-16%']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Скидка 5-16%']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Скидка 16-20%']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Скидка 16-20%']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Свыше 20%']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Свыше 20%']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Заказ']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Заказ']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Рассрочка']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Рассрочка']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Заказ Рассрочка']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Заказ Рассрочка']);
                 for(let i1 = 0; i1 < promotions.length; i1++) {
                     cell += 1
-                    worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i][promotions[i1]]);
+                    worksheet.getRow(row).getCell(cell).value = checkFloat(res[i][promotions[i1]]);
                 }
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Всего продаж']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Всего продаж']);
+                row += 1
             }
-            row += 1
             cell = 1
-            worksheet.getRow(row+1).getCell(cell).value = 'Итого';
+            worksheet.getRow(row).getCell(cell).value = 'Итого';
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Бонус']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Бонус']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Без скидки']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Без скидки']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 0-5%']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Скидка 0-5%']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 5-16%']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Скидка 5-16%']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Скидка 16-20%']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Скидка 16-20%']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Свыше 20%']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Свыше 20%']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Заказ']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Заказ']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Рассрочка']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Рассрочка']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Заказ Рассрочка']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Заказ Рассрочка']);
             for(let i = 0; i < promotions.length; i++) {
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll[promotions[i]]);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll[promotions[i]]);
             }
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Всего продаж']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Всего продаж']);
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
             await workbook.xlsx.writeFile(xlsxpath);
@@ -821,10 +821,9 @@ const resolversUnload = {
                     select: '_id name'
                 })
                 .lean()
-            let bonusCpas = {}, discountPrecent, bonusAll = {}
+            let bonusCpas = {}, bonusAll = {}
             for(let i = 0; i < res.length; i++) {
                 if(res[i].cpa) {
-                    discountPrecent = checkFloat(res[i].discount * 100 / res[i].amountStart)
                     if (!bonusCpas[res[i].cpa._id])
                         bonusCpas[res[i].cpa._id] = {
                             name: res[i].cpa.name
@@ -873,35 +872,35 @@ const resolversUnload = {
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
             worksheet.getRow(1).getCell(cell).value = 'Всего продаж'
-            let row = 1
+            let row = 2
             res = Object.values(bonusCpas)
             for(let i = 0; i < res.length; i++) {
                 cell = 1
-                worksheet.getRow(row+1).getCell(cell).value = res[i].name;
+                worksheet.getRow(row).getCell(cell).value = res[i].name;
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Бонус']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Бонус']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Наличка']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Наличка']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Заказ']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Заказ']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Рассрочка']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Рассрочка']);
                 cell += 1
-                worksheet.getRow(row+1).getCell(cell).value = checkFloat(res[i]['Всего продаж']);
+                worksheet.getRow(row).getCell(cell).value = checkFloat(res[i]['Всего продаж']);
+                row += 1
             }
-            row += 1
             cell = 1
-            worksheet.getRow(row+1).getCell(cell).value = 'Итого';
+            worksheet.getRow(row).getCell(cell).value = 'Итого';
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Бонус']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Бонус']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Наличка']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Наличка']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Заказ']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Заказ']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Рассрочка']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Рассрочка']);
             cell += 1
-            worksheet.getRow(row+1).getCell(cell).value = checkFloat(bonusAll['Всего продаж']);
+            worksheet.getRow(row).getCell(cell).value = checkFloat(bonusAll['Всего продаж']);
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
             await workbook.xlsx.writeFile(xlsxpath);
@@ -1387,7 +1386,7 @@ const query = `
 `;
 
 const mutation = `
-    addSale(client: ID!, prepaid: Float, selfDelivery: Boolean, installment: Boolean, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
+    addSale(client: ID!, prepaid: Float, selfDelivery: Boolean, percentCpa: Float, installment: Boolean, order: Boolean, promotion: ID, geo: [Float], itemsSale: [ItemFromListInput]!, discount: Float!, cpa:  ID, amountStart: Float!, amountEnd: Float!, typePayment: String!,  address: String!, addressInfo: String!, comment: String!, currency: String, paid: Float!, delivery: Date, reservations: [ID]!): String
     setSale(_id: ID!, deliverymans: [ID], percentManager: Float, percentCpa: Float, selfDelivery: Boolean, itemsSale: [ItemFromListInput], geo: [Float], discount: Float, amountStart: Float, amountEnd: Float, address: String, addressInfo: String, comment: String, paid: Float, delivery: Date, status: String): String
     divideSale(_id: ID!, newItems: [ItemFromListInput]!, currentItems: [ItemFromListInput]!): String
 `;
@@ -1415,7 +1414,35 @@ const resolvers = {
             let attachmentFile, workbook, worksheet
             let doc = await Doc.findOne({}).select('name director').lean()
             let discountPrecent = checkFloat(sale.discount*100/sale.amountStart)
-            if(sale.installment) {
+            if(sale.order&&!sale.installment) {
+                attachmentFile = path.join(app.dirname, 'docs', 'attachment-order.xlsx');
+                workbook = new ExcelJS.Workbook();
+                workbook = await workbook.xlsx.readFile(attachmentFile);
+                worksheet = workbook.worksheets[0];
+                worksheet.getRow(7).getCell(2).value = doc.name
+                worksheet.getRow(11).getCell(3).value = sale.client.name
+                worksheet.getRow(20).getCell(4).value = sale.client.name
+                worksheet.getRow(22).getCell(4).value = doc.director
+                worksheet.getRow(24).getCell(4).value = sale.manager.name
+                worksheet.getRow(16).getCell(10).value = sale.amountStart
+                if(sale.discount) {
+                    worksheet.getRow(17).getCell(10).value = sale.discount
+                    worksheet.getRow(18).getCell(10).value = sale.amountEnd
+                }
+                else {
+                    worksheet.spliceRows(17, 2)
+                }
+                worksheet.duplicateRow(15, sale.itemsSale.length-1, true)
+                for(let i=0; i<sale.itemsSale.length; i++) {
+                    let row = 15+i
+                    worksheet.getRow(row).getCell(3).value = sale.itemsSale[i].factory
+                    worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].name
+                    worksheet.getRow(row).getCell(5).value = sale.itemsSale[i].count
+                    worksheet.getRow(row).getCell(9).value = sale.itemsSale[i].price
+                    worksheet.getRow(row).getCell(10).value = sale.itemsSale[i].amount
+                }
+            }
+            else {
                 attachmentFile = path.join(app.dirname, 'docs', sale.discount?'installment-discount.xlsx':'installment.xlsx');
                 workbook = new ExcelJS.Workbook();
                 workbook = await workbook.xlsx.readFile(attachmentFile);
@@ -1457,34 +1484,7 @@ const resolvers = {
                         worksheet.getRow(row).getCell(8).value = sale.itemsSale[i].amount
                 }
             }
-            else {
-                attachmentFile = path.join(app.dirname, 'docs', 'attachment-order.xlsx');
-                workbook = new ExcelJS.Workbook();
-                workbook = await workbook.xlsx.readFile(attachmentFile);
-                worksheet = workbook.worksheets[0];
-                worksheet.getRow(7).getCell(2).value = doc.name
-                worksheet.getRow(11).getCell(3).value = sale.client.name
-                worksheet.getRow(20).getCell(4).value = sale.client.name
-                worksheet.getRow(22).getCell(4).value = doc.director
-                worksheet.getRow(24).getCell(4).value = sale.manager.name
-                worksheet.getRow(16).getCell(10).value = sale.amountStart
-                if(sale.discount) {
-                    worksheet.getRow(17).getCell(10).value = sale.discount
-                    worksheet.getRow(18).getCell(10).value = sale.amountEnd
-                }
-                else {
-                    worksheet.spliceRows(17, 2)
-                }
-                worksheet.duplicateRow(15, sale.itemsSale.length-1, true)
-                for(let i=0; i<sale.itemsSale.length; i++) {
-                    let row = 15+i
-                    worksheet.getRow(row).getCell(3).value = sale.itemsSale[i].factory
-                    worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].name
-                    worksheet.getRow(row).getCell(5).value = sale.itemsSale[i].count
-                    worksheet.getRow(row).getCell(9).value = sale.itemsSale[i].price
-                    worksheet.getRow(row).getCell(10).value = sale.itemsSale[i].amount
-                }
-            }
+
             let xlsxname = `Прилож к договору №${sale.number}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
             await workbook.xlsx.writeFile(xlsxpath);
@@ -1737,7 +1737,7 @@ const resolvers = {
 };
 
 const resolversMutation = {
-    addSale: async(parent, {order, client, installment, prepaid, selfDelivery, promotion, itemsSale, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, reservations}, {user}) => {
+    addSale: async(parent, {order, client, installment, prepaid, selfDelivery, promotion, itemsSale, percentCpa, geo, discount, cpa, amountStart, amountEnd, typePayment,  address, addressInfo, comment, currency, paid, delivery, reservations}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
             if (delivery&&delivery.toString()!=='Invalid Date')
                 delivery = new Date(delivery)
@@ -1769,24 +1769,30 @@ const resolversMutation = {
             });
             //процент дизайнера
             if(cpa) {
-                let bonusCpa = await BonusCpa.findOne({store: user.store}).lean()
-                if(bonusCpa) {
-                    if (paid < amountEnd) {
-                        bonusCpa.bonus = bonusCpa.installment
-                    }
-                    else if (order) {
-                        bonusCpa.bonus = bonusCpa.order
-                    }
-                    else {
-                        bonusCpa.bonus = bonusCpa.sale
-                    }
-                    let discountPercent = discount*100/amountStart
-                    bonusCpa.bonus = bonusCpa.bonus.sort((a, b)=>a[0] - b[0]);
-                    for(let i = 0; i < bonusCpa.bonus.length; i++) {
-                        if(discountPercent<=bonusCpa.bonus[i][0]) {
-                            object.percentCpa = bonusCpa.bonus[i][1]
-                            object.bonusCpa = checkFloat(amountEnd/100*bonusCpa.bonus[i][1])
-                            break
+                if(percentCpa!=undefined) {
+                    object.percentCpa = percentCpa
+                    object.bonusCpa = checkFloat(amountEnd / 100 * percentCpa)
+                }
+                else {
+                    let bonusCpa = await BonusCpa.findOne({store: user.store}).lean()
+                    if (bonusCpa) {
+                        if (paid < amountEnd) {
+                            bonusCpa.bonus = bonusCpa.installment
+                        }
+                        else if (order) {
+                            bonusCpa.bonus = bonusCpa.order
+                        }
+                        else {
+                            bonusCpa.bonus = bonusCpa.sale
+                        }
+                        let discountPercent = discount * 100 / amountStart
+                        bonusCpa.bonus = bonusCpa.bonus.sort((a, b) => a[0] - b[0]);
+                        for (let i = 0; i < bonusCpa.bonus.length; i++) {
+                            if (discountPercent <= bonusCpa.bonus[i][0]) {
+                                object.percentCpa = bonusCpa.bonus[i][1]
+                                object.bonusCpa = checkFloat(amountEnd / 100 * bonusCpa.bonus[i][1])
+                                break
+                            }
                         }
                     }
                 }
@@ -2389,12 +2395,13 @@ const resolversMutation = {
                 //процент оплаты
                 let paid, paidPrecent
                 paidPrecent =  object.paid===object.amountEnd?100:object.paid*100/object.amountEnd
-                //процент оплаты
+                //процент предоплаты
                 let prepaidPrecent = object.prepaid?object.prepaid*100/object.amountEnd:0
                 //проверка рассрочки
-                let installment = object.installment
-                if(installment)
+                if(object.installment) {
+                    await Installment.updateOne({_id: object.installment}, {sale: null})
                     object.installment = null
+                }
                 //процент бонуса менеджера
                 let bonusManagerPrecent = checkFloat(object.bonusManager)*100/object.amountEnd
                 //процент скидки
@@ -2405,8 +2412,8 @@ const resolversMutation = {
                 //обновление позиций
                 let newItemsSale = []
                 for(let i=0; i<currentItems.length; i++) {
-                    amountStart  = checkFloat(amountStart + currentItems[i].amount)
                     if(currentItems[i].count) {
+                        amountStart  = checkFloat(amountStart + currentItems[i].amount)
                         newItemsSale.push(currentItems[i]._id)
                         await ItemSale.updateOne({_id: currentItems[i]._id}, currentItems[i])
                     }
@@ -2471,14 +2478,16 @@ const resolversMutation = {
                     divide: true
                 });
                 //обновление позиций
+                newItemsSale = []
                 for(let i=0; i<newItems.length; i++) {
                     if (newItems[i].count) {
                         newObject.amountStart = checkFloat(newObject.amountStart + newItems[i].amount)
                         newItems[i] = new ItemSale(newItems[i]);
-                        newItems[i] = (await ItemSale.create(newItems[i]))._id
+                        newItems[i] = await ItemSale.create(newItems[i])
+                        newItemsSale.push(newItems[i]._id)
                     }
                 }
-                newObject.itemsSale = newItems
+                newObject.itemsSale = newItemsSale
                 //скидка
                 newObject.discount = checkFloat(newObject.amountStart/100*discountPrecent)
                 //сумма после скидки

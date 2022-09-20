@@ -157,13 +157,7 @@ const resolvers = {
         if(user.role) {
             if(user.store) store = user.store
             let res = await User.find({
-                ...['менеджер/завсклад', 'завсклад'].includes(user.role)?
-                    {role: {'$regex': 'менеджер', '$options': 'i'}}
-                    :
-                    role?
-                        {role: {'$regex': role, '$options': 'i'}}
-                        :
-                        {role: {$ne: 'admin'}},
+                ...role?{role: {'$regex': role, '$options': 'i'}}:{role: {$ne: 'admin'}},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{},
                 ...store ? {store} : {},
                 ...department ? {department} : {},
@@ -173,7 +167,11 @@ const resolvers = {
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
                 .sort('name')
-                .select('_id role name')
+                .select('_id role name store')
+                .populate({
+                    path: 'store',
+                    select: '_id name'
+                })
                 .lean()
             return res
         }

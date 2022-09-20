@@ -186,12 +186,9 @@ const resolvers = {
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(row).getCell(1).value = res[i].number
                 worksheet.getRow(row).getCell(2).value = res[i].status
-                worksheet.getRow(row).getCell(3).alignment = {wrapText: true}
                 worksheet.getRow(row).getCell(3).value = res[i].client.name
-                if(res[i].sale) {
+                if(res[i].sale)
                     worksheet.getRow(row+1).getCell(3).value = `Продажа №${res[i].sale.number}`
-                    worksheet.getRow(row+2).getCell(3).value = res[i].sale._id.toString()
-                }
                 worksheet.getRow(row).getCell(4).value = res[i].info
                 worksheet.getRow(row).getCell(5).value = pdDDMMYYYY(res[i].datePaid)
                 worksheet.getRow(row).getCell(6).value = res[i].debt

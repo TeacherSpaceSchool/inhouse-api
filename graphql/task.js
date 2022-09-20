@@ -20,8 +20,8 @@ const type = `
 `;
 
 const query = `
-    unloadTasks(status: String, search: String, employment: ID, soon: Boolean, late: Boolean, today: Boolean): String
-    tasks(status: String, search: String, skip: Int, employment: ID, limit: Int, soon: Boolean, late: Boolean, today: Boolean): [Task]
+    unloadTasks(status: String, sort: String, search: String, employment: ID, soon: Boolean, late: Boolean, today: Boolean): String
+    tasks(status: String, search: String, sort: String, skip: Int, employment: ID, limit: Int, soon: Boolean, late: Boolean, today: Boolean): [Task]
     tasksCount(status: String, search: String, employment: ID, soon: Boolean, late: Boolean, today: Boolean): [Int]
     task(_id: ID!): Task
 `;
@@ -33,7 +33,7 @@ const mutation = `
 `;
 
 const resolvers = {
-    unloadTasks: async(parent, {status, search, employment, soon, late, today}, {user}) => {
+    unloadTasks: async(parent, {status, search, sort, employment, soon, late, today}, {user}) => {
         if(user.role) {
             let date, dateStart, dateEnd
             if(late||today) {
@@ -75,7 +75,7 @@ const resolvers = {
                             :
                             {...status?{status}:{}}
             })
-                .sort('-createdAt')
+                .sort(sort? sort : '-createdAt')
                 .populate({
                     path: 'who',
                     select: 'name _id'
@@ -113,7 +113,7 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    tasks: async(parent, {status, search, skip, limit, employment, soon, late, today}, {user}) => {
+    tasks: async(parent, {status, search, skip, limit, sort, employment, soon, late, today}, {user}) => {
         if(user.role) {
             let date, dateStart, dateEnd
             if(late||today) {
@@ -157,7 +157,7 @@ const resolvers = {
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
-                .sort('-createdAt')
+                .sort(sort? sort : '-createdAt')
                 .populate({
                     path: 'who',
                     select: 'name _id'
@@ -417,7 +417,7 @@ const resolversMutation = {
             });
             await Task.create(object)
             await sendWebPush({
-                tag: object._id,
+                tag: new Date().getTime().toString(),
                 title: 'Задача',
                 message: info,
                 url: `https://inhouse-app.kg/task/${object._id}`,
@@ -444,20 +444,20 @@ const resolversMutation = {
                 what: ''
             });
             let webPush = {
-                tag: object._id,
+                tag: new Date().getTime().toString(),
                 title: `Задача: ${object.info.slice(0, 20)}`,
                 message: '',
                 url: `https://inhouse-app.kg/task/${object._id}`,
                 user: object.who.toString()!==user._id.toString()?object.who:object.whom
             }
-            if (date&&['отложен', 'обработка'].includes(object.status)) {
+            if (date/*&&['отложен', 'обработка'].includes(object.status)*/) {
                 history.what = `Срок:${object.date}→${date};\n`
                 date = new Date(date)
                 date.setHours(0, 0, 0, 0)
                 object.date = date
                 webPush.message = `${webPush.message}\nСрок задачи изменен`
             }
-            if (info&&object.who.toString()===user._id.toString()&&['отложен', 'обработка'].includes(object.status)) {
+            if (info&&object.who.toString()===user._id.toString()/*&&['отложен', 'обработка'].includes(object.status)*/) {
                 history.what = `${history.what}Комментарий:${object.info}→${info};\n`
                 object.info = info
                 webPush.message = `${webPush.message}\nКомментарий задачи изменен`

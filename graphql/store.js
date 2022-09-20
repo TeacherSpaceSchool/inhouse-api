@@ -203,7 +203,7 @@ const resolversMutation = {
             if(!USED)
                 USED = await Installment.countDocuments({store: _id/*, status: 'обработка'*/}).lean()
             if(!USED)
-                USED = await Warehouse.countDocuments({store: _id/*, del: {$ne: true}*/}).lean()
+                USED = await Warehouse.countDocuments({store: _id, name: {$nin: ['Брак', 'Реставрация']}/*, del: {$ne: true}*/}).lean()
             if(!USED)
                 USED = await Cashbox.countDocuments({store: _id/*, del: {$ne: true}*/}).lean()
             if(!USED)

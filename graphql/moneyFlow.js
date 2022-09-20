@@ -431,7 +431,7 @@ const resolvers = {
                         moneyFlow.order?`На заказ №${moneyFlow.order.number}`:
                             moneyFlow.installment?`Рассрочка №${moneyFlow.installment.number}`:''
             //прописью
-            worksheet.getRow(22).getCell(7).value = `${await numberToWord(moneyFlow.amountEnd)} сом ${float} тыйын`
+            worksheet.getRow(22).getCell(7).value = `${await numberToWord(moneyFlow.amountEnd)} сом${float?` ${float} тыйын`:''}`
             //паспорт
             worksheet.getRow(34).getCell(7).value = moneyFlow.client?`паспорту ${moneyFlow.client.passport}`:''
             let xlsxname = `РКО-${moneyFlow.number}.xlsx`;
@@ -492,6 +492,7 @@ const resolvers = {
             let PKOfile = path.join(app.dirname, 'docs', 'PKO.xlsx');
             let workbook = new ExcelJS.Workbook();
             workbook = await workbook.xlsx.readFile(PKOfile);
+            let float = (moneyFlow.amountEnd.toString().split('.'))[1]
             let worksheet = workbook.worksheets[0];
             let doc = await Doc.findOne({}).select('name').lean()
             //название
@@ -511,7 +512,7 @@ const resolvers = {
             //статья
             worksheet.getRow(23).getCell(3).value = moneyFlow.moneyArticle.name
             //прописью
-            worksheet.getRow(26).getCell(3).value = `${await numberToWord(moneyFlow.amountEnd)} сом`
+            worksheet.getRow(26).getCell(3).value = `${await numberToWord(moneyFlow.amountEnd)} сом${float?` ${float} тыйын`:''}`
             //приложение
             worksheet.getRow(30).getCell(12).value = moneyFlow.sale?`Продажа №${moneyFlow.sale.number}`:
                 moneyFlow.refund?`Возврат №${moneyFlow.refund.number}`:
@@ -1433,7 +1434,8 @@ const resolversMutation = {
 
                 }
                 if (exchangeRate!=undefined&&object.exchangeRate!=exchangeRate) {
-
+                    if(object.currency==='сом')
+                        exchangeRate = 1
                     history.what = `${history.what}Курс:${object.exchangeRate}→${exchangeRate};\n`
                     object.exchangeRate = exchangeRate
 

@@ -17,7 +17,7 @@ if(!isMainThread) {
         let stores = await Store.find({del: {$ne: true}}).distinct('_id').lean()
         //задачи
         await sendWebPush({
-            tag: 'Задача просрочена',
+            tag: new Date().getTime().toString(),
             title: 'Задача просрочена',
             message: 'Задача просрочена',
             users: [
@@ -29,7 +29,7 @@ if(!isMainThread) {
             //в пути
             if(await WayItem.countDocuments({store: stores[i], arrivalDate: {$lt: date}, status: 'в пути'}).lean())
                 await sendWebPush({
-                    tag: 'Опаздывает товар',
+                    tag: new Date().getTime().toString(),
                     title: 'Опаздывает товар',
                     message: 'Опаздывает товар',
                     users: [
@@ -39,7 +39,7 @@ if(!isMainThread) {
                 })
             if(await WayItem.countDocuments({store: stores[i], arrivalDate: date, status: 'в пути'}).lean())
                 await sendWebPush({
-                    tag: 'Поступает товар',
+                    tag: new Date().getTime().toString(),
                     title: 'Поступает товар',
                     message: 'Поступает товар',
                     users: [
@@ -50,7 +50,7 @@ if(!isMainThread) {
             //рассрочки
             if(await Installment.countDocuments({store: stores[i], datePaid: {$lt: date}, status: 'обработка'}).lean())
                 await sendWebPush({
-                    tag: 'Просрочена рассрочка',
+                    tag: new Date().getTime().toString(),
                     title: 'Просрочена рассрочка',
                     message: 'Просрочена рассрочка',
                     users: [
@@ -60,7 +60,7 @@ if(!isMainThread) {
                 })
             if(await Installment.countDocuments({store: stores[i], datePaid: date, status: 'обработка'}).lean())
                 await sendWebPush({
-                    tag: 'Сегодня оплата рассрочки',
+                    tag: new Date().getTime().toString(),
                     title: 'Сегодня оплата рассрочки',
                     message: 'Сегодня оплата рассрочки',
                     users: [
@@ -72,7 +72,7 @@ if(!isMainThread) {
             let reservationManagers = await Reservation.find({store: stores[i], term: {$lt: date}, status: 'обработка'}).distinct('manager').lean()
             if(reservationManagers.length)
                 await sendWebPush({
-                    tag: 'Просрочена бронь',
+                    tag: new Date().getTime().toString(),
                     title: 'Просрочена бронь',
                     message: 'Просрочена бронь',
                     users: [
@@ -83,7 +83,7 @@ if(!isMainThread) {
             reservationManagers = await Reservation.find({store: stores[i], term: date, status: 'обработка'}).distinct('manager').lean()
             if(reservationManagers.length)
                 await sendWebPush({
-                    tag: 'Сегодня заканчивается бронь',
+                    tag: new Date().getTime().toString(),
                     title: 'Сегодня заканчивается бронь',
                     message: 'Сегодня заканчивается бронь',
                     users: [

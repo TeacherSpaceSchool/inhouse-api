@@ -26,6 +26,7 @@ const type = `
     inn: String
     level: String
     birthday: Date
+    user: User
   }
 `;
 
@@ -119,6 +120,10 @@ const resolvers = {
             let res = await Client.findOne({
                 _id,
             })
+                .populate({
+                    path: 'user',
+                    select: 'name role _id'
+                })
                 .lean()
             return res
         }
@@ -272,7 +277,8 @@ const resolversMutation = {
                 inn,
                 geo,
                 level,
-                birthday
+                birthday,
+                user: user._id
             });
             object = await Client.create(object)
             let balanceClient = new BalanceClient({

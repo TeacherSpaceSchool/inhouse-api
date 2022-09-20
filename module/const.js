@@ -125,7 +125,10 @@ module.exports.clearDB = async () => {
     let collections = fs.readdirSync('./models');
     for(let i=0; i<collections.length; i++){
         if('index.js'!==collections[i]) {
-            await (require(`../models/${collections[i]}`)).deleteMany({login: {$ne: 'admin'}})
+            await (require(`../models/${collections[i]}`)).deleteMany({
+                login: {$ne: 'admin'},
+                name: {$nin: ['Не указано', 'Зарплата']}
+            })
         }
     }
     console.log('clearDB done')
