@@ -36,6 +36,7 @@ const type = `
     cpa: Cpa
     deliveryFact: Date
     percentCpa: Float
+    paymentAmount: Float
     bonusCpa: Float
     bonusManager: Float
     prepaid: Float
@@ -1969,7 +1970,10 @@ const resolversMutation = {
     },
     setSale: async(parent, {_id, deliverymans, percentManager, selfDelivery, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад', 'доставщик'].includes(user.role)) {
-            let object = await Sale.findById(_id)
+            let object = await Sale.findOne({
+                _id,
+                ...['менеджер'/*, 'менеджер/завсклад'*/].includes(user.role)?{manager: user._id}:{}
+            })
             if(object) {
                 let history = new History({
                     who: user._id,
@@ -2406,7 +2410,10 @@ const resolversMutation = {
     divideSale: async(parent, {_id, newItems, currentItems}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             //поиск продажи
-            let object = await Sale.findById(_id)
+            let object = await Sale.findOne({
+                _id,
+                ...['менеджер'/*, 'менеджер/завсклад'*/].includes(user.role)?{manager: user._id}:{}
+            })
             if(object) {
                 let history = new History({
                     who: user._id,

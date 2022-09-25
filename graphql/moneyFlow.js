@@ -786,14 +786,38 @@ const resolversMutation = {
                             });
                             if (clearRecipient||client||employment||cashboxRecipient||moneyRecipient) {
                                 //удаляем старые оплаты баланса
-                                if(object.order)
-                                    await Sale.updateOne({_id: object.order}, {paymentConfirmation: false})
-                                else if(object.reservation)
-                                    await Reservation.updateOne({_id: object.reservation}, {paymentConfirmation: false})
-                                else if(object.refund)
-                                    await Refund.updateOne({_id: object.refund}, {paymentConfirmation: false})
-                                else if(object.sale)
-                                    await Sale.updateOne({_id: object.sale}, {paymentConfirmation: false})
+                                if(object.order) {
+                                    let orderObject = await Sale.findById(object.order)
+                                    orderObject.paymentAmount = checkFloat(checkFloat(orderObject.paymentAmount) - object.amountEnd)
+                                    if(orderObject.paymentAmount<0)
+                                        orderObject.paymentAmount = 0
+                                    orderObject.paymentConfirmation = orderObject.paymentAmount>=orderObject.paid
+                                    await orderObject.save()
+                                }
+                                else if(object.reservation) {
+                                    let reservationObject = await Reservation.findById(object.reservation)
+                                    reservationObject.paymentAmount = checkFloat(checkFloat(reservationObject.paymentAmount) - object.amountEnd)
+                                    if(reservationObject.paymentAmount<0)
+                                        reservationObject.paymentAmount = 0
+                                    reservationObject.paymentConfirmation = reservationObject.paymentAmount>=reservationObject.paid
+                                    await reservationObject.save()
+                                }
+                                else if(object.refund) {
+                                    let refundObject = await Refund.findById(object.refund)
+                                    refundObject.paymentAmount = checkFloat(checkFloat(refundObject.paymentAmount) - object.amountEnd)
+                                    if(refundObject.paymentAmount<0)
+                                        refundObject.paymentAmount = 0
+                                    refundObject.paymentConfirmation = refundObject.paymentAmount>=refundObject.paid
+                                    await refundObject.save()
+                                }
+                                else if(object.sale) {
+                                    let saleObject = await Sale.findById(object.sale)
+                                    saleObject.paymentAmount = checkFloat(checkFloat(saleObject.paymentAmount) - object.amountEnd)
+                                    if(saleObject.paymentAmount<0)
+                                        saleObject.paymentAmount = 0
+                                    saleObject.paymentConfirmation = saleObject.paymentAmount>=saleObject.paid
+                                    await saleObject.save()
+                                }
                                 if(object.installment)
                                     setGridInstallment({_id: object.installment, newAmount: object.amountEnd, oldAmount: 0, month: object.installmentMonth, type: '-', user})
                                 if(object.cashboxRecipient) {
@@ -935,6 +959,38 @@ const resolversMutation = {
                             let amountEnd = checkFloat(object.exchangeRate*object.amount)
                             if (object.amountEnd!==amountEnd) {
 
+                                if(object.order) {
+                                    let orderObject = await Sale.findById(object.order)
+                                    orderObject.paymentAmount = checkFloat(checkFloat(orderObject.paymentAmount) - object.amountEnd + amountEnd)
+                                    if(orderObject.paymentAmount<0)
+                                        orderObject.paymentAmount = 0
+                                    orderObject.paymentConfirmation = orderObject.paymentAmount>=orderObject.paid
+                                    await orderObject.save()
+                                }
+                                else if(object.reservation) {
+                                    let reservationObject = await Reservation.findById(object.reservation)
+                                    reservationObject.paymentAmount = checkFloat(checkFloat(reservationObject.paymentAmount) - object.amountEnd + amountEnd)
+                                    if(reservationObject.paymentAmount<0)
+                                        reservationObject.paymentAmount = 0
+                                    reservationObject.paymentConfirmation = reservationObject.paymentAmount>=reservationObject.paid
+                                    await reservationObject.save()
+                                }
+                                else if(object.refund) {
+                                    let refundObject = await Refund.findById(object.refund)
+                                    refundObject.paymentAmount = checkFloat(checkFloat(refundObject.paymentAmount) - object.amountEnd + amountEnd)
+                                    if(refundObject.paymentAmount<0)
+                                        refundObject.paymentAmount = 0
+                                    refundObject.paymentConfirmation = refundObject.paymentAmount>=refundObject.paid
+                                    await refundObject.save()
+                                }
+                                else if(object.sale) {
+                                    let saleObject = await Sale.findById(object.sale)
+                                    saleObject.paymentAmount = checkFloat(checkFloat(saleObject.paymentAmount) - object.amountEnd + amountEnd)
+                                    if(saleObject.paymentAmount<0)
+                                        saleObject.paymentAmount = 0
+                                    saleObject.paymentConfirmation = saleObject.paymentAmount>=saleObject.paid
+                                    await saleObject.save()
+                                }
                                 if(object.installment)
                                     setGridInstallment({_id: object.installment, newAmount: amountEnd, oldAmount: object.amountEnd, month: object.installmentMonth, type: '+', user})
 
@@ -1118,10 +1174,18 @@ const resolversMutation = {
             });
 
 
-            if(reservation)
-                await Reservation.updateOne({_id: reservation}, {paymentConfirmation: true})
-            else if(refund)
-                await Refund.updateOne({_id: refund}, {paymentConfirmation: true})
+            if(reservation) {
+                let reservationObject = await Reservation.findById(reservation)
+                reservationObject.paymentAmount = checkFloat(checkFloat(reservationObject.paymentAmount) + amountEnd)
+                reservationObject.paymentConfirmation = reservationObject.paymentAmount>=reservationObject.paid
+                await reservationObject.save()
+            }
+            else if(refund) {
+                let refundObject = await Refund.findById(refund)
+                refundObject.paymentAmount = checkFloat(checkFloat(refundObject.paymentAmount) + amountEnd)
+                refundObject.paymentConfirmation = refundObject.paymentAmount>=refundObject.paid
+                await refundObject.save()
+            }
             else if(sale||order) {
                 let saleObject = await Sale.findById(sale?sale:order)
                 if(saleObject.installment) {
@@ -1130,7 +1194,8 @@ const resolversMutation = {
                     object.installment = installmentObject._id
                     object.installmentMonth = installmentObject.grid[0].month
                 }
-                saleObject.paymentConfirmation = true
+                saleObject.paymentAmount = checkFloat(checkFloat(saleObject.paymentAmount) + amountEnd)
+                saleObject.paymentConfirmation = saleObject.paymentAmount>=saleObject.paid
                 await saleObject.save()
             }
             else if(installment)
@@ -1292,14 +1357,38 @@ const resolversMutation = {
 
                 if (clearRecipient||client||employment||order||sale||reservation||refund||cashboxRecipient||moneyRecipient) {
                     //удаляем старые оплаты баланса
-                    if(object.order)
-                        await Sale.updateOne({_id: object.order}, {paymentConfirmation: false})
-                    else if(object.reservation)
-                        await Reservation.updateOne({_id: object.reservation}, {paymentConfirmation: false})
-                    else if(object.refund)
-                        await Refund.updateOne({_id: object.refund}, {paymentConfirmation: false})
-                    else if(object.sale)
-                        await Sale.updateOne({_id: object.sale}, {paymentConfirmation: false})
+                    if(object.order) {
+                        let orderObject = await Sale.findById(object.order)
+                        orderObject.paymentAmount = checkFloat(checkFloat(orderObject.paymentAmount) - object.amountEnd)
+                        if(orderObject.paymentAmount<0)
+                            orderObject.paymentAmount = 0
+                        orderObject.paymentConfirmation = orderObject.paymentAmount>=orderObject.paid
+                        await orderObject.save()
+                    }
+                    else if(object.reservation) {
+                        let reservationObject = await Reservation.findById(object.reservation)
+                        reservationObject.paymentAmount = checkFloat(checkFloat(reservationObject.paymentAmount) - object.amountEnd)
+                        if(reservationObject.paymentAmount<0)
+                            reservationObject.paymentAmount = 0
+                        reservationObject.paymentConfirmation = reservationObject.paymentAmount>=reservationObject.paid
+                        await reservationObject.save()
+                    }
+                    else if(object.refund) {
+                        let refundObject = await Refund.findById(object.refund)
+                        refundObject.paymentAmount = checkFloat(checkFloat(refundObject.paymentAmount) - object.amountEnd)
+                        if(refundObject.paymentAmount<0)
+                            refundObject.paymentAmount = 0
+                        refundObject.paymentConfirmation = refundObject.paymentAmount>=refundObject.paid
+                        await refundObject.save()
+                    }
+                    else if(object.sale) {
+                        let saleObject = await Sale.findById(object.sale)
+                        saleObject.paymentAmount = checkFloat(checkFloat(saleObject.paymentAmount) - object.amountEnd)
+                        if(saleObject.paymentAmount<0)
+                            saleObject.paymentAmount = 0
+                        saleObject.paymentConfirmation = saleObject.paymentAmount>=saleObject.paid
+                        await saleObject.save()
+                    }
                     if(object.installment)
                         setGridInstallment({_id: object.installment, newAmount: object.amountEnd, oldAmount: 0, month: object.installmentMonth, type: '-', user})
                     if(object.cashboxRecipient) {
@@ -1334,10 +1423,18 @@ const resolversMutation = {
                     object.installment = installment?installment:null
                     object.installmentMonth = installmentMonth?installmentMonth:null
                     //добавляем новые оплаты баланса
-                    if(reservation)
-                        await Reservation.updateOne({_id: reservation}, {paymentConfirmation: true})
-                    else if(refund)
-                        await Refund.updateOne({_id: refund}, {paymentConfirmation: true})
+                    if(reservation) {
+                        let reservationObject = await Reservation.findById(reservation)
+                        reservationObject.paymentAmount = checkFloat(checkFloat(reservationObject.paymentAmount) + object.amountEnd)
+                        reservationObject.paymentConfirmation = reservationObject.paymentAmount>=reservationObject.paid
+                        await reservationObject.save()
+                    }
+                    else if(refund) {
+                        let refundObject = await Refund.findById(refund)
+                        refundObject.paymentAmount = checkFloat(checkFloat(refundObject.paymentAmount) + object.amountEnd)
+                        refundObject.paymentConfirmation = refundObject.paymentAmount>=refundObject.paid
+                        await refundObject.save()
+                    }
                     else if(sale||order) {
                         let saleObject = await Sale.findById(sale?sale:order)
                         if(saleObject.installment) {
@@ -1346,7 +1443,8 @@ const resolversMutation = {
                             object.installment = installmentObject._id
                             object.installmentMonth = installmentObject.grid[0].month
                         }
-                        saleObject.paymentConfirmation = true
+                        saleObject.paymentAmount = checkFloat(checkFloat(saleObject.paymentAmount) + object.amountEnd)
+                        saleObject.paymentConfirmation = saleObject.paymentAmount>=saleObject.paid
                         await saleObject.save()
                     }
                     else if(installment)
@@ -1442,6 +1540,38 @@ const resolversMutation = {
                 }
                 if (amountEnd!=undefined&&object.amountEnd!=amountEnd) {
 
+                    if(object.order) {
+                        let orderObject = await Sale.findById(object.order)
+                        orderObject.paymentAmount = checkFloat(checkFloat(orderObject.paymentAmount) - object.amountEnd + amountEnd)
+                        if(orderObject.paymentAmount<0)
+                            orderObject.paymentAmount = 0
+                        orderObject.paymentConfirmation = orderObject.paymentAmount>=orderObject.paid
+                        await orderObject.save()
+                    }
+                    else if(object.reservation) {
+                        let reservationObject = await Reservation.findById(object.reservation)
+                        reservationObject.paymentAmount = checkFloat(checkFloat(reservationObject.paymentAmount) - object.amountEnd + amountEnd)
+                        if(reservationObject.paymentAmount<0)
+                            reservationObject.paymentAmount = 0
+                        reservationObject.paymentConfirmation = reservationObject.paymentAmount>=reservationObject.paid
+                        await reservationObject.save()
+                    }
+                    else if(object.refund) {
+                        let refundObject = await Refund.findById(object.refund)
+                        refundObject.paymentAmount = checkFloat(checkFloat(refundObject.paymentAmount) - object.amountEnd + amountEnd)
+                        if(refundObject.paymentAmount<0)
+                            refundObject.paymentAmount = 0
+                        refundObject.paymentConfirmation = refundObject.paymentAmount>=refundObject.paid
+                        await refundObject.save()
+                    }
+                    else if(object.sale) {
+                        let saleObject = await Sale.findById(object.sale)
+                        saleObject.paymentAmount = checkFloat(checkFloat(saleObject.paymentAmount) - object.amountEnd + amountEnd)
+                        if(saleObject.paymentAmount<0)
+                            saleObject.paymentAmount = 0
+                        saleObject.paymentConfirmation = saleObject.paymentAmount>=saleObject.paid
+                        await saleObject.save()
+                    }
                     if(object.installment)
                         setGridInstallment({_id: object.installment, newAmount: amountEnd, oldAmount: object.amountEnd, month: object.installmentMonth, type: '+', user})
 
@@ -1470,14 +1600,38 @@ const resolversMutation = {
             let object = await MoneyFlow.findOne({_id})
             if(object) {
 
-                if(object.order)
-                    await Sale.updateOne({_id: object.order}, {paymentConfirmation: false})
-                else if(object.reservation)
-                    await Reservation.updateOne({_id: object.reservation}, {paymentConfirmation: false})
-                else if(object.refund)
-                    await Refund.updateOne({_id: object.refund}, {paymentConfirmation: false})
-                else if(object.sale)
-                    await Sale.updateOne({_id: object.sale}, {paymentConfirmation: false})
+                if(object.order) {
+                    let orderObject = await Sale.findById(object.order)
+                    orderObject.paymentAmount = checkFloat(checkFloat(orderObject.paymentAmount) - object.amountEnd)
+                    if(orderObject.paymentAmount<0)
+                        orderObject.paymentAmount = 0
+                    orderObject.paymentConfirmation = orderObject.paymentAmount>=orderObject.paid
+                    await orderObject.save()
+                }
+                else if(object.reservation) {
+                    let reservationObject = await Reservation.findById(object.reservation)
+                    reservationObject.paymentAmount = checkFloat(checkFloat(reservationObject.paymentAmount) - object.amountEnd)
+                    if(reservationObject.paymentAmount<0)
+                        reservationObject.paymentAmount = 0
+                    reservationObject.paymentConfirmation = reservationObject.paymentAmount>=reservationObject.paid
+                    await reservationObject.save()
+                }
+                else if(object.refund) {
+                    let refundObject = await Refund.findById(object.refund)
+                    refundObject.paymentAmount = checkFloat(checkFloat(refundObject.paymentAmount) - object.amountEnd)
+                    if(refundObject.paymentAmount<0)
+                        refundObject.paymentAmount = 0
+                    refundObject.paymentConfirmation = refundObject.paymentAmount>=refundObject.paid
+                    await refundObject.save()
+                }
+                else if(object.sale) {
+                    let saleObject = await Sale.findById(object.sale)
+                    saleObject.paymentAmount = checkFloat(checkFloat(saleObject.paymentAmount) - object.amountEnd)
+                    if(saleObject.paymentAmount<0)
+                        saleObject.paymentAmount = 0
+                    saleObject.paymentConfirmation = saleObject.paymentAmount>=saleObject.paid
+                    await saleObject.save()
+                }
                 if(object.installment)
                     setGridInstallment({_id: object.installment, newAmount: object.amountEnd, oldAmount: 0, month: object.installmentMonth, type: '-', user})
 

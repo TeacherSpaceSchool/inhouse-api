@@ -20,6 +20,7 @@ const type = `
     number: String
     manager: User
     client: Client
+    paymentAmount: Float
     itemsRefund: [ItemFromList]
     amount: Float
     store: Store
@@ -279,7 +280,6 @@ const resolvers = {
     refunds: async(parent, {search, skip, manager, client, store, limit, dateStart, dateEnd, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
             if (dateStart) {
                 dateStart = new Date(dateStart)
                 dateStart.setHours(0, 0, 0, 0)
@@ -325,7 +325,6 @@ const resolvers = {
     refundsCount: async(parent, {search, client, store, manager, dateStart, dateEnd, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
-            if(['менеджер', 'менеджер/завсклад'].includes(user.role)) manager = user._id
             dateStart = checkDate(dateStart)
             dateStart.setHours(0, 0, 0, 0)
             if(dateEnd)
@@ -532,7 +531,10 @@ const resolversMutation = {
     },
     setRefund: async(parent, {_id, comment, status}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
-            let object = await Refund.findById(_id)
+            let object = await Refund.findOne({
+                _id,
+                ...['менеджер'/*, 'менеджер/завсклад'*/].includes(user.role)?{manager: user._id}:{}
+            })
             if(object&&object.status!=='принят') {
                 let history = new History({
                     who: user._id,

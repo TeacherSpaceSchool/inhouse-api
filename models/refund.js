@@ -24,6 +24,7 @@ const RefundSchema = mongoose.Schema({
         ref: 'StoreINHOUSE'
     },
     paymentConfirmation: Boolean,
+    paymentAmount: Number,
     amount: Number,
     comment: String,
     discount: Number,

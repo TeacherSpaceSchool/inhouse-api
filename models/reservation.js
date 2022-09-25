@@ -27,6 +27,7 @@ const ReservationSchema = mongoose.Schema({
     },
     term: Date,
     paid: Number,
+    paymentAmount: Number,
     typePayment: String,
     comment: String,
     status: String,

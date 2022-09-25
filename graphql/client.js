@@ -49,7 +49,16 @@ const resolvers = {
         if(['admin', 'менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист'].includes(user.role)) {
             let res =  await Client.find({
                 del: {$ne: true},
-                ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
+                ...search?{$or: [
+                    {name: {'$regex': search, '$options': 'i'}},
+                    {inn: {'$regex': search, '$options': 'i'}},
+                    {emails: {$elemMatch: {'$regex': search, '$options': 'i'}}},
+                    {phones: {$elemMatch: {'$regex': search, '$options': 'i'}}},
+                    {address: {'$regex': search, '$options': 'i'}},
+                    {address1: {'$regex': search, '$options': 'i'}},
+                    {work: {'$regex': search, '$options': 'i'}},
+                    {passport: {'$regex': search, '$options': 'i'}},
+                ]}:{},
                 ...level ? {level} : {}
             })
                 .sort('name')
@@ -104,7 +113,16 @@ const resolvers = {
         if(user.role) {
             let res = await Client.find({
                 del: {$ne: true},
-                ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
+                ...search?{$or: [
+                    {name: {'$regex': search, '$options': 'i'}},
+                    {inn: {'$regex': search, '$options': 'i'}},
+                    {emails: {$elemMatch: {'$regex': search, '$options': 'i'}}},
+                    {phones: {$elemMatch: {'$regex': search, '$options': 'i'}}},
+                    {address: {'$regex': search, '$options': 'i'}},
+                    {address1: {'$regex': search, '$options': 'i'}},
+                    {work: {'$regex': search, '$options': 'i'}},
+                    {passport: {'$regex': search, '$options': 'i'}},
+                ]}:{},
                 ...level ? {level} : {}
             })
                 .skip(skip != undefined ? skip : 0)
@@ -132,7 +150,16 @@ const resolvers = {
         if(['admin', 'менеджер', 'завсклад', 'кассир', 'доставщик', 'менеджер/завсклад', 'управляющий', 'юрист'].includes(user.role)) {
             return await Client.countDocuments({
                 del: {$ne: true},
-                ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {inn: {'$regex': search, '$options': 'i'}}]}:{},
+                ...search?{$or: [
+                    {name: {'$regex': search, '$options': 'i'}},
+                    {inn: {'$regex': search, '$options': 'i'}},
+                    {emails: {$elemMatch: {'$regex': search, '$options': 'i'}}},
+                    {phones: {$elemMatch: {'$regex': search, '$options': 'i'}}},
+                    {address: {'$regex': search, '$options': 'i'}},
+                    {address1: {'$regex': search, '$options': 'i'}},
+                    {work: {'$regex': search, '$options': 'i'}},
+                    {passport: {'$regex': search, '$options': 'i'}},
+                ]}:{},
                 ...level ? {level} : {}
             })
                 .lean()

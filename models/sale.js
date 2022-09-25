@@ -21,6 +21,7 @@ const SaleSchema = mongoose.Schema({
     geo: [Number],
     discount: Number,
     paymentConfirmation: Boolean,
+    paymentAmount: Number,
     cpa:  {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'CpaINHOUSE'

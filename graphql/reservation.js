@@ -22,6 +22,7 @@ const type = `
     amount: Float
     term: Date
     paid: Float
+    paymentAmount: Float
     typePayment: String
     comment: String
     currency: String
@@ -414,7 +415,7 @@ const resolversMutation = {
         if(['admin', 'менеджер', 'менеджер/завсклад'].includes(user.role)) {
             let object = await Reservation.findOne({
                 _id,
-                ...['менеджер', 'менеджер/завсклад'].includes(user.role)?{manager: user._id}:{}
+                ...['менеджер'/*, 'менеджер/завсклад'*/].includes(user.role)?{manager: user._id}:{}
             })
             if(object&&object.status==='обработка') {
                 let history = new History({
