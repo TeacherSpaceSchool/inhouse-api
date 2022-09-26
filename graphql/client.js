@@ -128,7 +128,11 @@ const resolvers = {
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
                 .sort('name')
-                .select('_id created name geo inn level address')
+                .select('_id created name geo inn level address user')
+                .populate({
+                    path: 'user',
+                    select: 'name role _id'
+                })
                 .lean()
             return res
         }
