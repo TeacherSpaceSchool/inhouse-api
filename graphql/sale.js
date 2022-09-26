@@ -63,7 +63,7 @@ const queryUnload = `
     unloadBonusManagerSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadBonusCpaSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadDeliveries(search: String, _id: ID, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): String
-    unloadSales(search: String, manager: ID, type: String, category: String, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
+    unloadSales(search: String, installment: Boolean, manager: ID, type: String, category: String, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
     unloadFactorySales(manager: ID, type: String, category: String, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
 `;
 
@@ -1113,7 +1113,7 @@ const resolversUnload = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    unloadSales: async(parent, {search, type, category, cost, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
+    unloadSales: async(parent, {search, type, category, installment, cost, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -1144,6 +1144,7 @@ const resolversUnload = {
                         ...order===true?{order: true}:order===false?{order: {$ne: true}}:{},
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
+                        ...installment?{installment: {$ne: null}}:{},
                         ...client?{client}:{},
                         ...store?{store}:{},
                         ...promotion?{promotion}:{},
@@ -1403,8 +1404,8 @@ const resolversUnload = {
 const query = `
     getAttachmentSale(_id: ID!): String
     salesBonusManager: [Float]
-    sales(search: String, order: Boolean, skip: Int, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): [Sale]
-    salesCount(search: String, order: Boolean, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): Int
+    sales(search: String, order: Boolean, installment: Boolean, skip: Int, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): [Sale]
+    salesCount(search: String, order: Boolean, installment: Boolean, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): Int
     sale(_id: ID!): Sale
     prepareAcceptOrder(_id: ID!): [ID]
 `;
@@ -1427,7 +1428,7 @@ const resolvers = {
                 })
                 .populate({
                     path: 'client',
-                    select: '_id name phones'
+                    select: '_id name phones address'
                 })
                 .populate({
                     path: 'store',
@@ -1537,7 +1538,7 @@ const resolvers = {
             return [sales.length, allSalesAmount, bonusManager]
         }
     },
-    sales: async(parent, {search, skip, limit, order, items, manager, client, cpa, dateStart, dateEnd, delivery, status, store, promotion}, {user}) => {
+    sales: async(parent, {search, installment, skip, limit, order, items, manager, client, cpa, dateStart, dateEnd, delivery, status, store, promotion}, {user}) => {
         if(['admin', 'управляющий', 'доставщик',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -1565,6 +1566,7 @@ const resolvers = {
                 ...promotion?{promotion}:{},
                 ...client?{client}:{},
                 ...store?{store}:{},
+                ...installment?{installment: {$ne: null}}:{},
                 ...cpa?{cpa}:{},
                 ...delivery||dateStart?{$and: [
                     ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[],
@@ -1636,7 +1638,7 @@ const resolvers = {
             return res
         }
     },
-    salesCount: async(parent, {order, search, promotion, manager, client, cpa, dateStart, dateEnd, delivery, status, store}, {user}) => {
+    salesCount: async(parent, {order, installment, search, promotion, manager, client, cpa, dateStart, dateEnd, delivery, status, store}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'доставщик', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -1665,6 +1667,7 @@ const resolvers = {
                 ...promotion?{promotion}:{},
                 ...store?{store}:{},
                 ...cpa?{cpa}:{},
+                ...installment?{installment: {$ne: null}}:{},
                 $and: [
                     ...dateStart?[{createdAt: {$gte: dateStart}}, {createdAt: {$lt: dateEnd}}]:[],
                     ...delivery?[{delivery: {$gte: deliveryStart}}, {delivery: {$lt: deliveryEnd}}]:[]

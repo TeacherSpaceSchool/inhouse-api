@@ -57,7 +57,7 @@ const statsCollection = async (collection) => {
 }
 
 const checkInt = (int) => {
-    return isNaN(parseInt(int))?0:parseInt(int)
+    return isNaN(checkInt(int))?0:checkInt(int)
 }
 
 const checkFloat = (float) => {
