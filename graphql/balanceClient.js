@@ -3,6 +3,7 @@ const Installment = require('../models/installment');
 const Client = require('../models/client');
 const Sale = require('../models/sale');
 const Reservation = require('../models/reservation');
+const Refund = require('../models/refund');
 const { urlMain } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
@@ -15,6 +16,10 @@ const type = `
     createdAt: Date
     client: Client
     balance: Float
+    sale: Float
+    order: Float
+    reservation: Float
+    refund: Float
   }
 `;
 
@@ -117,9 +122,25 @@ const resolvers = {
             worksheet.getColumn(2).width = 30
             worksheet.getRow(1).getCell(2).font = {bold: true};
             worksheet.getRow(1).getCell(2).value = 'Баланс'
+            worksheet.getColumn(3).width = 15
+            worksheet.getRow(1).getCell(3).font = {bold: true};
+            worksheet.getRow(1).getCell(3).value = 'Продажа'
+            worksheet.getColumn(4).width = 15
+            worksheet.getRow(1).getCell(4).font = {bold: true};
+            worksheet.getRow(1).getCell(4).value = 'На заказ'
+            worksheet.getColumn(5).width = 15
+            worksheet.getRow(1).getCell(5).font = {bold: true};
+            worksheet.getRow(1).getCell(5).value = 'Бронь'
+            worksheet.getColumn(6).width = 15
+            worksheet.getRow(1).getCell(6).font = {bold: true};
+            worksheet.getRow(1).getCell(6).value = 'Возврат'
             for(let i = 0; i < res.length; i++) {
                 worksheet.getRow(i+2).getCell(1).value = res[i].client.name
                 worksheet.getRow(i+2).getCell(2).value = res[i].balance
+                worksheet.getRow(i+2).getCell(3).value = await Sale.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}, order: {$ne: true}}).lean()
+                worksheet.getRow(i+2).getCell(4).value = await Sale.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}, order: true}).lean()
+                worksheet.getRow(i+2).getCell(5).value = await Reservation.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}}).lean()
+                worksheet.getRow(i+2).getCell(6).value = await Refund.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}}).lean()
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -213,6 +234,12 @@ const resolvers = {
                 })
                 .sort('-updatedAt')
                 .lean()
+            for(let i = 0; i < res.length; i++) {
+                res[i].sale = await Sale.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}, order: {$ne: true}}).lean()
+                res[i].order = await Sale.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}, order: true}).lean()
+                res[i].reservation = await Reservation.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}}).lean()
+                res[i].refund = await Refund.countDocuments({client: res[i].client._id, status: {$ne: 'отмена'}}).lean()
+            }
             return res
         }
     },
