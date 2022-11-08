@@ -1,6 +1,6 @@
 const User = require('../models/user');
 const History = require('../models/history');
-const jwtsecret = process.env.jwtsecret.trim();
+const jwtsecret = process.env.jwtsecret;
 const jwt = require('jsonwebtoken');
 const { saveFile, deleteFile, urlMain, pdDDMMYYYY } = require('../module/const');
 const ExcelJS = require('exceljs');

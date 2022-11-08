@@ -66,7 +66,7 @@ if(process.env.NODE_ENV!=='test') {
     });
     app.set('trust proxy', true)
     const corsOptions = {
-        origin: process.env.URL.trim(),
+        origin: process.env.URL,
         credentials: true
     };
     app.use(cors(corsOptions));

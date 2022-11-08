@@ -47,7 +47,7 @@ const resolversMutation = {
         return 'ERROR'
     },
     clearDB: async(parent, {password}, {user}) => {
-        if(user.role==='admin'&&password===process.env.passwordClearDB.trim()) {
+        if(user.role==='admin'&&password===process.env.passwordClearDB) {
             await clearDB()
             return 'OK'
         }

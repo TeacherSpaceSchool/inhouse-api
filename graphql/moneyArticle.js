@@ -35,6 +35,7 @@ const resolvers = {
         if(['admin', 'управляющий', 'кассир'].includes(user.role)) {
             let res = await MoneyArticle.find({
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{name: {$nin: ['Зарплата', 'Не указано']}},
+                del: {$ne: true},
             })
                 .sort('name')
                 .lean()

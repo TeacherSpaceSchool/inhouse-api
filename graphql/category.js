@@ -35,6 +35,7 @@ const resolvers = {
         if(user.role) {
             let res = await Category.find({
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{},
+                del: {$ne: true},
             })
                 .sort('name')
                 .lean()

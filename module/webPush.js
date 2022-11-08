@@ -1,7 +1,7 @@
 const Subscriber = require('../models/subscriber');
 const q = require('q');
 const webPush = require('web-push');
-const keys = require((process.env.URL).trim()!=='http://localhost'?'./../config/keys_prod':'./../config/keys_dev');
+const keys = require(process.env.NODE_ENV==='production'?'./../config/keys_prod':'./../config/keys_dev');
 
 let sendWebPush = async({title, message, tag, url, icon, user, users}) => {
     const payload = {

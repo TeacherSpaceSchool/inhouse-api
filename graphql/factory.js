@@ -34,6 +34,7 @@ const resolvers = {
     unloadFactorys: async(parent, {search}, {user}) => {
         if(['admin', 'менеджер/завсклад', 'завсклад', 'управляющий'].includes(user.role)) {
             let res = await Factory.find({
+                del: {$ne: true},
                 ...search?{name: {'$regex': search, '$options': 'i'}}:{},
             })
                 .sort('name')
