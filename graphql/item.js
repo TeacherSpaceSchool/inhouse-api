@@ -4,6 +4,7 @@ const BalanceItem = require('../models/balanceItem');
 const StoreBalanceItem = require('../models/storeBalanceItem');
 const History = require('../models/history');
 const Category = require('../models/category');
+const Reservation = require('../models/reservation');
 const Factory = require('../models/factory');
 const mongoose = require('mongoose');
 const { saveImage, saveFile, deleteFile, urlMain, checkFloat } = require('../module/const');
@@ -43,6 +44,7 @@ const query = `
     typeItems(search: String): [Item]
     unloadItems(search: String, type: String, category: ID, factory: ID): String
     items(skip: Int, store: ID, limit: Int, type: String, search: String, category: ID, factory: ID, catalog: Boolean): [Item]
+    zeroItems(client: ID!, type: String, search: String, category: ID, factory: ID): [Item]
     itemsCount(search: String, category: ID, type: String, factory: ID): Int
     item(_id: String!): Item
 `;
@@ -171,9 +173,9 @@ const resolvers = {
                 cell += 1
                 worksheet.getRow(i+2).getCell(cell).value = res[i].priceKGS
                 cell += 1
-                worksheet.getRow(i+2).getCell(cell).value = res[i].priceUSD
-                cell += 1
                 worksheet.getRow(i+2).getCell(cell).value = res[i].primeCostUSD
+                cell += 1
+                worksheet.getRow(i+2).getCell(cell).value = res[i].primeCostKGS
                 cell += 1
                 worksheet.getRow(i+2).getCell(cell).value = res[i].discount
                 cell += 1
@@ -229,6 +231,57 @@ const resolvers = {
                 for(let i=0; i<res.length; i++) {
                     res[i].free = catalogItems.free[res[i]._id]
                 }
+            }
+            return res
+        }
+    },
+    zeroItems: async(parent, {client, search, category, factory, type}, {user}) => {
+        if(user.role) {
+            const reservations = await Reservation.find({
+                store: user.store,
+                manager: user._id,
+                client,
+                status: 'обработка'
+            })
+                .select('itemsReservation')
+                .populate({
+                    path: 'itemsReservation',
+                    select: 'item'
+                })
+                .lean()
+            let itemsFromReservation = []
+            for(let i = 0; i < reservations.length; i++) {
+                for(let i1 = 0; i1 < reservations[i].itemsReservation.length; i1++) {
+                    itemsFromReservation.push(reservations[i].itemsReservation[i1].item)
+                }
+            }
+            const zeroBalanceItems = await StoreBalanceItem.find({
+                store: user.store,
+                item: {$in: itemsFromReservation},
+                free: 0
+            })
+                .distinct('item')
+                .lean()
+            let res = await Item.find({
+                del: {$ne: true},
+                _id: {$in: zeroBalanceItems},
+                ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {ID: {'$regex': search, '$options': 'i'}}]}:{},
+                ...category?{category}:{},
+                ...factory?{factory}:{},
+                ...type?{type}:{}
+            })
+                .populate({
+                    path: 'category',
+                    select: 'name _id'
+                })
+                .populate({
+                    path: 'factory',
+                    select: 'name _id'
+                })
+                .sort('name')
+                .lean()
+            for(let i=0; i<res.length; i++) {
+                res[i].free = 0
             }
             return res
         }
