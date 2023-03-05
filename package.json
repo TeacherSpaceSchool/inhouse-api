@@ -4,8 +4,7 @@
     "private": true,
     "scripts": {
         "develop": "set URL=http://localhost&& set jwtsecret=QWERTY1234&& set passwordClearDB=12345678&& set adminlogin=admin&& set adminpass=12345678&& nodemon ./bin/develop",
-        "start": "set NODE_ENV=production&& set URL=http://localhost&& set jwtsecret=QWERTY1234&& set passwordClearDB=1234567&& set adminlogin=admin&& set adminpass=12345678&& node ./bin/www",
-        "testing": "set NODE_ENV=test&& set URL=http://localhost&& jest"
+        "start": "set NODE_ENV=production&& set URL=http://localhost&& set jwtsecret=QWERTY1234&& set passwordClearDB=1234567&& set adminlogin=admin&& set adminpass=12345678&& node ./bin/www"
     },
     "dependencies": {
         "@graphql-tools/schema": "^8.3.10",
@@ -57,18 +56,11 @@
         "xmlbuilder": "15.1.1"
     },
     "devDependencies": {
-        "@shelf/jest-mongodb": "^2.2.2",
         "babel-cli": "^6.26.0",
         "babel-eslint": "^8.2.6",
         "babel-preset-env": "^1.7.0",
         "eslint": "^5.16.0",
         "eslint-loader": "^3.0.0",
-        "jest": "^28.0.2",
-        "nodemon": "^1.18.9",
-        "superagent": "^7.1.3",
-        "supertest": "^6.2.3"
-    },
-    "jest": {
-        "preset": "@shelf/jest-mongodb"
+        "nodemon": "^1.18.9"
     }
 }
