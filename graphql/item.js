@@ -199,6 +199,7 @@ const resolvers = {
     },
     items: async(parent, {skip, store, limit, search, category, factory, catalog, type}, {user}) => {
         if(user.role) {
+            console.log({skip, store, limit, search, category, factory, catalog, type})
             let catalogItems = {items: [], free: {}}
             if(catalog&&(store||user.store)) {
                 const storeBalanceItems = await StoreBalanceItem.find({store: store?store:user.store, free: {$gt: 0}}).select('item free').lean()
