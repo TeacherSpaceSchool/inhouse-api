@@ -1588,7 +1588,7 @@ const resolvers = {
             })
                 .skip(skip != undefined ? skip : 0)
                 .limit(skip != undefined ? limit ? limit : 30 : 10000000000)
-                .sort(status==='доставка'?'-delivery':'-createdAt')
+                .sort(/*status==='доставка'?'-delivery':*/'-createdAt')
                 .populate({
                     path: 'manager',
                     select: '_id name'
