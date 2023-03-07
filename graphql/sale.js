@@ -1838,10 +1838,10 @@ const resolversMutation = {
             }
             //Проверка наличия
             if(!order) {
-                const reservations = await Reservation.find({_id: {$in: reservations}}).distinct('itemsReservation').lean()
+                const itemsReservations = await Reservation.find({_id: {$in: reservations}}).distinct('itemsReservation').lean()
                 for(let i=0; i<itemsSale.length; i++) {
                     let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsSale[i].item}).lean()
-                    const itemReservations = await ItemReservation.find({_id: {$in: reservations}, item: itemsSale[i].item}).select('count').lean()
+                    const itemReservations = await ItemReservation.find({_id: {$in: itemsReservations}, item: itemsSale[i].item}).select('count').lean()
                     for(let i=0; i<itemReservations.length; i++) {
                         storeBalanceItem.free += itemReservations[i].count
                     }
