@@ -158,14 +158,26 @@ const resolversMutation = {
     repairBalanceItems: async(parent, args, {user}) => {
         if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             let res =  await StoreBalanceItem.find({
-                sale: {$lt: 0}
+                $or: [
+                    {sale: {$lt: 0}},
+                    {reservation: {$lt: 0}}
+                ]
             })
             for(let i=0; i<res.length; i++) {
+                let sale = res[i].sale, reservation = res[i].reservation, free = res[i].free
+                if(sale<0) {
+                    free += sale;
+                    sale = 0;
+                }
+                if(reservation<0) {
+                    free += reservation;
+                    reservation = 0;
+                }
                 await StoreBalanceItem.updateMany({_id: res[i]._id}, {
-                    sale: 0,
-                    free: checkFloat(res[i].free+res[i].sale),
-                    reservation: res[i].reservation,
-                    amount: checkFloat(res[i].free+res[i].sale+res[i].reservation)
+                    sale,
+                    free,
+                    reservation,
+                    amount: checkFloat(free+sale+reservation)
                 })
             }
             return 'OK'

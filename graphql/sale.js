@@ -1836,6 +1836,19 @@ const resolversMutation = {
                     }
                 }
             }
+            //Проверка наличия
+            if(!order) {
+                const reservations = await Reservation.find({_id: {$in: reservations}}).distinct('itemsReservation').lean()
+                for(let i=0; i<itemsSale.length; i++) {
+                    let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsSale[i].item}).lean()
+                    const itemReservations = await ItemReservation.find({_id: {$in: reservations}, item: itemsSale[i].item}).select('count').lean()
+                    for(let i=0; i<itemReservations.length; i++) {
+                        storeBalanceItem.free += itemReservations[i].count
+                    }
+                    if(storeBalanceItem.free<itemsSale[i].count)
+                        return 'ERROR'
+                }
+            }
             //Бронь
             if(!order) {
                 let itemsReservation
@@ -1851,6 +1864,10 @@ const resolversMutation = {
                         })
                         storeBalanceItem.reservation = checkFloat(storeBalanceItem.reservation - itemsReservation[i1].count)
                         storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsReservation[i1].count)
+                        if (storeBalanceItem.reservation<0) {
+                            storeBalanceItem.free += storeBalanceItem.reservation;
+                            storeBalanceItem.reservation = 0;
+                        }
                         await storeBalanceItem.save()
                     }
                     await ItemReservation.updateMany({_id: {$in: reservations[i].itemsReservation}}, {status: 'продан'})
@@ -2346,9 +2363,11 @@ const resolversMutation = {
                                     item: itemsSale[i].item
                                 })
                                 storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
-                                /*if (storeBalanceItem.sale < 0)
-                                    storeBalanceItem.sale = 0*/
                                 storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
+                                if (storeBalanceItem.sale<0) {
+                                    storeBalanceItem.free += storeBalanceItem.sale;
+                                    storeBalanceItem.sale = 0;
+                                }
                                 await storeBalanceItem.save()
                             }
                         }

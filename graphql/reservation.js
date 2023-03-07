@@ -382,6 +382,12 @@ const resolvers = {
 const resolversMutation = {
     addReservation: async(parent, {client, itemsReservation, term, paid, typePayment, amount, comment, currency}, {user}) => {
         if(['менеджер', 'менеджер/завсклад'].includes(user.role)) {
+            //Проверка наличия
+            for(let i=0; i<itemsReservation.length; i++) {
+                let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsReservation[i].item}).lean()
+                if(storeBalanceItem.free<itemsReservation[i].count)
+                    return 'ERROR'
+            }
             for(let i=0; i<itemsReservation.length; i++) {
                 itemsReservation[i] = new ItemReservation(itemsReservation[i]);
                 let storeBalanceItem = await StoreBalanceItem.findOne({store: user.store, item: itemsReservation[i].item})
@@ -505,6 +511,10 @@ const resolversMutation = {
                             let storeBalanceItem = await StoreBalanceItem.findOne({store: object.store, item: itemsReservation[i].item})
                             storeBalanceItem.reservation = checkFloat(storeBalanceItem.reservation - itemsReservation[i].count)
                             storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsReservation[i].count)
+                            if (storeBalanceItem.reservation<0) {
+                                storeBalanceItem.free += storeBalanceItem.reservation;
+                                storeBalanceItem.reservation = 0;
+                            }
                             await storeBalanceItem.save()
                         }
                     }
