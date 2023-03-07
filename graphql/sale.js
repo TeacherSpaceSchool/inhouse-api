@@ -63,7 +63,7 @@ const queryUnload = `
     unloadBonusManagerSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadBonusCpaSales(manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
     unloadDeliveries(search: String, _id: ID, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): String
-    unloadSales(search: String, installment: Boolean, manager: ID, type: String, category: String, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
+    unloadSales(search: String, installment: Boolean, manager: ID, type: String, item: ID, category: String, cost: Boolean, order: Boolean, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID, _id: ID): String
     unloadFactorySales(manager: ID, type: String, category: String, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, status: String, store: ID): String
 `;
 
@@ -1113,7 +1113,7 @@ const resolversUnload = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    unloadSales: async(parent, {search, type, category, installment, cost, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
+    unloadSales: async(parent, {search, type, item, category, installment, cost, order, manager, promotion, client, cpa, dateStart, dateEnd, delivery, status, store, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'доставщик', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -1134,6 +1134,9 @@ const resolversUnload = {
                 deliveryEnd = new Date(deliveryStart)
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
+            if (item) {
+                item = await ItemSale.find({item}).distinct('_id').lean()
+            }
             let res = await Sale.find(
                 _id?
                     {
@@ -1141,6 +1144,7 @@ const resolversUnload = {
                     }
                     :
                     {
+                        ...item?{itemsSale: {$in: item}}:{},
                         ...order===true?{order: true}:order===false?{order: {$ne: true}}:{},
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
@@ -1404,8 +1408,8 @@ const resolversUnload = {
 const query = `
     getAttachmentSale(_id: ID!): String
     salesBonusManager: [Float]
-    sales(search: String, order: Boolean, installment: Boolean, skip: Int, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): [Sale]
-    salesCount(search: String, order: Boolean, installment: Boolean, manager: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): Int
+    sales(search: String, order: Boolean, installment: Boolean, skip: Int, item: ID, items: Boolean, promotion: ID, limit: Int, manager: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): [Sale]
+    salesCount(search: String, order: Boolean, installment: Boolean, manager: ID, item: ID, promotion: ID, client: ID, cpa: ID, dateStart: Date, dateEnd: Date, delivery: Date, status: String, store: ID): Int
     sale(_id: ID!): Sale
     prepareAcceptOrder(_id: ID!): [ID]
 `;
@@ -1538,7 +1542,7 @@ const resolvers = {
             return [sales.length, allSalesAmount, bonusManager]
         }
     },
-    sales: async(parent, {search, installment, skip, limit, order, items, manager, client, cpa, dateStart, dateEnd, delivery, status, store, promotion}, {user}) => {
+    sales: async(parent, {search, installment, skip, limit, order, item, items, manager, client, cpa, dateStart, dateEnd, delivery, status, store, promotion}, {user}) => {
         if(['admin', 'управляющий', 'доставщик',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -1559,7 +1563,11 @@ const resolvers = {
                 deliveryEnd = new Date(deliveryStart)
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
+            if (item) {
+                item = await ItemSale.find({item}).distinct('_id').lean()
+            }
             let res = await Sale.find({
+                ...item?{itemsSale: {$in: item}}:{},
                 ...order===true?{order: true}:order===false?{order: {$ne: true}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
@@ -1638,7 +1646,7 @@ const resolvers = {
             return res
         }
     },
-    salesCount: async(parent, {order, installment, search, promotion, manager, client, cpa, dateStart, dateEnd, delivery, status, store}, {user}) => {
+    salesCount: async(parent, {order, installment, search, promotion, item, manager, client, cpa, dateStart, dateEnd, delivery, status, store}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'доставщик', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let deliveryStart, deliveryEnd
@@ -1659,7 +1667,11 @@ const resolvers = {
                 deliveryEnd = new Date(deliveryStart)
                 deliveryEnd.setDate(deliveryEnd.getDate() + 1)
             }
+            if (item) {
+                item = await ItemSale.find({item}).distinct('_id').lean()
+            }
             return await Sale.countDocuments({
+                ...item?{itemsSale: {$in: item}}:{},
                 ...order===true?{order: true}:order===false?{order: {$ne: true}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
@@ -2334,6 +2346,8 @@ const resolversMutation = {
                                     item: itemsSale[i].item
                                 })
                                 storeBalanceItem.sale = checkFloat(storeBalanceItem.sale - itemsSale[i].count)
+                                /*if (storeBalanceItem.sale < 0)
+                                    storeBalanceItem.sale = 0*/
                                 storeBalanceItem.free = checkFloat(storeBalanceItem.free + itemsSale[i].count)
                                 await storeBalanceItem.save()
                             }

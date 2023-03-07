@@ -32,9 +32,9 @@ const type = `
 `;
 
 const query = `
-    unloadReservations(search: String, manager: ID, client: ID, store: ID, soon: Boolean, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean, _id: ID): String
-    reservations(search: String, skip: Int, items: Boolean, limit: Int, manager: ID, soon: Boolean, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean): [Reservation]
-    reservationsCount(search: String, manager: ID, client: ID, store: ID, soon: Boolean, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean): Int
+    unloadReservations(search: String, item: ID, manager: ID, client: ID, store: ID, soon: Boolean, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean, _id: ID): String
+    reservations(search: String, skip: Int, item: ID, items: Boolean, limit: Int, manager: ID, soon: Boolean, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean): [Reservation]
+    reservationsCount(search: String, manager: ID, item: ID, client: ID, store: ID, soon: Boolean, dateStart: Date, dateEnd: Date, status: String, late: Boolean, today: Boolean): Int
     reservation(_id: ID!): Reservation
 `;
 
@@ -44,7 +44,7 @@ const mutation = `
 `;
 
 const resolvers = {
-    unloadReservations: async(parent, {search, client, store, manager, dateStart, dateEnd, soon, status, late, today, _id}, {user}) => {
+    unloadReservations: async(parent, {search, item, client, store, manager, dateStart, dateEnd, soon, status, late, today, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let date
@@ -69,6 +69,9 @@ const resolvers = {
                 }
                 dateEnd.setHours(0, 0, 0, 0)
             }
+            if (item) {
+                item = await ItemRefund.find({item}).distinct('_id').lean()
+            }
             let res = await Reservation.find(
                 _id?
                     {
@@ -76,6 +79,7 @@ const resolvers = {
                     }
                     :
                     {
+                        ...item?{itemsReservation: {$in: item}}:{},
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
@@ -219,7 +223,7 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    reservations: async(parent, {search, skip, manager, items, client, store, soon, limit, dateStart, dateEnd, status, late, today}, {user}) => {
+    reservations: async(parent, {search, item, skip, manager, items, client, store, soon, limit, dateStart, dateEnd, status, late, today}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let date
@@ -244,7 +248,11 @@ const resolvers = {
                 }
                 dateEnd.setHours(0, 0, 0, 0)
             }
+            if (item) {
+                item = await ItemReservation.find({item}).distinct('_id').lean()
+            }
             let res = await Reservation.find({
+                ...item?{itemsReservation: {$in: item}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
@@ -292,7 +300,7 @@ const resolvers = {
             return res
         }
     },
-    reservationsCount: async(parent, {search, client, store, manager, dateStart, dateEnd, soon, status, late, today}, {user}) => {
+    reservationsCount: async(parent, {search, item, client, store, manager, dateStart, dateEnd, soon, status, late, today}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             let date
@@ -317,7 +325,11 @@ const resolvers = {
                 }
                 dateEnd.setHours(0, 0, 0, 0)
             }
+            if (item) {
+                item = await ItemReservation.find({item}).distinct('_id').lean()
+            }
             return await Reservation.countDocuments({
+                ...item?{itemsReservation: {$in: item}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},

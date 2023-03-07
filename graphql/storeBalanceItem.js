@@ -1,5 +1,5 @@
 const StoreBalanceItem = require('../models/storeBalanceItem');
-const { urlMain } = require('../module/const');
+const { urlMain, checkFloat } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
 const path = require('path');
@@ -22,6 +22,10 @@ const query = `
     unloadStoreBalanceItems(item: ID, store: ID): String
     storeBalanceItems(item: ID, skip: Int, sort: String, store: ID): [StoreBalanceItem]
     storeBalanceItemsCount(item: ID, store: ID): Int
+`;
+
+const mutation = `
+    repairBalanceItems: String
 `;
 
 const resolvers = {
@@ -150,6 +154,28 @@ const resolvers = {
     },
 };
 
+const resolversMutation = {
+    repairBalanceItems: async(parent, args, {user}) => {
+        if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
+            let res =  await StoreBalanceItem.find({
+                sale: {$lt: 0}
+            })
+            for(let i=0; i<res.length; i++) {
+                await StoreBalanceItem.updateMany({_id: res[i]._id}, {
+                    sale: 0,
+                    free: checkFloat(res[i].free+res[i].sale),
+                    reservation: res[i].reservation,
+                    amount: checkFloat(res[i].free+res[i].sale+res[i].reservation)
+                })
+            }
+            return 'OK'
+        }
+        return 'ERROR'
+    },
+};
+
 module.exports.type = type;
+module.exports.mutation = mutation;
+module.exports.resolversMutation = resolversMutation;
 module.exports.query = query;
 module.exports.resolvers = resolvers;

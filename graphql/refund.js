@@ -34,9 +34,9 @@ const type = `
 
 const query = `
     getAttachmentRefund(_id: ID!): String
-    unloadRefunds(search: String, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String, _id: ID): String
-    refunds(search: String, skip: Int, limit: Int, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): [Refund]
-    refundsCount(search: String, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): Int
+    unloadRefunds(search: String, item: ID, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String, _id: ID): String
+    refunds(search: String, skip: Int, item: ID, limit: Int, manager: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): [Refund]
+    refundsCount(search: String, manager: ID, item: ID, client: ID, store: ID, dateStart: Date, dateEnd: Date, status: String): Int
     refund(_id: ID!): Refund
 `;
 
@@ -108,7 +108,7 @@ const resolvers = {
 
         }
     },
-    unloadRefunds: async(parent, {search, client, store, manager, dateStart, dateEnd, status, _id}, {user}) => {
+    unloadRefunds: async(parent, {search, item, client, store, manager, dateStart, dateEnd, status, _id}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             dateStart = checkDate(dateStart)
@@ -119,6 +119,9 @@ const resolvers = {
                 dateEnd = new Date(dateStart)
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
+            if (item) {
+                item = await ItemRefund.find({item}).distinct('_id').lean()
+            }
             let res = await Refund.find(
                 _id?
                     {
@@ -126,6 +129,7 @@ const resolvers = {
                     }
                     :
                     {
+                        ...item?{itemsRefund: {$in: item}}:{},
                         ...search?{number: search}:{},
                         ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                         ...client?{client}:{},
@@ -277,7 +281,7 @@ const resolvers = {
             return urlMain + '/xlsx/' + xlsxname
         }
     },
-    refunds: async(parent, {search, skip, manager, client, store, limit, dateStart, dateEnd, status}, {user}) => {
+    refunds: async(parent, {search, skip, manager, item, client, store, limit, dateStart, dateEnd, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             if (dateStart) {
@@ -291,7 +295,11 @@ const resolvers = {
                 }
                 dateEnd.setHours(0, 0, 0, 0)
             }
+            if (item) {
+                item = await ItemRefund.find({item}).distinct('_id').lean()
+            }
             let res = await Refund.find({
+                ...item?{itemsRefund: {$in: item}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},
@@ -322,7 +330,7 @@ const resolvers = {
             return res
         }
     },
-    refundsCount: async(parent, {search, client, store, manager, dateStart, dateEnd, status}, {user}) => {
+    refundsCount: async(parent, {search, client, item, store, manager, dateStart, dateEnd, status}, {user}) => {
         if(['admin', 'управляющий',  'кассир', 'менеджер', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
             if(user.store) store = user.store
             dateStart = checkDate(dateStart)
@@ -334,7 +342,11 @@ const resolvers = {
                 dateEnd.setDate(dateEnd.getDate() + 1)
             }
             dateEnd.setHours(0, 0, 0, 0)
+            if (item) {
+                item = await ItemRefund.find({item}).distinct('_id').lean()
+            }
             return await Refund.countDocuments({
+                ...item?{itemsRefund: {$in: item}}:{},
                 ...search?{number: search}:{},
                 ...user.role==='менеджер'?{manager: user._id}:manager?{manager}:{},
                 ...client?{client}:{},

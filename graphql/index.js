@@ -153,6 +153,7 @@ const typeDefs = gql`
         ${Promotion.mutation}
         ${Error.mutation}
         ${Faq.mutation}
+        ${StoreBalanceItem.mutation}
         ${Item.mutation}
         ${Passport.mutation}
         ${Refund.mutation}
@@ -286,6 +287,7 @@ const resolvers = {
         ...User.resolversMutation,
         ...Error.resolversMutation,
         ...Faq.resolversMutation,
+        ...StoreBalanceItem.resolversMutation,
         ...Item.resolversMutation,
         ...BalanceItem.resolversMutation,
         ...BonusManager.resolversMutation,
