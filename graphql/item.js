@@ -255,16 +255,21 @@ const resolvers = {
                     itemsFromReservation.push(reservations[i].itemsReservation[i1].item)
                 }
             }
-            const zeroBalanceItems = await StoreBalanceItem.find({
+            const balanceItems = await StoreBalanceItem.find({
                 store: user.store,
                 item: {$in: itemsFromReservation},
-                free: 0
+                //free: 0
             })
-                .distinct('item')
+                .select('item free')
                 .lean()
+            const freeItems = {}
+            for(let i = 0; i < balanceItems.length; i++) {
+                freeItems[balanceItems[i].item] = balanceItems[i].free
+                balanceItems[i] = balanceItems[i].item
+            }
             let res = await Item.find({
                 del: {$ne: true},
-                _id: {$in: zeroBalanceItems},
+                _id: {$in: balanceItems},
                 ...search?{$or: [{name: {'$regex': search, '$options': 'i'}}, {ID: {'$regex': search, '$options': 'i'}}]}:{},
                 ...category?{category}:{},
                 ...factory?{factory}:{},
@@ -281,7 +286,7 @@ const resolvers = {
                 .sort('name')
                 .lean()
             for(let i=0; i<res.length; i++) {
-                res[i].free = 0
+                res[i].free = freeItems[res[i]._id]
             }
             return res
         }
@@ -672,15 +677,21 @@ const resolversMutation = {
                 items[i].primeCostKGS = items[i].primeCostUSD*USD
                 if(ceil)
                     items[i].primeCostKGS = Math.ceil(items[i].primeCostKGS)
+                else
+                    items[i].primeCostKGS = checkFloat(items[i].primeCostKGS)
                 items[i].priceKGS = items[i].priceUSD*USD
                 if(ceil)
                     items[i].priceKGS = Math.ceil(items[i].priceKGS)
+                else
+                    items[i].priceKGS = checkFloat(items[i].priceKGS)
                 if(items[i].typeDiscount==='%')
                     items[i].priceAfterDiscountKGS = items[i].priceKGS - items[i].priceKGS/100*items[i].discount
                 else
                     items[i].priceAfterDiscountKGS = items[i].priceKGS - items[i].discount
                 if(ceil)
                     items[i].priceAfterDiscountKGS = Math.ceil(items[i].priceAfterDiscountKGS)
+                else
+                    items[i].priceAfterDiscountKGS = checkFloat(items[i].priceAfterDiscountKGS)
                 await items[i].save()
             }
             return 'OK'

@@ -53,7 +53,7 @@ const resolvers = {
             })
                 .populate({
                     path: 'manager',
-                    select: '_id name'
+                    select: '_id name phones'
                 })
                 .populate({
                     path: 'client',
@@ -66,24 +66,31 @@ const resolvers = {
                 .populate('itemsRefund')
                 .lean()
             let attachmentFile, workbook, worksheet
-            let doc = await Doc.findOne({}).select('name director').lean()
             let discountPrecent = checkFloat(refund.discount*100/checkFloat(refund.amount+refund.discount))
             attachmentFile = path.join(app.dirname, 'docs', refund.discount?'refund-discount.xlsx':'refund.xlsx');
             workbook = new ExcelJS.Workbook();
             workbook = await workbook.xlsx.readFile(attachmentFile);
             worksheet = workbook.worksheets[0];
-            worksheet.getRow(2).getCell(2).value = `Накладная на возврат от ${refund.createdAt.getDate()<10?'0':''}${refund.createdAt.getDate()} ${months[refund.createdAt.getMonth()]} ${refund.createdAt.getFullYear()} г`
-            worksheet.getRow(4).getCell(4).value = doc.name
+            worksheet.getRow(2).getCell(2).value = `Накладная возврата №${refund.number} от ${refund.createdAt.getDate()<10?'0':''}${refund.createdAt.getDate()} ${months[refund.createdAt.getMonth()]} ${refund.createdAt.getFullYear()} г`
             worksheet.getRow(6).getCell(4).value = refund.client.name
-            worksheet.getRow(8).getCell(4).value = refund.client.address
+            worksheet.getRow(7).getCell(4).value = refund.client.address
             worksheet.getRow(9).getCell(4).value = (refund.client.phones.map(phone=>`+996${phone}`)).toString()
             worksheet.getRow(19).getCell(4).value = refund.manager.name
-            worksheet.getRow(14).getCell(7).value = refund.amount
+            if(refund.manager.phones)
+                worksheet.getRow(20).getCell(4).value = (refund.manager.phones.map(phone=>`+996${phone}`)).toString()
             worksheet.getRow(23).getCell(4).value = refund.comment
             worksheet.getRow(28).getCell(4).value = refund.client.name
             if(refund.discount) {
+                worksheet.getRow(14).getCell(7).value = checkFloat(refund.amount+refund.discount)
                 worksheet.getRow(14).getCell(8).value = refund.discount
-                worksheet.getRow(14).getCell(9).value = checkFloat(refund.amount+refund.discount)
+                worksheet.getRow(14).getCell(9).value = refund.amount
+                worksheet.getRow(16).getCell(9).value = checkFloat(refund.paymentAmount)
+                worksheet.getRow(17).getCell(9).value = checkFloat(refund.amount - checkFloat(refund.paymentAmount))
+            }
+            else {
+                worksheet.getRow(14).getCell(7).value = refund.amount
+                worksheet.getRow(16).getCell(8).value = checkFloat(refund.paymentAmount)
+                worksheet.getRow(17).getCell(8).value = checkFloat(refund.amount - checkFloat(refund.paymentAmount))
             }
             worksheet.duplicateRow(13, refund.itemsRefund.length-1, true)
             for(let i=0; i<refund.itemsRefund.length; i++) {

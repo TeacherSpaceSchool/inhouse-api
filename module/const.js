@@ -62,7 +62,7 @@ const checkInt = (int) => {
 
 const checkFloat = (float) => {
     float = parseFloat(float)
-    return isNaN(float)?0:Math.round(float * 10)/10
+    return isNaN(float)?0:Math.round(float * 100)/100
 }
 
 module.exports.checkDate = (date) => {

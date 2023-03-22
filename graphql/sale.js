@@ -1448,27 +1448,27 @@ const resolvers = {
                 workbook = new ExcelJS.Workbook();
                 workbook = await workbook.xlsx.readFile(attachmentFile);
                 worksheet = workbook.worksheets[0];
-                worksheet.getRow(7).getCell(2).value = doc.name
-                worksheet.getRow(11).getCell(3).value = sale.client.name
-                worksheet.getRow(20).getCell(4).value = sale.client.name
-                worksheet.getRow(22).getCell(4).value = doc.director
-                worksheet.getRow(24).getCell(4).value = sale.manager.name
-                worksheet.getRow(16).getCell(10).value = sale.amountStart
-                if(sale.discount) {
-                    worksheet.getRow(17).getCell(10).value = sale.discount
-                    worksheet.getRow(18).getCell(10).value = sale.amountEnd
-                }
-                else {
-                    worksheet.spliceRows(17, 2)
-                }
-                worksheet.duplicateRow(15, sale.itemsSale.length-1, true)
+                worksheet.getRow(9).getCell(5).value = pdDDMMYYYY(sale.createdAt)
+                worksheet.getRow(10).getCell(5).value = sale.client.name
+                worksheet.getRow(11).getCell(5).value = (sale.client.phones.map(phone=>`+996${phone}`)).toString()
+                worksheet.getRow(10).getCell(5).value = sale.client.address
+                worksheet.getRow(15).getCell(12).value = sale.amountStart
+                worksheet.getRow(15).getCell(13).value = sale.discount
+                worksheet.getRow(15).getCell(14).value = sale.amountEnd
+                worksheet.getRow(16).getCell(12).value = `${sale.discount*100/sale.amountStart}%`
+                worksheet.getRow(17).getCell(12).value = sale.amountEnd
+
+                worksheet.duplicateRow(14, sale.itemsSale.length-1, true)
                 for(let i=0; i<sale.itemsSale.length; i++) {
-                    let row = 15+i
-                    worksheet.getRow(row).getCell(3).value = sale.itemsSale[i].factory
-                    worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].name
-                    worksheet.getRow(row).getCell(5).value = sale.itemsSale[i].count
-                    worksheet.getRow(row).getCell(9).value = sale.itemsSale[i].price
-                    worksheet.getRow(row).getCell(10).value = sale.itemsSale[i].amount
+                    let row = 14+i
+                    worksheet.getRow(row).getCell(3).value = i+1
+                    worksheet.getRow(row).getCell(4).value = sale.itemsSale[i].factory
+                    worksheet.getRow(row).getCell(5).value = sale.itemsSale[i].name
+                    worksheet.getRow(row).getCell(7).value = sale.itemsSale[i].count
+                    worksheet.getRow(row).getCell(11).value = sale.itemsSale[i].price
+                    worksheet.getRow(row).getCell(12).value = sale.itemsSale[i].amount
+                    worksheet.getRow(row).getCell(13).value = sale.itemsSale[i].amount*sale.discount/sale.amountStart
+                    worksheet.getRow(row).getCell(14).value = sale.itemsSale[i].amount - sale.itemsSale[i].amount*sale.discount/sale.amountStart
                 }
             }
             else {
@@ -1476,25 +1476,27 @@ const resolvers = {
                 workbook = new ExcelJS.Workbook();
                 workbook = await workbook.xlsx.readFile(attachmentFile);
                 worksheet = workbook.worksheets[0];
-                worksheet.getRow(2).getCell(2).value = `Накладная  от ${sale.createdAt.getDate()<10?'0':''}${sale.createdAt.getDate()} ${months[sale.createdAt.getMonth()]} ${sale.createdAt.getFullYear()} г`
-                worksheet.getRow(4).getCell(4).value = doc.name
+                worksheet.getRow(2).getCell(2).value = `Накладная №${sale.number} от ${sale.createdAt.getDate()<10?'0':''}${sale.createdAt.getDate()} ${months[sale.createdAt.getMonth()]} ${sale.createdAt.getFullYear()} г`
                 worksheet.getRow(6).getCell(4).value = sale.client.name
-                worksheet.getRow(8).getCell(4).value = sale.client.address
+                worksheet.getRow(7).getCell(4).value = sale.client.address
                 worksheet.getRow(9).getCell(4).value = (sale.client.phones.map(phone=>`+996${phone}`)).toString()
+                worksheet.getRow(10).getCell(4).value = sale.typePayment
                 worksheet.getRow(14).getCell(7).value = sale.amountStart
                 worksheet.getRow(19).getCell(4).value = sale.manager.name
                 worksheet.getRow(23).getCell(4).value = sale.comment
-                worksheet.getRow(33).getCell(4).value = sale.client.name
+                worksheet.getRow(29).getCell(4).value = sale.client.name
+                worksheet.getRow(48).getCell(4).value = sale.delivery?pdDDMMYYYY(sale.delivery):''
                 if(sale.discount) {
                     worksheet.getRow(14).getCell(8).value = sale.discount
                     worksheet.getRow(14).getCell(9).value = sale.amountEnd
-                    worksheet.getRow(16).getCell(9).value = sale.paid
-                    worksheet.getRow(17).getCell(9).value = sale.amountEnd-sale.paid
+                    worksheet.getRow(15).getCell(9).value = `${checkFloat(sale.discount*100/sale.amountStart)}%`
+                    worksheet.getRow(16).getCell(9).value = checkFloat(sale.paymentAmount)
+                    worksheet.getRow(17).getCell(9).value = checkFloat(sale.amountEnd-checkFloat(sale.paymentAmount))
                 }
                 else {
                     worksheet.getRow(14).getCell(8).value = sale.amountEnd
-                    worksheet.getRow(16).getCell(8).value = sale.paid
-                    worksheet.getRow(17).getCell(8).value = sale.amountEnd-sale.paid
+                    worksheet.getRow(16).getCell(8).value = checkFloat(sale.paymentAmount)
+                    worksheet.getRow(17).getCell(8).value = checkFloat(sale.amountEnd-checkFloat(sale.paymentAmount))
                 }
                 worksheet.duplicateRow(13, sale.itemsSale.length-1, true)
                 for(let i=0; i<sale.itemsSale.length; i++) {

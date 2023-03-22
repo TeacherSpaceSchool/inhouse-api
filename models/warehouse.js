@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const WarehouseSchema = mongoose.Schema({
+    hide: Boolean,
     name: String,
     store: {
         type: mongoose.Schema.Types.ObjectId,

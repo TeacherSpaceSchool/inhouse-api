@@ -13,6 +13,7 @@ const mongoose = require('mongoose');
 const type = `
   type Warehouse {
     _id: ID
+    hide: Boolean,
     createdAt: Date
     name: String
     store: Store
@@ -29,7 +30,7 @@ const query = `
 
 const mutation = `
     uploadWarehouse(document: Upload!): String
-    addWarehouse(name: String!, store: ID!): Warehouse
+    addWarehouse(name: String!, store: ID!, hide: Boolean!): Warehouse
     setWarehouse(_id: ID!, name: String!): String
     deleteWarehouse(_id: ID!): String
 `;
@@ -157,11 +158,12 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    addWarehouse: async(parent, {name, store}, {user}) => {
+    addWarehouse: async(parent, {name, hide, store}, {user}) => {
         if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)&&await checkUniqueName(name, 'warehouse', store)) {
             let object = new Warehouse({
                 name,
-                store
+                store,
+                hide
             });
             object = await Warehouse.create(object)
             let history = new History({

@@ -39,7 +39,7 @@ const resolvers = {
                 .sort('-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit factory category',
+                    select: 'name _id unit factory category priceUSD primeCostUSD priceKGS primeCostKGS',
                     populate: [
                         {
                             path: 'factory',
@@ -86,6 +86,22 @@ const resolvers = {
             cell++
             worksheet.getRow(1).getCell(cell).font = {bold: true};
             worksheet.getRow(1).getCell(cell).value = 'Продажа'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Цена доллары'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Цена сомы'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Себес. доллары'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Себес. сомы'
             for(let i = 0; i < res.length; i++) {
                 cell = 1
                 worksheet.getRow(i+2).getCell(cell).value = res[i].store.name
@@ -103,6 +119,14 @@ const resolvers = {
                 worksheet.getRow(i+2).getCell(cell).value = res[i].reservation
                 cell++
                 worksheet.getRow(i+2).getCell(cell).value = res[i].sale
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.priceUSD
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.priceKGS
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.primeCostUSD
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.primeCostKGS
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -122,7 +146,7 @@ const resolvers = {
                 .sort(sort? sort : '-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit factory category',
+                    select: 'name _id unit factory category priceUSD primeCostUSD priceKGS primeCostKGS',
                     populate: [
                         {
                             path: 'factory',

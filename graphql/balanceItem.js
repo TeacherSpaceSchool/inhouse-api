@@ -47,7 +47,7 @@ const resolvers = {
                 .sort('-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit factory category',
+                    select: 'name _id unit factory category priceUSD primeCostUSD priceKGS primeCostKGS',
                     populate: [
                         {
                             path: 'factory',
@@ -93,6 +93,22 @@ const resolvers = {
             cell++
             worksheet.getRow(1).getCell(cell).font = {bold: true};
             worksheet.getRow(1).getCell(cell).value = 'Остаток'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Цена доллары'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Цена сомы'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Себес. доллары'
+            cell++
+            worksheet.getColumn(cell).width = 15
+            worksheet.getRow(1).getCell(cell).font = {bold: true};
+            worksheet.getRow(1).getCell(cell).value = 'Себес. сомы'
             for(let i = 0; i < res.length; i++) {
                 cell = 1
                 worksheet.getRow(i+2).getCell(cell).value = res[i].store.name
@@ -106,6 +122,14 @@ const resolvers = {
                 worksheet.getRow(i+2).getCell(cell).value = res[i].item.factory.name
                 cell++
                 worksheet.getRow(i+2).getCell(cell).value = res[i].amount
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.priceUSD
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.priceKGS
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.primeCostUSD
+                cell++
+                worksheet.getRow(i+2).getCell(cell).value = res[i].item.primeCostKGS
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
@@ -140,7 +164,7 @@ const resolvers = {
                 .sort(sort? sort : '-amount')
                 .populate({
                     path: 'item',
-                    select: 'name _id unit factory category',
+                    select: 'name _id unit factory category priceUSD primeCostUSD priceKGS primeCostKGS',
                     populate: [
                         {
                             path: 'factory',
@@ -188,21 +212,23 @@ const resolversMutation = {
             let workbook = new ExcelJS.Workbook();
             workbook = await workbook.xlsx.readFile(xlsxpath);
             let worksheet = workbook.worksheets[0];
-            let rowNumber = 1, row, object, item, warehouse, amount, store, nameWarehouse
+            let rowNumber = 1, row, object, item, warehouse, amount, store, nameWarehouse, hideWarehouse
+            // eslint-disable-next-line no-constant-condition
             while(true) {
                 row = worksheet.getRow(rowNumber);
                 amount = checkFloat(row.getCell(4).value)
                 if(row.getCell(1).value&&row.getCell(2).value&&row.getCell(3).value&&amount>=0) {
                     let diff = 0
                     store = (await Store.findOne({name: row.getCell(1).value}).select('_id').lean())._id
-                    warehouse = await Warehouse.findOne({name: row.getCell(2).value, store}).select('_id name').lean()
+                    warehouse = await Warehouse.findOne({name: row.getCell(2).value, store}).select('_id name hide').lean()
                     item = (await Item.findOne({name: row.getCell(3).value}).select('_id').lean())._id
                     nameWarehouse = warehouse.name
+                    hideWarehouse = warehouse.hide
                     warehouse = warehouse._id
                     object = await BalanceItem.findOne({item, warehouse});
                     let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
                     let check = true
-                    if(!['Брак', 'Реставрация'].includes(nameWarehouse)) {
+                    if(!hideWarehouse&&!['Брак', 'Реставрация'].includes(nameWarehouse)) {
                         if (!storeBalanceItem) {
                             storeBalanceItem = new StoreBalanceItem({
                                 store,
@@ -271,6 +297,7 @@ const resolversMutation = {
         if (['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)&&!(await BalanceItem.countDocuments({warehouse, item}).lean())) {
             let store = (await Warehouse.findById(warehouse).select('store').lean()).store
             let nameWarehouse = (await Warehouse.findById(warehouse).select('name').lean()).name
+            let hideWarehouse = (await Warehouse.findById(warehouse).select('hide').lean()).hide
             let object = new BalanceItem({
                 warehouse,
                 item,
@@ -278,7 +305,7 @@ const resolversMutation = {
                 store
             });
             object = await BalanceItem.create(object)
-            if(!['Брак', 'Реставрация'].includes(nameWarehouse)) {
+            if(!hideWarehouse&&!['Брак', 'Реставрация'].includes(nameWarehouse)) {
                 let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
                 if (!storeBalanceItem) {
                     storeBalanceItem = new StoreBalanceItem({
@@ -325,12 +352,13 @@ const resolversMutation = {
         if (['admin', 'завсклад',  'менеджер/завсклад'].includes(user.role)) {
             let object = await BalanceItem.findOne({item, warehouse});
             let nameWarehouse = (await Warehouse.findById(warehouse).select('name').lean()).name
+            let hideWarehouse = (await Warehouse.findById(warehouse).select('hide').lean()).hide
             let store = (await Warehouse.findOne({_id: warehouse}).select('store').lean()).store
             let unit = (await Item.findOne({_id: item}).select('unit').lean()).unit
             let storeBalanceItem = await StoreBalanceItem.findOne({store, item})
             let check = true
             let diff = 0
-            if(!['Брак', 'Реставрация'].includes(nameWarehouse)) {
+            if(!hideWarehouse&&!['Брак', 'Реставрация'].includes(nameWarehouse)) {
                 if (!storeBalanceItem) {
                     if (type !== '-') {
                         storeBalanceItem = new StoreBalanceItem({
