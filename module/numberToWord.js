@@ -87,7 +87,7 @@ module.exports = async (number, type) => {
         else if(i===1||i===4||i===7) {
             intWords = numbers['**'][int[i]] + intWords
         }
-        else if(i===2||i===3||i===8) {
+        else if(i===2||i===5||i===8) {
             intWords = numbers['***'][int[i]] + intWords
         }
     }
@@ -131,7 +131,7 @@ module.exports = async (number, type) => {
             else if(i===1||i===4||i===7) {
                 floatWords = numbers['**'][float[i]] + floatWords
             }
-            else if(i===2||i===3||i===8) {
+            else if(i===2||i===5||i===8) {
                 floatWords = numbers['***'][float[i]] + floatWords
             }
         }
