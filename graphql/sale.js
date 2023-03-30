@@ -1451,7 +1451,7 @@ const resolvers = {
                 worksheet.getRow(9).getCell(5).value = pdDDMMYYYY(sale.createdAt)
                 worksheet.getRow(10).getCell(5).value = sale.client.name
                 worksheet.getRow(11).getCell(5).value = (sale.client.phones.map(phone=>`+996${phone}`)).toString()
-                worksheet.getRow(10).getCell(5).value = sale.client.address
+                worksheet.getRow(12).getCell(5).value = sale.client.address
                 worksheet.getRow(15).getCell(12).value = sale.amountStart
                 worksheet.getRow(15).getCell(13).value = sale.discount
                 worksheet.getRow(15).getCell(14).value = sale.amountEnd
