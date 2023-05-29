@@ -94,14 +94,16 @@ const resolvers = {
             worksheet.getColumn(cell).width = 15
             worksheet.getRow(1).getCell(cell).font = {bold: true};
             worksheet.getRow(1).getCell(cell).value = 'Цена сомы'
-            cell++
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Себес. доллары'
-            cell++
-            worksheet.getColumn(cell).width = 15
-            worksheet.getRow(1).getCell(cell).font = {bold: true};
-            worksheet.getRow(1).getCell(cell).value = 'Себес. сомы'
+            if(['admin', 'управляющий'].includes(user.role)) {
+                cell++
+                worksheet.getColumn(cell).width = 15
+                worksheet.getRow(1).getCell(cell).font = {bold: true};
+                worksheet.getRow(1).getCell(cell).value = 'Себес. доллары'
+                cell++
+                worksheet.getColumn(cell).width = 15
+                worksheet.getRow(1).getCell(cell).font = {bold: true};
+                worksheet.getRow(1).getCell(cell).value = 'Себес. сомы'
+            }
             for(let i = 0; i < res.length; i++) {
                 cell = 1
                 worksheet.getRow(i+2).getCell(cell).value = res[i].store.name
@@ -123,10 +125,12 @@ const resolvers = {
                 worksheet.getRow(i+2).getCell(cell).value = res[i].item.priceUSD
                 cell++
                 worksheet.getRow(i+2).getCell(cell).value = res[i].item.priceKGS
-                cell++
-                worksheet.getRow(i+2).getCell(cell).value = res[i].item.primeCostUSD
-                cell++
-                worksheet.getRow(i+2).getCell(cell).value = res[i].item.primeCostKGS
+                if(['admin', 'управляющий'].includes(user.role)) {
+                    cell++
+                    worksheet.getRow(i + 2).getCell(cell).value = res[i].item.primeCostUSD
+                    cell++
+                    worksheet.getRow(i + 2).getCell(cell).value = res[i].item.primeCostKGS
+                }
             }
             let xlsxname = `${randomstring.generate(20)}.xlsx`;
             let xlsxpath = path.join(app.dirname, 'public', 'xlsx', xlsxname);
