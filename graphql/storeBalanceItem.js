@@ -1,4 +1,11 @@
 const StoreBalanceItem = require('../models/storeBalanceItem');
+const BalanceItem = require('../models/balanceItem');
+const Sale = require('../models/sale');
+const ItemSale = require('../models/itemSale');
+const Reservation = require('../models/reservation');
+const ItemReservation = require('../models/itemReservation');
+const Warehouse = require('../models/warehouse');
+const Store = require('../models/store');
 const { urlMain, checkFloat } = require('../module/const');
 const ExcelJS = require('exceljs');
 const app = require('../app');
@@ -185,28 +192,107 @@ const resolvers = {
 const resolversMutation = {
     repairBalanceItems: async(parent, args, {user}) => {
         if(['admin', 'менеджер/завсклад', 'завсклад'].includes(user.role)) {
-            let res =  await StoreBalanceItem.find({
-                $or: [
-                    {sale: {$lt: 0}},
-                    {reservation: {$lt: 0}}
-                ]
-            })
-            for(let i=0; i<res.length; i++) {
-                let sale = res[i].sale, reservation = res[i].reservation, free = res[i].free
-                if(sale<0) {
-                    free += sale;
-                    sale = 0;
+            const stores = await Store.find().distinct('_id').lean()
+            for(let x=0; x<stores.length; x++) {
+                const store = stores[x]
+                //Sale
+                let itemSales = await Sale.find({status: 'обработка', store, order: {$ne: true}}).distinct('itemsSale').lean()
+                itemSales = await ItemSale.find({_id: {$in: itemSales}}).lean()
+                const balanceItemSale = {}
+                for(let i=0; i<itemSales.length; i++) {
+                    if(!balanceItemSale[itemSales[i].item])
+                        balanceItemSale[itemSales[i].item] = 0
+                    balanceItemSale[itemSales[i].item] = checkFloat(balanceItemSale[itemSales[i].item] + itemSales[i].count)
                 }
-                if(reservation<0) {
-                    free += reservation;
-                    reservation = 0;
+                let keys = Object.keys(balanceItemSale)
+                for(let i=0; i<keys.length; i++) {
+                    const item = keys[i]
+                    let res =  await StoreBalanceItem.findOne({
+                        store,
+                        item,
+                        sale: {$ne: balanceItemSale[item]},
+                    })
+                    if(res) {
+                        let flawFree = res.amount-res.reservation-balanceItemSale[item]
+                        if(flawFree<0) {
+                            flawFree *= -1
+                            const warehouses = await Warehouse.find({
+                                name: {$nin: ['Брак', 'Реставрация']},
+                                hide: {$ne: true},
+                                store,
+                                del: {$ne: true}
+                            }).distinct('_id').lean()
+                            const balanceItem = await BalanceItem.findOne({store, warehouse: {$in: warehouses}, item})
+                            balanceItem.amount += flawFree
+                            await balanceItem.save()
+                        }
+                        else
+                            flawFree = 0
+                        await StoreBalanceItem.updateOne({_id: res._id}, {sale: balanceItemSale[item], amount: res.amount + flawFree})
+                    }
                 }
-                await StoreBalanceItem.updateMany({_id: res[i]._id}, {
-                    sale,
-                    free,
-                    reservation,
-                    amount: checkFloat(free+sale+reservation)
+                //Reservation
+                let itemReservations = await Reservation.find({status: 'обработка', store}).distinct('itemReservation').lean()
+                itemReservations = await ItemReservation.find({_id: {$in: itemSales}}).lean()
+                const balanceItemReservation = {}
+                for(let i=0; i<itemReservations.length; i++) {
+                    if(!balanceItemReservation[itemSales[i].item])
+                        balanceItemReservation[itemSales[i].item] = 0
+                    balanceItemReservation[itemReservations[i].item] = checkFloat(balanceItemReservation[itemReservations[i].item] + itemReservations[i].count)
+                }
+                keys = Object.keys(balanceItemReservation)
+                for(let i=0; i<keys.length; i++) {
+                    const item = keys[i]
+                    let res =  await StoreBalanceItem.findOne({
+                        store,
+                        item,
+                        reservation: {$ne: balanceItemReservation[item]},
+                    })
+                    if(res) {
+                        console.log(res)
+                        let flawFree = res.amount-res.sale-balanceItemReservation[item]
+                        if(flawFree<0) {
+                            flawFree *= -1
+                            const warehouses = await Warehouse.find({
+                                name: {$nin: ['Брак', 'Реставрация']},
+                                hide: {$ne: true},
+                                store,
+                                del: {$ne: true}
+                            }).distinct('_id').lean()
+                            const balanceItem = await BalanceItem.findOne({store, warehouse: {$in: warehouses}, item})
+                            balanceItem.amount += flawFree
+                            await balanceItem.save()
+                        }
+                        else
+                            flawFree = 0
+                        await StoreBalanceItem.updateOne({_id: res._id}, {reservation: balanceItemReservation[item], amount: res.amount + flawFree})
+                    }
+                }
+                //StoreBalanceItem
+                let res =  await StoreBalanceItem.find({
+                    store,
+                    $or: [
+                        {sale: {$lt: 0}},
+                        {reservation: {$lt: 0}}
+                    ]
                 })
+                for(let i=0; i<res.length; i++) {
+                    let sale = res[i].sale, reservation = res[i].reservation, free = res[i].free
+                    if(sale<0) {
+                        free += sale;
+                        sale = 0;
+                    }
+                    if(reservation<0) {
+                        free += reservation;
+                        reservation = 0;
+                    }
+                    await StoreBalanceItem.updateMany({_id: res[i]._id}, {
+                        sale,
+                        free,
+                        reservation,
+                        amount: checkFloat(free+sale+reservation)
+                    })
+                }
             }
             return 'OK'
         }
