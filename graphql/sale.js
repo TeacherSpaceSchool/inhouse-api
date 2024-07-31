@@ -2005,7 +2005,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setSale: async(parent, {_id, deliverymans, percentManager, selfDelivery, itemsSale, geo, discount, percentCpa, amountStart, amounАtEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
+    setSale: async(parent, {_id, deliverymans, percentManager, selfDelivery, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад', 'доставщик'].includes(user.role)) {
             let object = await Sale.findOne({
                 _id,
