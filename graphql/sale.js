@@ -1448,6 +1448,7 @@ const resolvers = {
                 workbook = new ExcelJS.Workbook();
                 workbook = await workbook.xlsx.readFile(attachmentFile);
                 worksheet = workbook.worksheets[0];
+                worksheet.getRow(8).getCell(3).value = doc?doc.name:'InHouse'
                 worksheet.getRow(9).getCell(5).value = pdDDMMYYYY(sale.createdAt)
                 worksheet.getRow(10).getCell(5).value = sale.client.name
                 worksheet.getRow(11).getCell(5).value = (sale.client.phones.map(phone=>`+996${phone}`)).toString()
@@ -1457,6 +1458,7 @@ const resolvers = {
                 worksheet.getRow(15).getCell(14).value = sale.amountEnd
                 worksheet.getRow(16).getCell(12).value = `${sale.discount*100/sale.amountStart}%`
                 worksheet.getRow(17).getCell(12).value = sale.amountEnd
+                worksheet.getRow(19).getCell(5).value = doc.director
 
                 worksheet.duplicateRow(14, sale.itemsSale.length-1, true)
                 for(let i=0; i<sale.itemsSale.length; i++) {
@@ -1477,6 +1479,7 @@ const resolvers = {
                 workbook = await workbook.xlsx.readFile(attachmentFile);
                 worksheet = workbook.worksheets[0];
                 worksheet.getRow(2).getCell(2).value = `Накладная №${sale.number} от ${sale.createdAt.getDate()<10?'0':''}${sale.createdAt.getDate()} ${months[sale.createdAt.getMonth()]} ${sale.createdAt.getFullYear()} г`
+                worksheet.getRow(4).getCell(4).value = doc?doc.name:'InHouse'
                 worksheet.getRow(6).getCell(4).value = sale.client.name
                 worksheet.getRow(7).getCell(4).value = sale.client.address
                 worksheet.getRow(9).getCell(4).value = (sale.client.phones.map(phone=>`+996${phone}`)).toString()
@@ -2002,7 +2005,7 @@ const resolversMutation = {
         }
         return 'ERROR'
     },
-    setSale: async(parent, {_id, deliverymans, percentManager, selfDelivery, itemsSale, geo, discount, percentCpa, amountStart, amountEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
+    setSale: async(parent, {_id, deliverymans, percentManager, selfDelivery, itemsSale, geo, discount, percentCpa, amountStart, amounАtEnd, address, addressInfo, comment, paid, delivery, status}, {user}) => {
         if(['admin', 'менеджер', 'менеджер/завсклад', 'завсклад', 'доставщик'].includes(user.role)) {
             let object = await Sale.findOne({
                 _id,

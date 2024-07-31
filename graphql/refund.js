@@ -65,12 +65,14 @@ const resolvers = {
                 })
                 .populate('itemsRefund')
                 .lean()
+            let doc = await Doc.findOne({}).select('name').lean()
             let attachmentFile, workbook, worksheet
             let discountPrecent = checkFloat(refund.discount*100/checkFloat(refund.amount+refund.discount))
             attachmentFile = path.join(app.dirname, 'docs', refund.discount?'refund-discount.xlsx':'refund.xlsx');
             workbook = new ExcelJS.Workbook();
             workbook = await workbook.xlsx.readFile(attachmentFile);
             worksheet = workbook.worksheets[0];
+            worksheet.getRow(4).getCell(4).value = doc?doc.name:'InHouse'
             worksheet.getRow(2).getCell(2).value = `Накладная возврата №${refund.number} от ${refund.createdAt.getDate()<10?'0':''}${refund.createdAt.getDate()} ${months[refund.createdAt.getMonth()]} ${refund.createdAt.getFullYear()} г`
             worksheet.getRow(6).getCell(4).value = refund.client.name
             worksheet.getRow(7).getCell(4).value = refund.client.address

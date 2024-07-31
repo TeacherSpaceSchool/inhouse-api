@@ -9,6 +9,7 @@ const Cashbox = require('../models/cashbox');
 const app = require('../app');
 const fs = require('fs');
 const path = require('path');
+const {repairBalanceItems} = require('../graphql/storeBalanceItem');
 
 connectDB.connect();
 if(!isMainThread) {
@@ -56,5 +57,7 @@ if(!isMainThread) {
                     console.log('nope')
             }
         });
+        //починка склада
+        await repairBalanceItems()
     });
 }
